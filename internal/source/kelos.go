@@ -242,8 +242,8 @@ func (k Kelos) taskTarget(t kelosTask) Target {
 // Vikunja task it works on (its label, else its agent branch).
 func taskParents(t kelosTask) []string {
 	var pr, task string
-	if url := t.Status.Results[resultPR]; url != "" {
-		pr = PRRef(url)
+	if prURL := t.Status.Results[resultPR]; prURL != "" {
+		pr = PRRef(prURL)
 	}
 	if id := t.Metadata.Labels[vikunjaTaskLabel]; id != "" {
 		task = VikunjaRef(id)

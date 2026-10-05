@@ -13,9 +13,9 @@ const (
 	branchLast = "└─ "
 	guideOpen  = "│  "
 	guideBlank = "   "
+	// noParent marks a root in a parent index.
+	noParent = -1
 )
-
-const noParent = -1
 
 // Entry is a row placed in the tree, with the guides drawn before its name.
 type Entry struct {
@@ -62,11 +62,10 @@ func Arrange(rows []source.Row) []Entry {
 	for _, r := range roots {
 		rankSubtree(nodes, r)
 	}
-	byRank := func(a, b int) int { return nodes[a].rank.compare(nodes[b].rank) }
-	slices.SortStableFunc(roots, byRank)
+	sortByRank(nodes, roots)
 	entries := make([]Entry, 0, len(rows))
 	for _, r := range roots {
-		entries = flatten(nodes, r, "", "", byRank, entries)
+		entries = flatten(nodes, r, "", "", entries)
 	}
 	return entries
 }
@@ -106,7 +105,8 @@ func reaches(parents []int, from, to int) bool {
 	return false
 }
 
-// rankSubtree sets the rank of i and its descendants.
+// rankSubtree sets the rank of i and its descendants, and sorts each
+// node's children by rank.
 func rankSubtree(nodes []node, i int) rank {
 	best := rank{group: group(nodes[i].row), since: nodes[i].row.Since}
 	for _, c := range nodes[i].children {
@@ -114,29 +114,26 @@ func rankSubtree(nodes []node, i int) rank {
 			best = r
 		}
 	}
+	sortByRank(nodes, nodes[i].children)
 	nodes[i].rank = best
 	return best
 }
 
-// flatten appends i and its sorted descendants in display order. guide is
-// what the ancestors draw; branch is i's own connector.
-func flatten(nodes []node, i int, guide, branch string, byRank func(a, b int) int, out []Entry) []Entry {
-	out = append(out, Entry{Row: nodes[i].row, Prefix: guide + branch})
-	children := slices.Clone(nodes[i].children)
-	slices.SortStableFunc(children, byRank)
-	childGuide := guide
-	switch branch {
-	case branchMid:
-		childGuide += guideOpen
-	case branchLast:
-		childGuide += guideBlank
-	}
+func sortByRank(nodes []node, ids []int) {
+	slices.SortStableFunc(ids, func(a, b int) int { return nodes[a].rank.compare(nodes[b].rank) })
+}
+
+// flatten appends i and its descendants in display order. prefix is drawn
+// before i's name; guide is what its ancestors draw before its children's.
+func flatten(nodes []node, i int, prefix, guide string, out []Entry) []Entry {
+	out = append(out, Entry{Row: nodes[i].row, Prefix: prefix})
+	children := nodes[i].children
 	for n, c := range children {
-		connector := branchMid
+		connector, continuation := branchMid, guideOpen
 		if n == len(children)-1 {
-			connector = branchLast
+			connector, continuation = branchLast, guideBlank
 		}
-		out = flatten(nodes, c, childGuide, connector, byRank, out)
+		out = flatten(nodes, c, guide+connector, guide+continuation, out)
 	}
 	return out
 }

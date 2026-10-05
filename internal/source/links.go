@@ -1,8 +1,6 @@
 package source
 
-import (
-	"strings"
-)
+import "strings"
 
 // Agent branches are named after the Vikunja task they work on.
 const (
