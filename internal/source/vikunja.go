@@ -206,6 +206,7 @@ func (v Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web s
 		Name:   "#" + strconv.Itoa(t.ID),
 		Detail: t.Title,
 		Target: Target{URL: VikunjaTaskURL(web, strconv.Itoa(t.ID))},
+		Ref:    VikunjaRef(strconv.Itoa(t.ID)),
 	}
 	if last == nil {
 		row.State, row.Since = stateInProgress, parseTime(t.Updated)

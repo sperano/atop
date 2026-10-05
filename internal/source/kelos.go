@@ -24,6 +24,7 @@ const (
 	stateRunning        = "running"
 	stateBlocked        = "blocked"
 	resultPR            = "pr"
+	resultBranch        = "branch"
 	// RecentDone is how long a finished Task stays listed; its PR then shows
 	// among the PR rows.
 	RecentDone = time.Hour
@@ -169,10 +170,11 @@ func (k Kelos) Tasks(ctx context.Context) ([]Row, error) {
 func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bool) {
 	st := t.Status
 	row := Row{
-		Source: SourceKelosTask,
-		Name:   t.Metadata.Name,
-		Detail: taskDetail(t),
-		Target: k.taskTarget(t),
+		Source:     SourceKelosTask,
+		Name:       t.Metadata.Name,
+		Detail:     taskDetail(t),
+		Target:     k.taskTarget(t),
+		ParentRefs: taskParents(t),
 	}
 	switch st.Phase {
 	case phaseSucceeded:
@@ -234,4 +236,19 @@ func (k Kelos) taskTarget(t kelosTask) Target {
 	logs := fmt.Sprintf("%s/api/resources/tasks/%s/%s/logs",
 		strings.TrimSuffix(k.ConsoleURL, "/"), url.PathEscape(k.Namespace), url.PathEscape(t.Metadata.Name))
 	return Target{URL: logs}
+}
+
+// taskParents links a Task to the PR it produced or follows up, then to the
+// Vikunja task it works on (its label, else its agent branch).
+func taskParents(t kelosTask) []string {
+	var pr, task string
+	if url := t.Status.Results[resultPR]; url != "" {
+		pr = PRRef(url)
+	}
+	if id := t.Metadata.Labels[vikunjaTaskLabel]; id != "" {
+		task = VikunjaRef(id)
+	} else if id, ok := branchTask(t.Status.Results[resultBranch]); ok {
+		task = VikunjaRef(id)
+	}
+	return nonEmpty(pr, task)
 }

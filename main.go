@@ -63,7 +63,6 @@ func run(cfg config.Config) error {
 
 func printOnce(fetch func(context.Context) []source.Row, tty, color bool) error {
 	rows := fetch(context.Background())
-	ui.SortRows(rows)
 	width := fallbackWidth
 	if tty {
 		if w, _, err := term.GetSize(os.Stdout.Fd()); err == nil {

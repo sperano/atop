@@ -26,7 +26,7 @@ const prQuery = `
 query($q: String!, $n: Int!) {
   search(query: $q, type: ISSUE, first: $n) {
     nodes { ... on PullRequest {
-      number title url isDraft updatedAt mergeable reviewDecision
+      number title url headRefName isDraft updatedAt mergeable reviewDecision
       repository { name }
       labels(first: 10) { nodes { name } }
       commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
@@ -43,6 +43,7 @@ type pullRequest struct {
 	Number         int    `json:"number"`
 	Title          string `json:"title"`
 	URL            string `json:"url"`
+	HeadRefName    string `json:"headRefName"`
 	IsDraft        bool   `json:"isDraft"`
 	UpdatedAt      string `json:"updatedAt"`
 	Mergeable      string `json:"mergeable"`
@@ -149,13 +150,23 @@ func prRow(pr pullRequest, stale Staleness) Row {
 		state, needsYou = StateStale, false
 	}
 	return Row{
-		Source:   SourcePR,
-		Name:     pr.Repository.Name + "#" + strconv.Itoa(pr.Number),
-		State:    state,
-		Since:    since,
-		Detail:   title,
-		NeedsYou: needsYou,
-		Busy:     busy,
-		Target:   Target{URL: pr.URL},
+		Source:     SourcePR,
+		Name:       pr.Repository.Name + "#" + strconv.Itoa(pr.Number),
+		State:      state,
+		Since:      since,
+		Detail:     title,
+		NeedsYou:   needsYou,
+		Busy:       busy,
+		Target:     Target{URL: pr.URL},
+		Ref:        PRRef(pr.URL),
+		ParentRefs: prParents(pr),
 	}
+}
+
+// prParents links an agent PR to the Vikunja task its branch is named after.
+func prParents(pr pullRequest) []string {
+	if id, ok := branchTask(pr.HeadRefName); ok {
+		return []string{VikunjaRef(id)}
+	}
+	return nil
 }

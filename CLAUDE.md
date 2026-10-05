@@ -55,6 +55,15 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
   with `…`); footer with key help and the last action or error. Needs-you rows
   are red with `●`, busy green, the rest dim. Sort: needs you, then busy, then
   the rest, each most recent first.
+- Tree: a row that obviously belongs to another shown row is nested under it,
+  with `├─`/`└─`/`│` guides before its NAME. Links, most specific first:
+  - PR → Vikunja task: head branch `kelos/vikunja-<id>`.
+  - Kelos Task → its PR (`status.results.pr`), else the Vikunja task (label
+    `vikunja.spe.quebec/task`, else `status.results.branch`
+    `kelos/vikunja-<id>`).
+  A row whose parents are not shown stays top-level. Each level is sorted by
+  the rule above, a subtree ranking as its most urgent, most recent row (a
+  failing PR lifts its Vikunja task). Counts and colours are per row.
 - Ages use the largest unit: `59s`, `1h`, `3d`.
 - `--once` prints one plain-text snapshot and exits. No colour when `NO_COLOR`
   is set or stdout is not a TTY.
