@@ -21,6 +21,9 @@ const (
 	VikunjaPageSize = 50
 	// commentFetchWorkers caps concurrent newest-comment lookups.
 	commentFetchWorkers = 8
+	// commentsPerPage is one so that the page count is the comment count.
+	commentsPerPage     = 1
+	firstPage           = 1
 	totalPagesHeader    = "X-Pagination-Total-Pages"
 	apiSuffix           = "/api/v1"
 	stateInProgress     = "in progress"
@@ -104,8 +107,8 @@ func (v Vikunja) Fetch(ctx context.Context) ([]Row, error) {
 }
 
 func (v Vikunja) token(ctx context.Context) (string, error) {
-	if v.Token != "" {
-		return v.Token, nil
+	if token := strings.TrimSpace(v.Token); token != "" {
+		return token, nil
 	}
 	jsonpath := fmt.Sprintf("jsonpath={.data.%s}", v.Secret.Key)
 	out, err := v.Run(ctx, "kubectl", "-n", v.Secret.Namespace, "get", "secret", v.Secret.Name, "-o", jsonpath)
@@ -116,7 +119,7 @@ func (v Vikunja) token(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decoding Vikunja token: %w", err)
 	}
-	return string(token), nil
+	return strings.TrimSpace(string(token)), nil
 }
 
 // get fetches a Vikunja API path into v and returns the response headers.
@@ -149,17 +152,28 @@ func (v Vikunja) inProgress(ctx context.Context, token string) ([]vikunjaTask, e
 		"per_page": {strconv.Itoa(VikunjaPageSize)},
 	}
 	var tasks []vikunjaTask
-	for page := 1; ; page++ {
+	for page := firstPage; ; page++ {
 		params.Set("page", strconv.Itoa(page))
 		var batch []vikunjaTask
-		if _, err := v.get(ctx, token, "/tasks", params, &batch); err != nil {
+		header, err := v.get(ctx, token, "/tasks", params, &batch)
+		if err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, batch...)
-		if len(batch) < VikunjaPageSize {
+		if lastPage(header, page, len(batch)) {
 			return tasks, nil
 		}
 	}
+}
+
+// lastPage reports whether page is the last one: by the total-pages header
+// when present, since the server may cap pages below VikunjaPageSize, else
+// by a short or empty batch.
+func lastPage(header http.Header, page, batchLen int) bool {
+	if total, err := strconv.Atoi(header.Get(totalPagesHeader)); err == nil {
+		return page >= total
+	}
+	return batchLen < VikunjaPageSize
 }
 
 // newestComment returns a task's newest comment, or nil when it has none.
@@ -167,7 +181,7 @@ func (v Vikunja) inProgress(ctx context.Context, token string) ([]vikunjaTask, e
 // is the comment count and the last page holds the newest.
 func (v Vikunja) newestComment(ctx context.Context, token string, taskID int) (*vikunjaComment, error) {
 	path := fmt.Sprintf("/tasks/%d/comments", taskID)
-	params := url.Values{"per_page": {"1"}, "page": {"1"}}
+	params := url.Values{"per_page": {strconv.Itoa(commentsPerPage)}, "page": {strconv.Itoa(firstPage)}}
 	var page []vikunjaComment
 	header, err := v.get(ctx, token, path, params, &page)
 	if err != nil {

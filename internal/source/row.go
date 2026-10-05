@@ -27,8 +27,10 @@ const (
 	StateBusy  = "busy"
 )
 
+// Day is a calendar day, for staleness and ages.
+const Day = 24 * time.Hour
+
 const (
-	hoursPerDay = 24
 	// snippetRunes caps the comment excerpt shown in a Vikunja row.
 	snippetRunes = 100
 	// zeroTimePrefix marks Go's zero time as Kubernetes serialises it.
@@ -72,7 +74,7 @@ type Staleness struct {
 
 // IsStale reports whether since is older than the staleness window.
 func (s Staleness) IsStale(since time.Time) bool {
-	window := time.Duration(s.Days) * hoursPerDay * time.Hour
+	window := time.Duration(s.Days) * Day
 	return !since.IsZero() && s.Now.Sub(since) > window
 }
 

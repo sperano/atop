@@ -18,11 +18,14 @@ import (
 	"github.com/sperano/atop/internal/ui"
 )
 
-// fallbackWidth is the --once width when stdout is not a terminal.
-const fallbackWidth = 120
+const (
+	appName = "atop"
+	// fallbackWidth is the --once width when stdout is not a terminal.
+	fallbackWidth = 120
+)
 
 func main() {
-	cfg, err := config.Parse(os.Args[0], os.Args[1:], os.Getenv)
+	cfg, err := config.Parse(appName, os.Args[1:], os.Getenv)
 	if errors.Is(err, flag.ErrHelp) {
 		return
 	}
@@ -39,10 +42,7 @@ func main() {
 }
 
 func run(cfg config.Config) error {
-	sources, err := buildSources(cfg)
-	if err != nil {
-		return err
-	}
+	sources := buildSources(cfg)
 	fetch := func(ctx context.Context) []source.Row { return source.FetchAll(ctx, sources) }
 	stdoutTTY := term.IsTerminal(os.Stdout.Fd())
 	color := stdoutTTY && os.Getenv("NO_COLOR") == ""
@@ -57,7 +57,7 @@ func run(cfg config.Config) error {
 		Interval: cfg.Interval,
 		Color:    color,
 	})
-	_, err = tea.NewProgram(model).Run()
+	_, err := tea.NewProgram(model).Run()
 	return err
 }
 
@@ -74,18 +74,14 @@ func printOnce(fetch func(context.Context) []source.Row, tty, color bool) error 
 	return err
 }
 
-func buildSources(cfg config.Config) ([]source.Named, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-	run := source.Runner(source.ExecRunner)
+func buildSources(cfg config.Config) []source.Named {
+	runner := source.Runner(source.ExecRunner)
 	vikunjaWeb := source.VikunjaWebBase(cfg.VikunjaURL)
 	kelos := source.Kelos{
 		Namespace: cfg.Namespace, ConsoleURL: cfg.ConsoleURL, VikunjaWeb: vikunjaWeb,
-		Run: run, Now: time.Now,
+		Run: runner, Now: time.Now,
 	}
-	github := source.GitHub{Owner: cfg.GitHubOwner, StaleDays: cfg.StaleDays, Run: run, Now: time.Now}
+	github := source.GitHub{Owner: cfg.GitHubOwner, StaleDays: cfg.StaleDays, Run: runner, Now: time.Now}
 	vikunja := source.Vikunja{
 		APIURL:          cfg.VikunjaURL,
 		Token:           os.Getenv("VIKUNJA_API_TOKEN"),
@@ -94,15 +90,24 @@ func buildSources(cfg config.Config) ([]source.Named, error) {
 		InProgressLabel: cfg.InProgressLabel,
 		StaleDays:       cfg.StaleDays,
 		Client:          &http.Client{},
-		Run:             run,
+		Run:             runner,
 		Now:             time.Now,
 	}
-	local := source.LocalSessions{Home: home, Alive: source.PIDAlive}
 	return []source.Named{
-		{Name: source.SourceLocal, Fetch: func(context.Context) ([]source.Row, error) { return local.Fetch() }},
+		{Name: source.SourceLocal, Fetch: fetchLocal},
 		{Name: source.SourceKelosSession, Fetch: kelos.Sessions},
 		{Name: source.SourceKelosTask, Fetch: kelos.Tasks},
 		{Name: source.SourcePR, Fetch: github.Fetch},
 		{Name: source.SourceVikunja, Fetch: vikunja.Fetch},
-	}, nil
+	}
+}
+
+// fetchLocal lists local sessions; a missing home directory fails only this
+// source.
+func fetchLocal(context.Context) ([]source.Row, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	return source.LocalSessions{Home: home, Alive: source.PIDAlive}.Fetch()
 }

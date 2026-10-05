@@ -29,6 +29,7 @@ go install github.com/sperano/atop@latest
 
 ## Requirements
 
+- macOS or Linux.
 - `kubectl` with a current context that can read the Kelos namespace (and the
   Vikunja token Secret, unless `VIKUNJA_API_TOKEN` is set).
 - `gh` logged in (`gh auth status`).

@@ -27,11 +27,11 @@ func ExecRunner(ctx context.Context, name string, args ...string) ([]byte, error
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		if msg := strings.TrimSpace(stderr.String()); msg != "" {
-			return nil, fmt.Errorf("%s: %w: %s", name, err, msg)
-		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, fmt.Errorf("%s: timed out after %s", name, CommandTimeout)
+		}
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return nil, fmt.Errorf("%s: %w: %s", name, err, msg)
 		}
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -53,7 +53,7 @@ func (l LocalSessions) Fetch() ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	var rows []Row
 	for _, path := range paths {
 		data, err := os.ReadFile(path)

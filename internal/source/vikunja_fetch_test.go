@@ -29,6 +29,9 @@ type vikunjaServer struct {
 	pages    []string // "<taskID>:<page>" for each comment request
 	filters  []string
 	status   int
+	// pageCap, when set, caps per_page like service.maxitemsperpage and
+	// sends the total-pages header on task lists.
+	pageCap int
 }
 
 func (s *vikunjaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +61,10 @@ func (s *vikunjaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *vikunjaServer) serveTasks(w http.ResponseWriter, page, perPage string) {
 	p, _ := strconv.Atoi(page)
 	n, _ := strconv.Atoi(perPage)
+	if s.pageCap > 0 {
+		n = min(n, s.pageCap)
+		w.Header()[pagesHeader] = []string{strconv.Itoa((len(s.tasks) + n - 1) / n)}
+	}
 	lo := min((p-1)*n, len(s.tasks))
 	hi := min(p*n, len(s.tasks))
 	_ = json.NewEncoder(w).Encode(s.tasks[lo:hi])
@@ -188,6 +195,26 @@ func TestVikunjaFetchPaginatesTasks(t *testing.T) {
 	}
 }
 
+func TestVikunjaFetchFollowsTotalPagesWhenServerCapsPageSize(t *testing.T) {
+	t.Parallel()
+	const (
+		serverCap = 2
+		taskCount = 5
+		wantPages = 3
+	)
+	s := &vikunjaServer{comments: map[int][]vikunjaComment{}, pageCap: serverCap}
+	for i := 1; i <= taskCount; i++ {
+		s.tasks = append(s.tasks, vikunjaTask{ID: i})
+	}
+	rows, err := newVikunja(t, s).Fetch(context.Background())
+	if err != nil || len(rows) != taskCount {
+		t.Fatalf("rows=%d err=%v, want %d rows", len(rows), err, taskCount)
+	}
+	if len(s.filters) != wantPages {
+		t.Errorf("task list requests = %d, want %d", len(s.filters), wantPages)
+	}
+}
+
 func TestVikunjaFetchExactFullPageAsksOnceMore(t *testing.T) {
 	t.Parallel()
 	s := &vikunjaServer{comments: map[int][]vikunjaComment{}}
@@ -256,6 +283,8 @@ func TestVikunjaToken(t *testing.T) {
 		wantCalls int
 	}{
 		{"explicit token wins", testToken, &fakeRunner{}, testToken, false, 0},
+		{"explicit token trimmed", testToken + "\n", &fakeRunner{}, testToken, false, 0},
+		{"secret token trimmed", "", &fakeRunner{replies: map[string]string{"get secret": base64.StdEncoding.EncodeToString([]byte(testToken + "\n"))}}, testToken, false, 1},
 		{"read from secret", "", &fakeRunner{replies: map[string]string{"get secret": encoded}}, testToken, false, 1},
 		{"bad base64", "", &fakeRunner{replies: map[string]string{"get secret": "!!!"}}, "", true, 1},
 		{"kubectl failure", "", &fakeRunner{errs: map[string]error{"get secret": errors.New("denied")}}, "", true, 1},

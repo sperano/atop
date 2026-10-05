@@ -100,7 +100,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshing = false
 		return m, nil
 	case tickMsg:
-		m, cmd := m.refresh()
+		var cmd tea.Cmd
+		m, cmd = m.refresh()
 		return m, tea.Batch(cmd, m.tickCmd())
 	case openedMsg:
 		m.status = "opened " + msg.what

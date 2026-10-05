@@ -26,7 +26,6 @@ const (
 	needsYouMark   = "●"
 	blankMark      = " "
 	unknownAge     = "-"
-	hoursPerDay    = 24
 )
 
 // fixedWidth is the width of every column but DETAIL, gaps included.
@@ -36,7 +35,7 @@ var ageUnits = []struct {
 	suffix string
 	size   time.Duration
 }{
-	{"d", hoursPerDay * time.Hour},
+	{"d", source.Day},
 	{"h", time.Hour},
 	{"m", time.Minute},
 	{"s", time.Second},
@@ -53,7 +52,7 @@ func FormatAge(since, now time.Time) string {
 			return fmt.Sprintf("%d%s", elapsed/u.size, u.suffix)
 		}
 	}
-	return "0s"
+	return "0" + ageUnits[len(ageUnits)-1].suffix
 }
 
 // fit truncates text to width display cells, ending with an ellipsis.

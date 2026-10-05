@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -30,9 +31,28 @@ func URLCommand(goos string) string {
 	return "xdg-open"
 }
 
-// OpenURL opens url in the default browser.
-func (ExecOpener) OpenURL(url string) error {
-	return run(URLCommand(runtime.GOOS), url)
+// OpenURL opens an http(s) URL in the default browser. Targets come from
+// remote data, so other schemes, and anything `open` could read as an
+// option, are refused.
+func (ExecOpener) OpenURL(raw string) error {
+	if err := checkURL(raw); err != nil {
+		return err
+	}
+	return run(URLCommand(runtime.GOOS), raw)
+}
+
+const (
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+)
+
+// checkURL accepts only absolute http and https URLs with a host.
+func checkURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != schemeHTTP && u.Scheme != schemeHTTPS) || u.Host == "" {
+		return fmt.Errorf("refusing to open %q", raw)
+	}
+	return nil
 }
 
 // SwitchTmux switches the current tmux client to pane.
