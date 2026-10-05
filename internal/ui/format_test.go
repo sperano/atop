@@ -60,29 +60,6 @@ func TestFitAndPad(t *testing.T) {
 	}
 }
 
-func TestSortRows(t *testing.T) {
-	t.Parallel()
-	old, fresh := testNow.Add(-time.Hour), testNow
-	rows := []source.Row{
-		{Name: "idle", State: "idle", Since: fresh},
-		{Name: "busy", State: "busy", Since: fresh, Busy: true},
-		{Name: "needs-old", State: "review", Since: old, NeedsYou: true},
-		{Name: "needs-new", State: "review", Since: fresh, NeedsYou: true},
-		{Name: "undated", State: "idle"},
-	}
-	SortRows(rows)
-	var got []string
-	for _, r := range rows {
-		got = append(got, r.Name)
-	}
-	want := []string{"needs-new", "needs-old", "busy", "idle", "undated"}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("order = %v, want %v", got, want)
-		}
-	}
-}
-
 func TestSummary(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

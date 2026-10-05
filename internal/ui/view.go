@@ -48,7 +48,7 @@ func titleLine(rows []source.Row, now time.Time) string {
 	return appName + titleSep + now.Local().Format(timeLayout) + titleSep + Summary(rows)
 }
 
-// Snapshot renders the table once, for --once. rows must already be sorted.
+// Snapshot renders the table once, for --once. rows may be in any order.
 func Snapshot(rows []source.Row, now time.Time, width int, color bool) string {
 	st := newStyles(color)
 	lines := []string{
@@ -56,8 +56,8 @@ func Snapshot(rows []source.Row, now time.Time, width int, color bool) string {
 		"",
 		st.bold.Render(trimLine(headerLine(width))),
 	}
-	for _, r := range rows {
-		lines = append(lines, st.row(r).Render(trimLine(rowLine(r, now, width))))
+	for _, e := range Arrange(rows) {
+		lines = append(lines, st.row(e.Row).Render(trimLine(rowLine(e, now, width))))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -91,17 +91,17 @@ func (m Model) View() tea.View {
 func (m Model) bodyLines(now time.Time) []string {
 	body := m.bodyHeight()
 	lines := make([]string, 0, body)
-	if len(m.rows) == 0 && !m.refreshing {
+	if len(m.entries) == 0 && !m.refreshing {
 		lines = append(lines, m.styles.rest.Render(statusNoRows))
 	}
-	end := min(len(m.rows), m.offset+body)
+	end := min(len(m.entries), m.offset+body)
 	for i := m.offset; i < end; i++ {
-		r := m.rows[i]
-		style := m.styles.row(r)
+		e := m.entries[i]
+		style := m.styles.row(e.Row)
 		if i == m.selected {
 			style = style.Inherit(m.styles.selected)
 		}
-		lines = append(lines, style.Render(fit(rowLine(r, now, m.width), m.width)))
+		lines = append(lines, style.Render(fit(rowLine(e, now, m.width), m.width)))
 	}
 	for len(lines) < body {
 		lines = append(lines, "")

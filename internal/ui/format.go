@@ -4,7 +4,6 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -83,16 +82,6 @@ func group(r source.Row) int {
 	}
 }
 
-// SortRows orders rows by group, each group most recent first, undated last.
-func SortRows(rows []source.Row) {
-	slices.SortStableFunc(rows, func(a, b source.Row) int {
-		if ga, gb := group(a), group(b); ga != gb {
-			return ga - gb
-		}
-		return b.Since.Compare(a.Since)
-	})
-}
-
 // Summary counts the rows that need you, are busy, and are idle.
 func Summary(rows []source.Row) string {
 	var needs, busy, idle int
@@ -128,12 +117,13 @@ func headerLine(width int) string {
 	return formatColumns(blankMark, "SOURCE", "NAME", "STATE", "AGE", "DETAIL", width)
 }
 
-func rowLine(r source.Row, now time.Time, width int) string {
+func rowLine(e Entry, now time.Time, width int) string {
+	r := e.Row
 	mark := blankMark
 	if r.NeedsYou {
 		mark = needsYouMark
 	}
-	return formatColumns(mark, r.Source, r.Name, r.State, FormatAge(r.Since, now), oneLine(r.Detail), width)
+	return formatColumns(mark, r.Source, e.Prefix+r.Name, r.State, FormatAge(r.Since, now), oneLine(r.Detail), width)
 }
 
 // oneLine flattens newlines so that a detail cannot break the table.

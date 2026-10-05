@@ -24,7 +24,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "home":
 		m.moveTo(0)
 	case "end":
-		m.moveTo(len(m.rows) - 1)
+		m.moveTo(len(m.entries) - 1)
 	case "r":
 		return m.refresh()
 	case "enter":

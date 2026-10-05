@@ -28,7 +28,8 @@ type Options struct {
 type Model struct {
 	opts       Options
 	styles     styles
-	rows       []source.Row
+	rows       []source.Row // as fetched, for the summary
+	entries    []Entry      // rows in display order
 	selected   int
 	offset     int // index of the first visible row
 	width      int
@@ -67,9 +68,7 @@ func (m Model) Init() tea.Cmd {
 func (m Model) fetchCmd() tea.Cmd {
 	fetch := m.opts.Fetch
 	return func() tea.Msg {
-		rows := fetch(context.Background())
-		SortRows(rows)
-		return rowsMsg{rows: rows}
+		return rowsMsg{rows: fetch(context.Background())}
 	}
 }
 
@@ -120,10 +119,10 @@ func (m *Model) setRows(rows []source.Row) {
 	if row, ok := m.selectedRow(); ok {
 		key = row.Key()
 	}
-	m.rows = rows
+	m.rows, m.entries = rows, Arrange(rows)
 	m.selected = m.clamp(m.selected)
-	for i, r := range rows {
-		if r.Key() == key {
+	for i, e := range m.entries {
+		if e.Row.Key() == key {
 			m.selected = i
 			break
 		}
@@ -132,14 +131,14 @@ func (m *Model) setRows(rows []source.Row) {
 }
 
 func (m Model) selectedRow() (source.Row, bool) {
-	if m.selected < 0 || m.selected >= len(m.rows) {
+	if m.selected < 0 || m.selected >= len(m.entries) {
 		return source.Row{}, false
 	}
-	return m.rows[m.selected], true
+	return m.entries[m.selected].Row, true
 }
 
 func (m Model) clamp(i int) int {
-	return max(0, min(i, len(m.rows)-1))
+	return max(0, min(i, len(m.entries)-1))
 }
 
 // bodyHeight is how many rows fit between the header and the footer.
@@ -156,5 +155,5 @@ func (m *Model) scrollToSelection() {
 	if m.selected >= m.offset+body {
 		m.offset = m.selected - body + 1
 	}
-	m.offset = max(0, min(m.offset, len(m.rows)-body))
+	m.offset = max(0, min(m.offset, len(m.entries)-body))
 }

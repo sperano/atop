@@ -53,6 +53,11 @@ type Row struct {
 	NeedsYou bool
 	Busy     bool
 	Target   Target
+	// Ref names this row for other rows to link to; empty when nothing can.
+	Ref string
+	// ParentRefs are the refs of rows this one belongs under, most specific
+	// first; the first one shown becomes its parent.
+	ParentRefs []string
 }
 
 // Key identifies a row across refreshes.

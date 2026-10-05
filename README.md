@@ -6,18 +6,25 @@ Code sessions, Kelos Sessions and Tasks, open GitHub PRs, and in-progress
 Vikunja tasks.
 
 ```
-atop · 2026-10-04 21:55:04 · 3 need you · 2 busy · 4 idle
+atop · 2026-10-04 21:55:04 · 3 need you · 2 busy · 1 idle
 
   SOURCE        NAME                  STATE              AGE DETAIL
-● vikunja       #625                  reply from claude  11m general idea — Moved to a standalone Go …
-● pr            puckdb#14             review              2h [claude] Propose new MCP server tools
-  kelos task    vikunja-cocovm-182    running            29m vikunja #182
+● vikunja       #182                  reply from claude  48m CLI: launch specific VMs …
+  kelos task    └─ vikunja-cocovm-182 running            48m vikunja #182
+● vikunja       #589                  reply from claude   2h improve mcp server, let's add missing …
+● pr            └─ puckdb#14          review              2h [claude] Propose new MCP server tools
   local claude  atop-da               busy                3m ~/code/atop tmux main:@5.%6
   kelos session eric-hollingsworth    idle                3h hollingsworth
 ```
 
 Rows that need you come first, red and marked `●`; then busy rows, green;
-then the rest, dim. Each group is ordered most recent first. A source that
+then the rest, dim. Each group is ordered most recent first.
+
+Related rows form a tree. An agent PR (branch `kelos/vikunja-<id>`) sits
+under its Vikunja task, and a Kelos Task sits under the PR it produced or
+follows up, else under its Vikunja task. A row whose parent is not shown
+stays at the top level. A tree is ranked by its most urgent row, so a PR
+awaiting review lifts its task with it. A source that
 cannot be read (no kubeconfig, `gh` logged out, Vikunja down) shows as one
 `error` row that needs you; the other sources still render.
 
