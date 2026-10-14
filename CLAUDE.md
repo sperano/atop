@@ -83,8 +83,10 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
   (`internal/hidden`), left out of the table, the header counts (which add
   `N hidden`) and `--once`; `H` lists them dim with mark `-`. Only the row is
   hidden: its children move to the top level. A source's error row cannot be
-  hidden. An entry is pruned when its source was read without error and no
-  longer lists it.
+  hidden. The file is re-read and updated (load, change, save if changed) on
+  every refresh and every `h`, so several atops share it; an unparsable file
+  is never overwritten. An entry is pruned when its source was read in full
+  (no error row, PR search under its limit) and no longer lists it.
 - Ages use the largest unit: `59s`, `1h`, `3d`.
 - `--once` prints one plain-text snapshot and exits. No colour when `NO_COLOR`
   is set or stdout is not a TTY.

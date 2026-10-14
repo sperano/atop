@@ -52,39 +52,57 @@ func (s Set) Len() int {
 	return len(s.byKey)
 }
 
-// Toggle hides r, or shows it again when it is hidden, and reports whether
-// r is hidden afterwards.
-func (s Set) Toggle(r source.Row) (Set, bool) {
+// Hide returns the set with r hidden.
+func (s Set) Hide(r source.Row) Set {
 	byKey := maps.Clone(s.byKey)
 	if byKey == nil {
 		byKey = make(map[string]Entry)
 	}
-	if _, ok := byKey[r.Key()]; ok {
-		delete(byKey, r.Key())
-		return Set{byKey: byKey}, false
-	}
 	byKey[r.Key()] = Entry{Source: r.Source, Name: r.Name}
-	return Set{byKey: byKey}, true
+	return Set{byKey: byKey}
 }
 
-// Prune forgets the entries whose source was read and no longer lists
-// them (a merged PR, a finished task), so that a later row reusing the
-// name is not hidden. An entry whose source failed is kept. It reports
-// whether anything was dropped.
-func (s Set) Prune(rows []source.Row) (Set, bool) {
-	failed := make(map[string]bool)
+// Unhide returns the set with r shown again.
+func (s Set) Unhide(r source.Row) Set {
+	byKey := maps.Clone(s.byKey)
+	delete(byKey, r.Key())
+	return Set{byKey: byKey}
+}
+
+// Equal reports whether both sets hide the same rows.
+func (s Set) Equal(other Set) bool {
+	return maps.Equal(s.byKey, other.byKey)
+}
+
+// truncatedAt is the row count at which a source may have left rows out:
+// the PR search returns its first PRSearchLimit hits only.
+var truncatedAt = map[string]int{source.SourcePR: source.PRSearchLimit}
+
+// Prune forgets the entries whose source was read in full and no longer
+// lists them (a merged PR, a finished task), so that a later row reusing
+// the name is not hidden. An entry whose source failed, or may have been
+// cut short, is kept.
+func (s Set) Prune(rows []source.Row) Set {
+	unsure := make(map[string]bool)
+	counts := make(map[string]int)
 	present := make(map[string]bool, len(rows))
 	for _, r := range rows {
 		if r.IsSourceError() {
-			failed[r.Source] = true
+			unsure[r.Source] = true
 		}
+		counts[r.Source]++
 		present[r.Key()] = true
+	}
+	for src, limit := range truncatedAt {
+		if counts[src] >= limit {
+			unsure[src] = true
+		}
 	}
 	kept := maps.Clone(s.byKey)
 	maps.DeleteFunc(kept, func(key string, e Entry) bool {
-		return !failed[e.Source] && !present[key]
+		return !unsure[e.Source] && !present[key]
 	})
-	return Set{byKey: kept}, len(kept) != len(s.byKey)
+	return Set{byKey: kept}
 }
 
 // Split returns the rows that are not hidden, in their order, and how many

@@ -52,10 +52,10 @@ func (s styles) entry(e Entry) lipgloss.Style {
 
 // titleLine counts the rows that are not hidden, then the hidden ones.
 func titleLine(rows []source.Row, set hidden.Set, now time.Time) string {
-	shown, hiddenRows := set.Split(rows)
+	shown, hiddenCount := set.Split(rows)
 	line := appName + titleSep + now.Local().Format(timeLayout) + titleSep + Summary(shown)
-	if hiddenRows > 0 {
-		line += fmt.Sprintf("%s%d hidden", titleSep, hiddenRows)
+	if hiddenCount > 0 {
+		line += fmt.Sprintf("%s%d hidden", titleSep, hiddenCount)
 	}
 	return line
 }

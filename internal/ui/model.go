@@ -23,10 +23,10 @@ type Options struct {
 	InTmux   bool
 	Interval time.Duration
 	Color    bool
-	Hidden   hidden.Set // rows hidden at start-up
-	// SaveHidden persists the hidden rows after each change; nil keeps them
-	// in memory only.
-	SaveHidden func(hidden.Set) error
+	// UpdateHidden applies a change to the stored hidden rows and returns
+	// them as stored, changes made elsewhere included. It runs on every
+	// refresh and every h; nil keeps the hidden rows in memory only.
+	UpdateHidden func(change func(hidden.Set) hidden.Set) (hidden.Set, error)
 }
 
 // Model is the Bubble Tea model of the interactive table.
@@ -61,7 +61,6 @@ func New(opts Options) Model {
 	return Model{
 		opts:       opts,
 		styles:     newStyles(opts.Color),
-		hidden:     opts.Hidden,
 		width:      defaultWidth,
 		height:     defaultHeight,
 		refreshing: true,
@@ -120,12 +119,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// setRows replaces the rows and forgets hidden rows that are gone.
+// setRows replaces the rows, re-reads the hidden rows and forgets those
+// that are gone.
 func (m *Model) setRows(rows []source.Row) {
 	m.rows = rows
-	if pruned, changed := m.hidden.Prune(rows); changed {
-		m.saveHidden(pruned)
-	}
+	m.updateHidden(func(s hidden.Set) hidden.Set { return s.Prune(rows) })
 	m.arrange()
 }
 

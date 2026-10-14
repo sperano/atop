@@ -62,8 +62,8 @@ go install github.com/sperano/atop@latest
 The table refreshes every `--interval`. While a refresh runs, the status line
 says so and the previous rows stay. The selection follows its row across
 refreshes. `atop --once` prints one plain-text snapshot, without the hidden
-rows, and exits. Colour is
-off when `NO_COLOR` is set or stdout is not a terminal.
+rows, and exits. Colour is off when `NO_COLOR` is set or stdout is not a
+terminal.
 
 ## Hiding rows
 
@@ -79,9 +79,14 @@ working on it) move to the top level. A source's `error` row cannot be
 hidden, since that would also hide the next failure.
 
 A row is remembered by its source and name in `--hidden-file`, a JSON list
-you may edit by hand. It is forgotten once its source is read successfully
-without it (the PR was merged, the task is done), so a later row with the
-same name is not hidden by mistake.
+you may edit by hand. atop re-reads the file on every refresh and every `h`,
+so several atops share it and edits show up at the next refresh. An entry is
+forgotten once its source is read in full without it (the PR was merged, the
+task is done), so a later row with the same name is not hidden by mistake; a
+source that failed, or a PR search that hit its 50-PR limit, forgets nothing.
+While the file cannot be parsed, atop leaves it alone, says so in the footer
+and keeps hidden rows for the current run only; `--once` warns and hides
+nothing.
 
 ## Sources
 

@@ -47,26 +47,21 @@ func run(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	hiddenRows, err := hiddenFile.Load()
-	if err != nil {
-		return fmt.Errorf("hidden rows: %w", err)
-	}
 	sources := buildSources(cfg)
 	fetch := func(ctx context.Context) []source.Row { return source.FetchAll(ctx, sources) }
 	stdoutTTY := term.IsTerminal(os.Stdout.Fd())
 	color := stdoutTTY && os.Getenv("NO_COLOR") == ""
 	if cfg.Once {
-		return printOnce(fetch, hiddenRows, stdoutTTY, color)
+		return printOnce(fetch, loadHidden(hiddenFile), stdoutTTY, color)
 	}
 	model := ui.New(ui.Options{
-		Fetch:      fetch,
-		Now:        time.Now,
-		Opener:     ui.ExecOpener{},
-		InTmux:     os.Getenv("TMUX") != "",
-		Interval:   cfg.Interval,
-		Color:      color,
-		Hidden:     hiddenRows,
-		SaveHidden: hiddenFile.Save,
+		Fetch:        fetch,
+		Now:          time.Now,
+		Opener:       ui.ExecOpener{},
+		InTmux:       os.Getenv("TMUX") != "",
+		Interval:     cfg.Interval,
+		Color:        color,
+		UpdateHidden: hiddenFile.Update,
 	})
 	_, err = tea.NewProgram(model).Run()
 	return err
@@ -82,6 +77,16 @@ func hiddenStore(path string) (hidden.File, error) {
 		return hidden.File{}, fmt.Errorf("hidden rows: %w (set --hidden-file)", err)
 	}
 	return hidden.File{Path: path}, nil
+}
+
+// loadHidden reads the hidden rows for --once. An unreadable file hides
+// nothing: the snapshot matters more than the rows it would leave out.
+func loadHidden(f hidden.File) hidden.Set {
+	set, err := f.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "atop: hidden rows ignored:", err)
+	}
+	return set
 }
 
 func printOnce(fetch func(context.Context) []source.Row, set hidden.Set, tty, color bool) error {

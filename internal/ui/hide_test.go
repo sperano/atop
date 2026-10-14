@@ -17,34 +17,37 @@ var (
 	keyShowHidden = keyRune('H')
 )
 
-// fakeStore records every saved set and fails with err.
+// fakeStore is a hidden-rows file: it holds a set, counts the writes that
+// change it, and fails every update with err.
 type fakeStore struct {
-	saved []hidden.Set
-	err   error
+	set    hidden.Set
+	writes int
+	err    error
 }
 
-func (f *fakeStore) save(s hidden.Set) error {
-	f.saved = append(f.saved, s)
-	return f.err
-}
-
-func (f *fakeStore) last() []hidden.Entry {
-	if len(f.saved) == 0 {
-		return nil
+func (f *fakeStore) update(change func(hidden.Set) hidden.Set) (hidden.Set, error) {
+	if f.err != nil {
+		return hidden.Set{}, f.err
 	}
-	return f.saved[len(f.saved)-1].Entries()
+	next := change(f.set)
+	if !next.Equal(f.set) {
+		f.writes++
+	}
+	f.set = next
+	return next, nil
 }
 
-func newHidingModel(store *fakeStore, set hidden.Set, rows ...source.Row) Model {
-	m := New(Options{
-		Fetch:      func(context.Context) []source.Row { return rows },
-		Now:        fixedNow,
-		Opener:     &fakeOpener{},
-		Interval:   time.Minute,
-		Hidden:     set,
-		SaveHidden: store.save,
-	})
-	return sized(send(m, rowsMsg{rows: rows}))
+func newHidingModel(store *fakeStore, rows ...source.Row) Model {
+	opts := Options{
+		Fetch:    func(context.Context) []source.Row { return rows },
+		Now:      fixedNow,
+		Opener:   &fakeOpener{},
+		Interval: time.Minute,
+	}
+	if store != nil {
+		opts.UpdateHidden = store.update
+	}
+	return sized(send(New(opts), rowsMsg{rows: rows}))
 }
 
 func entryNames(m Model) []string {
@@ -62,7 +65,7 @@ func prEntry(name string) hidden.Entry {
 func TestHideKey(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{}
-	m := newHidingModel(store, hidden.Set{}, named("a", "b", "c")...)
+	m := newHidingModel(store, named("a", "b", "c")...)
 	m = send(m, keyDown) // on "b"
 	m = send(m, keyHide)
 	if got := entryNames(m); !slices.Equal(got, []string{"a", "c"}) {
@@ -71,38 +74,56 @@ func TestHideKey(t *testing.T) {
 	if row, _ := m.selectedRow(); row.Name != "c" {
 		t.Errorf("selected %q, want the next row c", row.Name)
 	}
-	if got := store.last(); !slices.Equal(got, []hidden.Entry{prEntry("b")}) {
-		t.Errorf("saved %v, want [b]", got)
+	if got := store.set.Entries(); !slices.Equal(got, []hidden.Entry{prEntry("b")}) {
+		t.Errorf("stored %v, want [b]", got)
 	}
 	if !strings.HasPrefix(m.status, "hid pr b") {
 		t.Errorf("status = %q", m.status)
 	}
 }
 
-func TestHideLastRowSelectsNewLast(t *testing.T) {
+func TestHideOutcomes(t *testing.T) {
 	t.Parallel()
-	m := newHidingModel(&fakeStore{}, hidden.Set{}, named("a", "b")...)
-	m = send(m, keyEnd)
-	m = send(m, keyHide)
-	if row, _ := m.selectedRow(); row.Name != "a" {
-		t.Errorf("selected %q, want a", row.Name)
+	sourceError := source.ErrorRow("pr", errors.New("gh logged out"))
+	tests := []struct {
+		name         string
+		store        *fakeStore // nil: no store
+		rows         []source.Row
+		end          bool // select the last row first
+		wantNames    []string
+		wantSelected string
+		wantStatus   string // prefix
+	}{
+		{"last row hidden selects the new last", &fakeStore{}, named("a", "b"), true, []string{"a"}, "a", "hid pr b"},
+		{"source error refused", &fakeStore{}, []source.Row{sourceError}, false, []string{"-"}, "-", statusCannotHide},
+		{"store failure hides for this run", &fakeStore{err: errors.New("read-only")}, named("a", "b"), false, []string{"b"}, "b", "error: hidden rows: read-only"},
+		{"no store hides in memory", nil, named("a", "b"), false, []string{"b"}, "b", "hid pr a"},
 	}
-}
-
-func TestHideRefusesSourceError(t *testing.T) {
-	t.Parallel()
-	store := &fakeStore{}
-	m := newHidingModel(store, hidden.Set{}, source.ErrorRow("pr", errors.New("gh logged out")))
-	m = send(m, keyHide)
-	if len(m.entries) != 1 || len(store.saved) != 0 || m.status != statusCannotHide {
-		t.Errorf("entries=%d saved=%d status=%q", len(m.entries), len(store.saved), m.status)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m := newHidingModel(tt.store, tt.rows...)
+			if tt.end {
+				m = send(m, keyEnd)
+			}
+			m = send(m, keyHide)
+			if got := entryNames(m); !slices.Equal(got, tt.wantNames) {
+				t.Errorf("entries = %v, want %v", got, tt.wantNames)
+			}
+			if row, _ := m.selectedRow(); row.Name != tt.wantSelected {
+				t.Errorf("selected %q, want %q", row.Name, tt.wantSelected)
+			}
+			if !strings.HasPrefix(m.status, tt.wantStatus) {
+				t.Errorf("status = %q, want prefix %q", m.status, tt.wantStatus)
+			}
+		})
 	}
 }
 
 func TestShowHiddenAndUnhide(t *testing.T) {
 	t.Parallel()
-	store := &fakeStore{}
-	m := newHidingModel(store, hidden.New(prEntry("b")), named("a", "b")...)
+	store := &fakeStore{set: hidden.New(prEntry("b"))}
+	m := newHidingModel(store, named("a", "b")...)
 	if got := entryNames(m); !slices.Equal(got, []string{"a"}) {
 		t.Fatalf("entries = %v, want [a]", got)
 	}
@@ -118,8 +139,8 @@ func TestShowHiddenAndUnhide(t *testing.T) {
 	}
 	m = send(m, keyEnd)
 	m = send(m, keyHide)
-	if len(store.saved) != 1 || len(store.last()) != 0 || m.entries[1].Hidden {
-		t.Errorf("unhide: saved=%v Hidden=%v", store.last(), m.entries[1].Hidden)
+	if store.writes != 1 || store.set.Len() != 0 || m.entries[1].Hidden {
+		t.Errorf("unhide: writes=%d stored=%v Hidden=%v", store.writes, store.set.Entries(), m.entries[1].Hidden)
 	}
 	if row, _ := m.selectedRow(); row.Name != "b" {
 		t.Errorf("selection moved to %q after unhiding", row.Name)
@@ -130,35 +151,28 @@ func TestShowHiddenAndUnhide(t *testing.T) {
 	}
 }
 
-func TestRefreshKeepsHiddenAndPrunesGone(t *testing.T) {
+func TestRefreshSyncsHidden(t *testing.T) {
 	t.Parallel()
-	store := &fakeStore{}
-	m := newHidingModel(store, hidden.New(prEntry("b"), prEntry("gone")), named("a", "b")...)
-	if got := store.last(); !slices.Equal(got, []hidden.Entry{prEntry("b")}) {
-		t.Fatalf("after first rows, saved %v, want [b]", got)
+	store := &fakeStore{set: hidden.New(prEntry("b"), prEntry("gone"))}
+	m := newHidingModel(store, named("a", "b")...)
+	if got := store.set.Entries(); !slices.Equal(got, []hidden.Entry{prEntry("b")}) || store.writes != 1 {
+		t.Fatalf("after first rows, stored %v in %d writes, want [b] in 1", got, store.writes)
 	}
 	m = send(m, rowsMsg{rows: named("a", "b", "c")})
 	if got := entryNames(m); !slices.Equal(got, []string{"a", "c"}) {
 		t.Errorf("entries = %v, want [a c]", got)
 	}
-	if len(store.saved) != 1 {
-		t.Errorf("saved %d times, want once: nothing changed on the second refresh", len(store.saved))
+	if store.writes != 1 {
+		t.Errorf("%d writes, want 1: nothing changed on the second refresh", store.writes)
+	}
+	store.set = store.set.Hide(named("c")[0]) // another atop hides c
+	m = send(m, rowsMsg{rows: named("a", "b", "c")})
+	if got := entryNames(m); !slices.Equal(got, []string{"a"}) {
+		t.Errorf("after c was hidden elsewhere, entries = %v, want [a]", got)
 	}
 	m = send(m, rowsMsg{rows: []source.Row{source.ErrorRow("pr", errors.New("down"))}})
-	if len(store.saved) != 1 || !m.hidden.Hides(named("b")[0]) {
+	if store.set.Len() != 2 || !m.hidden.Hides(named("b")[0]) {
 		t.Error("a failed source must not forget its hidden rows")
-	}
-}
-
-func TestSaveErrorShown(t *testing.T) {
-	t.Parallel()
-	m := newHidingModel(&fakeStore{err: errors.New("read-only")}, hidden.Set{}, named("a", "b")...)
-	m = send(m, keyHide)
-	if !strings.Contains(m.status, "read-only") {
-		t.Errorf("status = %q, want the save error", m.status)
-	}
-	if got := entryNames(m); !slices.Equal(got, []string{"b"}) {
-		t.Errorf("entries = %v, want the row hidden for this run anyway", got)
 	}
 }
 
@@ -228,14 +242,5 @@ func TestHiddenRowMarkedInView(t *testing.T) {
 				t.Errorf("row line %q, want prefix %q", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestHideWithoutStore(t *testing.T) {
-	t.Parallel()
-	m := sized(newTestModel(&fakeOpener{}, false, named("a", "b")...))
-	m = send(m, keyHide)
-	if got := entryNames(m); !slices.Equal(got, []string{"b"}) {
-		t.Errorf("entries = %v, want [b]", got)
 	}
 }
