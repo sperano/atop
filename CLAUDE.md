@@ -76,7 +76,8 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
     `spec.branch` or `status.results.branch` `kelos/vikunja-<id>`).
   A row whose parents are not shown stays top-level. Each level is sorted by
   the rule above, a subtree ranking as its most urgent, most recent row (a
-  failing PR lifts its Vikunja task). Counts and colours are per row.
+  failing PR lifts its Vikunja task). Colours and the needs-you and idle
+  counts are per row; busy counts agents (see Layout).
 - Ages use the largest unit: `59s`, `1h`, `3d`.
 - `--once` prints one plain-text snapshot and exits. No colour when `NO_COLOR`
   is set or stdout is not a TTY.
