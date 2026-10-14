@@ -7,13 +7,24 @@ import (
 )
 
 const (
-	testOperator = "eric"
-	testWeb      = "https://v.example"
-	commentHTML  = "<p>PR: <b>#180</b> &amp; more</p>"
+	testOperator    = "eric"
+	testWeb         = "https://v.example"
+	testPROpenLabel = "pr open"
+	commentHTML     = "<p>PR: <b>#180</b> &amp; more</p>"
 )
 
 func testVikunjaSource() Vikunja {
-	return Vikunja{APIURL: testWeb + "/api/v1", Operator: testOperator, StaleDays: testStaleDays, Now: fixedNow}
+	return Vikunja{APIURL: testWeb + "/api/v1", Operator: testOperator, PROpenLabel: testPROpenLabel,
+		StaleDays: testStaleDays, Now: fixedNow}
+}
+
+func labelled(t vikunjaTask, titles ...string) vikunjaTask {
+	for _, title := range titles {
+		t.Labels = append(t.Labels, struct {
+			Title string `json:"title"`
+		}{Title: title})
+	}
+	return t
 }
 
 func testTask() vikunjaTask {
@@ -31,25 +42,30 @@ func TestVikunjaRow(t *testing.T) {
 	old := testNow.Add(-(testStaleDays*24*time.Hour + time.Hour))
 	tests := []struct {
 		name       string
+		task       vikunjaTask
 		comment    *vikunjaComment
 		wantState  string
 		wantNeeds  bool
 		wantSince  time.Time
 		wantDetail string
 	}{
-		{"agent reply needs you", testComment("claude", testNow), "reply from claude", true, testNow,
+		{"agent reply needs you", testTask(), testComment("claude", testNow), "reply from claude", true, testNow,
 			"mcp: peek — PR: #180 & more"},
-		{"operator spoke last", testComment(testOperator, testNow), "waiting on agent", false, testNow, "mcp: peek"},
-		{"no comment is in progress since updated", nil, "in progress", false, testNow, "mcp: peek"},
-		{"stale reply stops needing you", testComment("claude", old), "stale", false, old,
+		{"operator spoke last is idle", testTask(), testComment(testOperator, testNow), StateIdle, false, testNow, "mcp: peek"},
+		{"no comment is idle since updated", testTask(), nil, StateIdle, false, testNow, "mcp: peek"},
+		{"stale reply stops needing you", testTask(), testComment("claude", old), "stale", false, old,
 			"reply from claude: mcp: peek — PR: #180 & more"},
-		{"missing author shown as ?", testComment("", testNow), "reply from ?", true, testNow,
+		{"missing author shown as ?", testTask(), testComment("", testNow), "reply from ?", true, testNow,
 			"mcp: peek — PR: #180 & more"},
+		{"pr open label is in review", labelled(testTask(), "in progress", testPROpenLabel), nil, StateInReview, false, testNow, "mcp: peek"},
+		{"in review even after an agent reply", labelled(testTask(), testPROpenLabel), testComment("claude", testNow),
+			StateInReview, false, testNow, "mcp: peek"},
+		{"other labels do not mean review", labelled(testTask(), "in progress"), nil, StateIdle, false, testNow, "mcp: peek"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			row := testVikunjaSource().row(testTask(), tt.comment, testStaleness(), testWeb)
+			row := testVikunjaSource().row(tt.task, tt.comment, testStaleness(), testWeb)
 			if row.Source != SourceVikunja || row.Name != "#575" {
 				t.Errorf("identity = %q/%q", row.Source, row.Name)
 			}
@@ -66,6 +82,28 @@ func TestVikunjaRow(t *testing.T) {
 				t.Errorf("target = %q", row.Target.URL)
 			}
 		})
+	}
+}
+
+func TestVikunjaRowAssignee(t *testing.T) {
+	t.Parallel()
+	task := testTask()
+	task.Assignees = append(task.Assignees, struct {
+		Username string `json:"username"`
+	}{Username: "claude-fable"})
+	row := testVikunjaSource().row(task, nil, testStaleness(), testWeb)
+	if row.Detail != "[claude-fable] mcp: peek" {
+		t.Errorf("detail = %q", row.Detail)
+	}
+}
+
+func TestVikunjaRowNoPROpenLabelConfigured(t *testing.T) {
+	t.Parallel()
+	v := testVikunjaSource()
+	v.PROpenLabel = ""
+	row := v.row(labelled(testTask(), ""), nil, testStaleness(), testWeb)
+	if row.State != StateIdle {
+		t.Errorf("state = %q, want %q", row.State, StateIdle)
 	}
 }
 

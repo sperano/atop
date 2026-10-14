@@ -70,9 +70,16 @@ func TestSummary(t *testing.T) {
 		{"empty", nil, "0 need you · 0 busy · 0 idle"},
 		{"mixed", []source.Row{
 			{State: "review", NeedsYou: true},
-			{State: "busy", Busy: true},
+			{Source: source.SourceLocal, State: "busy", Busy: true},
 			{State: "idle"},
 		}, "1 need you · 1 busy · 1 idle"},
+		{"a task speaking for its PR and vikunja task is one busy agent", []source.Row{
+			{Source: source.SourceKelosTask, State: "conflict fix", Busy: true},
+			{Source: source.SourcePR, State: "conflict fix", Busy: true},
+			{Source: source.SourceVikunja, State: "conflict fix", Busy: true},
+		}, "0 need you · 1 busy · 0 idle"},
+		{"a checks-running PR is not a busy agent", []source.Row{{Source: source.SourcePR, State: "checks running", Busy: true}},
+			"0 need you · 0 busy · 0 idle"},
 		{"needs-you idle counts both", []source.Row{{State: "idle", NeedsYou: true}}, "1 need you · 0 busy · 1 idle"},
 	}
 	for _, tt := range tests {

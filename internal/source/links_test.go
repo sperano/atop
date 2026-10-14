@@ -87,6 +87,36 @@ func TestTaskRowLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			task := decode[kelosTask](t, taskObj("Running", obj{"results": tt.results}, tt.labels))
+			if !slices.Equal(taskParents(task, taskPR(task)), tt.want) {
+				t.Errorf("ParentRefs = %q, want %q", taskParents(task, taskPR(task)), tt.want)
+			}
+		})
+	}
+}
+
+func TestTaskRowLinksFromSpecAndPrompt(t *testing.T) {
+	t.Parallel()
+	promptURL := "https://github.com/sperano/atop/pull/3"
+	tests := []struct {
+		name   string
+		spec   obj
+		labels obj
+		want   []string
+	}{
+		{"conflict fix: the prompt's PR, then the task from the branch it runs on",
+			obj{"prompt": conflictPrompt, "branch": "kelos/vikunja-840"}, obj{roleLabel: rolePRConflict},
+			[]string{PRRef(promptURL), VikunjaRef("840")}},
+		{"follow-up on a hand-made branch links to the PR only",
+			obj{"prompt": promptOf(ownerRequest), "branch": "feat/x"}, obj{roleLabel: rolePRFollowUp},
+			[]string{PRRef(promptURL)}},
+		{"an implementation prompt is not read for a PR",
+			obj{"prompt": "PR: https://x/pull/9"}, obj{vikunjaTaskLabel: "840"},
+			[]string{VikunjaRef("840")}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			task := decode[kelosTask](t, taskObj("Running", tt.spec, tt.labels))
 			row, _ := testKelos().taskRow(task, nil, testNow)
 			if !slices.Equal(row.ParentRefs, tt.want) {
 				t.Errorf("ParentRefs = %q, want %q", row.ParentRefs, tt.want)

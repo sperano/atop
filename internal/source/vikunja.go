@@ -1,6 +1,7 @@
 package source
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -22,14 +23,14 @@ const (
 	// commentFetchWorkers caps concurrent newest-comment lookups.
 	commentFetchWorkers = 8
 	// commentsPerPage is one so that the page count is the comment count.
-	commentsPerPage     = 1
-	firstPage           = 1
-	totalPagesHeader    = "X-Pagination-Total-Pages"
-	apiSuffix           = "/api/v1"
-	stateInProgress     = "in progress"
-	stateWaitingOnAgent = "waiting on agent"
-	replyFromPrefix     = "reply from "
-	unknownAuthor       = "?"
+	commentsPerPage  = 1
+	firstPage        = 1
+	totalPagesHeader = "X-Pagination-Total-Pages"
+	apiSuffix        = "/api/v1"
+	replyFromPrefix  = "reply from "
+	unknownAuthor    = "?"
+	// StateInReview marks a task whose PR is open (Kelos labels it so).
+	StateInReview = "in review"
 )
 
 // VikunjaWebBase is the web base of a Vikunja API URL.
@@ -46,6 +47,12 @@ type vikunjaTask struct {
 	ID      int    `json:"id"`
 	Title   string `json:"title"`
 	Updated string `json:"updated"`
+	Labels  []struct {
+		Title string `json:"title"`
+	} `json:"labels"`
+	Assignees []struct {
+		Username string `json:"username"`
+	} `json:"assignees"`
 }
 
 type vikunjaComment struct {
@@ -68,6 +75,7 @@ type Vikunja struct {
 	Secret          TokenSecret
 	Operator        string
 	InProgressLabel int
+	PROpenLabel     string // title of the label Kelos puts on a task whose PR is open
 	StaleDays       int
 	Client          *http.Client
 	Run             Runner
@@ -200,33 +208,54 @@ func (v Vikunja) newestComment(ctx context.Context, token string, taskID int) (*
 	return &page[len(page)-1], nil
 }
 
+// row maps a task to its state: in review while its PR is open, a reply
+// when someone else spoke last (needing you unless stale), else idle. A
+// running Kelos Task later overrides this (Enrich).
 func (v Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web string) Row {
 	row := Row{
 		Source: SourceVikunja,
 		Name:   "#" + strconv.Itoa(t.ID),
-		Detail: t.Title,
+		Since:  parseTime(t.Updated),
+		Detail: taskTitle(t),
 		Target: Target{URL: VikunjaTaskURL(web, strconv.Itoa(t.ID))},
 		Ref:    VikunjaRef(strconv.Itoa(t.ID)),
 	}
-	if last == nil {
-		row.State, row.Since = stateInProgress, parseTime(t.Updated)
-		return row
+	author := unknownAuthor
+	if last != nil {
+		row.Since = parseTime(last.Created)
+		author = cmp.Or(last.Author.Username, unknownAuthor)
 	}
-	author := last.Author.Username
-	if author == "" {
-		author = unknownAuthor
+	switch {
+	case hasLabel(t, v.PROpenLabel):
+		row.State = StateInReview
+	case last == nil || author == v.Operator:
+		row.State = StateIdle
+	case stale.IsStale(row.Since):
+		row.State = StateStale
+		row.Detail = replyFromPrefix + author + ": " + row.Detail + " — " + snippet(last.Comment)
+	default:
+		row.State, row.NeedsYou = replyFromPrefix+author, true
+		row.Detail += " — " + snippet(last.Comment)
 	}
-	row.Since = parseTime(last.Created)
-	if author == v.Operator {
-		row.State = stateWaitingOnAgent
-		return row
-	}
-	row.State = replyFromPrefix + author
-	row.Detail = t.Title + " — " + snippet(last.Comment)
-	if stale.IsStale(row.Since) {
-		row.State, row.Detail = StateStale, replyFromPrefix+author+": "+row.Detail
-		return row
-	}
-	row.NeedsYou = true
 	return row
+}
+
+// taskTitle prefixes the title with the agent user the task is assigned to.
+func taskTitle(t vikunjaTask) string {
+	if len(t.Assignees) > 0 && t.Assignees[0].Username != "" {
+		return "[" + t.Assignees[0].Username + "] " + t.Title
+	}
+	return t.Title
+}
+
+func hasLabel(t vikunjaTask, title string) bool {
+	if title == "" {
+		return false
+	}
+	for _, l := range t.Labels {
+		if l.Title == title {
+			return true
+		}
+	}
+	return false
 }

@@ -35,12 +35,19 @@ func testKelos() Kelos {
 	return Kelos{Namespace: testNS, ConsoleURL: testConsole, VikunjaWeb: testVikunja, Now: fixedNow}
 }
 
+// taskObj builds a Task; extra goes into its status, except "prompt" and
+// "branch", which go into its spec.
 func taskObj(phase string, extra obj, labels obj) obj {
 	status := obj{"phase": phase, "podName": testPodName, "startTime": iso(testNow.Add(-5 * time.Minute))}
+	spec := obj{}
 	for k, v := range extra {
-		status[k] = v
+		if k == "prompt" || k == "branch" {
+			spec[k] = v
+		} else {
+			status[k] = v
+		}
 	}
-	return obj{"metadata": obj{"name": testTaskName, "labels": labels}, "status": status}
+	return obj{"metadata": obj{"name": testTaskName, "labels": labels}, "spec": spec, "status": status}
 }
 
 func initPod(name, state string) pod {
@@ -70,13 +77,20 @@ func TestTaskRow(t *testing.T) {
 		wantDetail string
 		wantURL    string
 	}{
-		{"running with vikunja and pr", taskObj("Running", obj{"results": obj{"pr": testPRURL}}, vikunjaLabel),
-			nil, true, "running", true, false, "vikunja #575 " + testPRURL, testPRURL},
+		{"running implementation with vikunja and pr", taskObj("Running", obj{"results": obj{"pr": testPRURL}}, vikunjaLabel),
+			nil, true, ActivityImplementing, true, false, "vikunja #575 · " + testPRURL, testPRURL},
+		{"running conflict fix on the prompt's PR", taskObj("Running", obj{"prompt": conflictPrompt}, obj{roleLabel: rolePRConflict}),
+			nil, true, ActivityConflictFix, true, false, "https://github.com/sperano/atop/pull/3", "https://github.com/sperano/atop/pull/3"},
+		{"running review fix", taskObj("Running", obj{"prompt": promptOf(cubicReport)}, obj{roleLabel: rolePRFollowUp}),
+			nil, true, "cubic fix", true, false, "https://github.com/sperano/atop/pull/3", "https://github.com/sperano/atop/pull/3"},
 		{"running no labels", taskObj("Running", nil, nil), nil, true, "running", true, false, "",
 			testConsole + "/api/resources/tasks/kelos-agents/t/logs"},
 		{"blocked by wait-for-blockers", taskObj("Running", nil, vikunjaLabel),
-			map[string]pod{testPodName: blockedPod()}, true, "blocked", false, false, "vikunja #575",
+			map[string]pod{testPodName: blockedPod()}, true, "blocked", false, false, "implementing · vikunja #575",
 			testVikunja + "/tasks/575"},
+		{"waiting phase keeps the activity in detail", taskObj("Waiting", nil, obj{roleLabel: rolePRConflict}),
+			nil, true, "waiting", false, false, ActivityConflictFix,
+			testConsole + "/api/resources/tasks/kelos-agents/t/logs"},
 		{"terminated init container is not blocked", taskObj("Running", nil, nil),
 			map[string]pod{testPodName: finishedInitPod()}, true, "running", true, false, "",
 			testConsole + "/api/resources/tasks/kelos-agents/t/logs"},
@@ -97,8 +111,10 @@ func TestTaskRow(t *testing.T) {
 			false, "done", false, false, "", testConsole + "/api/resources/tasks/kelos-agents/t/logs"},
 		{"failure needs you with message", taskObj("Failed", obj{"completionTime": iso(testNow), "message": "boom"}, nil),
 			nil, true, "failed", false, true, "boom", testConsole + "/api/resources/tasks/kelos-agents/t/logs"},
+		{"failed activity prefixes the message", taskObj("Failed", obj{"message": "boom"}, obj{roleLabel: rolePRConflict}),
+			nil, true, "failed", false, true, "conflict fix · boom", testConsole + "/api/resources/tasks/kelos-agents/t/logs"},
 		{"failure without message keeps detail", taskObj("Failed", nil, vikunjaLabel), nil,
-			true, "failed", false, true, "vikunja #575", testVikunja + "/tasks/575"},
+			true, "failed", false, true, "implementing · vikunja #575", testVikunja + "/tasks/575"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

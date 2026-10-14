@@ -24,6 +24,7 @@ const (
 	DefaultTokenKey        = "token"
 	DefaultOperator        = "eric"
 	DefaultInProgressLabel = 1
+	DefaultPROpenLabel     = "pr open"
 	DefaultConsoleURL      = "https://kelos.spe.quebec"
 	DefaultStaleDays       = 30
 	DefaultInterval        = 30 * time.Second
@@ -39,6 +40,7 @@ type Config struct {
 	TokenKey        string
 	Operator        string
 	InProgressLabel int
+	PROpenLabel     string
 	ConsoleURL      string
 	StaleDays       int
 	Interval        time.Duration
@@ -58,6 +60,7 @@ func Parse(name string, args []string, getenv func(string) string) (Config, erro
 	fs.StringVar(&c.TokenKey, "token-key", env.str("ATOP_TOKEN_KEY", DefaultTokenKey), "key of the Vikunja token in the Secret (ATOP_TOKEN_KEY)")
 	fs.StringVar(&c.Operator, "operator", env.str("ATOP_OPERATOR", DefaultOperator), "your Vikunja username (ATOP_OPERATOR)")
 	fs.IntVar(&c.InProgressLabel, "in-progress-label", env.integer("ATOP_IN_PROGRESS_LABEL", DefaultInProgressLabel), "id of the Vikunja \"in progress\" label (ATOP_IN_PROGRESS_LABEL)")
+	fs.StringVar(&c.PROpenLabel, "pr-open-label", env.str("ATOP_PR_OPEN_LABEL", DefaultPROpenLabel), "title of the Vikunja label on tasks whose PR is open (ATOP_PR_OPEN_LABEL)")
 	fs.StringVar(&c.ConsoleURL, "console-url", env.str("ATOP_CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (ATOP_CONSOLE_URL)")
 	fs.IntVar(&c.StaleDays, "stale-days", env.integer("ATOP_STALE_DAYS", DefaultStaleDays), "days after which an untouched PR or reply is stale (ATOP_STALE_DAYS)")
 	fs.DurationVar(&c.Interval, "interval", env.duration("ATOP_INTERVAL", DefaultInterval), "refresh interval (ATOP_INTERVAL)")

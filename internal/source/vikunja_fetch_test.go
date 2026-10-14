@@ -146,6 +146,7 @@ func TestVikunjaFetchEndToEnd(t *testing.T) {
 			{ID: 1, Title: "replied", Updated: iso(testNow)},
 			{ID: 2, Title: "operator last", Updated: iso(testNow)},
 			{ID: 3, Title: "silent", Updated: iso(testNow)},
+			labelled(vikunjaTask{ID: 4, Title: "pr open", Updated: iso(testNow)}, testPROpenLabel),
 		},
 		comments: map[int][]vikunjaComment{
 			1: commentsOf(3, "eric", "eric", "claude"),
@@ -160,7 +161,7 @@ func TestVikunjaFetchEndToEnd(t *testing.T) {
 	for _, r := range rows {
 		states[r.Name] = r.State
 	}
-	want := map[string]string{"#1": "reply from claude", "#2": "waiting on agent", "#3": "in progress"}
+	want := map[string]string{"#1": "reply from claude", "#2": StateIdle, "#3": StateIdle, "#4": StateInReview}
 	for name, state := range want {
 		if states[name] != state {
 			t.Errorf("%s: state = %q, want %q", name, states[name], state)

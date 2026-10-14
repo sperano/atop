@@ -15,7 +15,8 @@ type Named struct {
 	Fetch FetchFunc
 }
 
-// FetchAll runs every source concurrently. A source that fails, or panics,
+// FetchAll runs every source concurrently, then lets running Kelos Tasks
+// speak for the rows they work on (Enrich). A source that fails, or panics,
 // becomes a single error row so that the others still show.
 func FetchAll(ctx context.Context, sources []Named) []Row {
 	results := make([][]Row, len(sources))
@@ -30,7 +31,7 @@ func FetchAll(ctx context.Context, sources []Named) []Row {
 	for _, r := range results {
 		rows = append(rows, r...)
 	}
-	return rows
+	return Enrich(rows)
 }
 
 func fetchOne(ctx context.Context, s Named) (rows []Row) {

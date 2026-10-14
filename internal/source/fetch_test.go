@@ -59,3 +59,19 @@ func TestFetchAllEmpty(t *testing.T) {
 		t.Errorf("got %d rows", len(rows))
 	}
 }
+
+func TestFetchAllEnriches(t *testing.T) {
+	t.Parallel()
+	vikunja := Named{Name: SourceVikunja, Fetch: func(context.Context) ([]Row, error) {
+		return []Row{{Source: SourceVikunja, Name: "#840", State: StateIdle, Ref: VikunjaRef("840")}}, nil
+	}}
+	tasks := Named{Name: SourceKelosTask, Fetch: func(context.Context) ([]Row, error) {
+		return []Row{{Source: SourceKelosTask, Name: "t", State: ActivityImplementing, Busy: true,
+			ParentRefs: []string{VikunjaRef("840")}}}, nil
+	}}
+	for _, r := range FetchAll(context.Background(), []Named{vikunja, tasks}) {
+		if r.Source == SourceVikunja && (r.State != ActivityImplementing || !r.Busy) {
+			t.Errorf("vikunja row not enriched: %+v", r)
+		}
+	}
+}
