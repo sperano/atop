@@ -80,7 +80,9 @@ hidden, since that would also hide the next failure.
 
 A row is remembered by its source and name in `--hidden-file`, a JSON list
 you may edit by hand. atop re-reads the file on every refresh and every `h`,
-so several atops share it and edits show up at the next refresh. An entry is
+so several atops share it and edits show up at the next refresh. Give an
+atop run with other settings (another `--github-owner`, another kubectl
+context) its own `--hidden-file`: it would prune the entries it cannot see. An entry is
 forgotten once its source is read in full without it (the PR was merged, the
 task is done), so a later row with the same name is not hidden by mistake; a
 source that failed, or a PR search that hit its 50-PR limit, forgets nothing.
