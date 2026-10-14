@@ -249,8 +249,11 @@ func taskTitle(t vikunjaTask) string {
 }
 
 func hasLabel(t vikunjaTask, title string) bool {
+	if title == "" {
+		return false
+	}
 	for _, l := range t.Labels {
-		if title != "" && l.Title == title {
+		if l.Title == title {
 			return true
 		}
 	}

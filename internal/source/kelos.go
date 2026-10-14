@@ -176,7 +176,7 @@ func (k Kelos) Tasks(ctx context.Context) ([]Row, error) {
 
 func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bool) {
 	st := t.Status
-	pr := taskPR(t)
+	pr, activity := taskPR(t), taskActivity(t)
 	row := Row{
 		Source:     SourceKelosTask,
 		Name:       t.Metadata.Name,
@@ -186,23 +186,24 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 	switch st.Phase {
 	case phaseSucceeded:
 		row.State, row.Since = stateDone, parseTime(st.CompletionTime)
-		row.Detail = taskDetail(t, pr, row.State)
+		row.Detail = taskDetail(t, pr, activity)
 		return row, !row.Since.IsZero() && now.Sub(row.Since) <= RecentDone
 	case phaseFailed:
 		row.State, row.Since, row.NeedsYou = stateFailed, parseTime(st.CompletionTime), true
-		row.Detail = taskDetail(t, pr, row.State)
+		row.Detail = taskDetail(t, pr, activity)
 		if st.Message != "" {
-			row.Detail = strings.Join(nonEmpty(taskActivity(t), st.Message), detailSep)
+			row.Detail = strings.Join(nonEmpty(activity, st.Message), detailSep)
 		}
 		return row, true
 	}
 	row.Since = parseTime(cmp.Or(st.StartTime, t.Metadata.CreationTimestamp))
 	row.State = liveState(t, pods)
 	row.Busy = row.State == stateRunning
-	if activity := taskActivity(t); row.Busy && activity != "" {
-		row.State = activity
+	if row.Busy && activity != "" {
+		// The state says what the Task does; the detail need not repeat it.
+		row.State, activity = activity, ""
 	}
-	row.Detail = taskDetail(t, pr, row.State)
+	row.Detail = taskDetail(t, pr, activity)
 	return row, true
 }
 
@@ -242,13 +243,10 @@ func taskPR(t kelosTask) string {
 	return ""
 }
 
-// taskDetail lists the Task's activity (unless it is the state), its
-// Vikunja task and its PR.
-func taskDetail(t kelosTask, pr, state string) string {
-	var parts []string
-	if activity := taskActivity(t); activity != "" && activity != state {
-		parts = append(parts, activity)
-	}
+// taskDetail lists the Task's activity (when given), its Vikunja task and
+// its PR.
+func taskDetail(t kelosTask, pr, activity string) string {
+	parts := nonEmpty(activity)
 	if id := t.Metadata.Labels[vikunjaTaskLabel]; id != "" {
 		parts = append(parts, "vikunja #"+id)
 	}

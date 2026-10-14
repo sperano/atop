@@ -23,6 +23,11 @@ const (
 	ActivityConflictFix  = "conflict fix"
 	ActivityPRFollowUp   = "pr follow-up"
 	ActivityTaskFollowUp = "task follow-up"
+)
+
+// How a PR follow-up prompt tells a review bot's report from the owner's
+// request.
+const (
 	// reviewFixSuffix follows the review bot's short name: "cubic fix".
 	reviewFixSuffix = " fix"
 	// commandPrefix starts an owner's follow-up request ("/kelos ..."); a

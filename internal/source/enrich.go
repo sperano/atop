@@ -21,11 +21,11 @@ func Enrich(rows []Row) []Row {
 		}
 	}
 	for i, r := range rows {
-		t, ok := speakers[r.Ref]
-		if !ok || r.Ref == "" || r.Source == SourceKelosTask {
+		speaker, ok := speakers[r.Ref]
+		if !ok || r.Source == SourceKelosTask {
 			continue
 		}
-		rows[i].State, rows[i].Busy, rows[i].NeedsYou, rows[i].Since = t.State, t.Busy, false, t.Since
+		rows[i].State, rows[i].Busy, rows[i].NeedsYou, rows[i].Since = speaker.State, speaker.Busy, false, speaker.Since
 	}
 	return rows
 }
