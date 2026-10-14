@@ -26,14 +26,25 @@ render.
 | --- | --- | --- | --- |
 | Local Claude Code sessions | `~/.claude/sessions/<pid>.json` (`pid`, `name`, `cwd`, `tmux`, `status` idle/busy, `statusUpdatedAt` ms); skip files whose pid is missing, ≤0 or dead (`kill(pid,0)`, EPERM = alive) | `busy`, `idle`, other raw status | status is neither busy nor idle |
 | Kelos Sessions | `kubectl -n kelos-agents get sessions.kelos.dev -o json`; `Active` condition | `busy`, `idle`, lowercased phase if not Ready | phase Failed |
-| Kelos Tasks | `kubectl … get tasks.kelos.dev` + pods `-l kelos.dev/component=task` | `running`, `blocked` (the `wait-for-blockers` init container is running), `done` for 1 h after completion, then hidden | Failed |
+| Kelos Tasks | `kubectl … get tasks.kelos.dev` + pods `-l kelos.dev/component=task` | while Running, its activity: `implementing` (no role label, `vikunja.spe.quebec/task` label), `discussing` (name `vikunja-discuss-*`), `conflict fix` (role `pr-conflict`), `<bot> fix` (role `pr-followup` whose prompt names a `Review bot:` and whose `<request>` is not a `/` command; `cubic-dev-ai[bot]` → `cubic`), `pr follow-up`, `task follow-up`, any other role as is, else `running`; `blocked` (the `wait-for-blockers` init container is running), `waiting`, `pending`, `done` for 1 h after completion, then hidden; DETAIL starts with the activity when the state is a phase | Failed |
 | GitHub PRs | `gh api graphql` search `is:pr is:open owner:<owner> archived:false`, first 50 | `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `review`; a `kelos:<variant>` label → detail `[variant] title` | conflicts, checks failing, review |
-| Vikunja | tasks with label id 1 (`in progress`) and `done = false`, paginated; the newest comment per task | `reply from <user>`, `waiting on agent` (operator spoke last), `in progress` (no comments) | the newest comment is not the operator's |
+| Vikunja | tasks with label id 1 (`in progress`) and `done = false`, paginated; the newest comment per task; DETAIL is `[assignee] title` | `in review` (label titled `pr open`, whatever the comments), `reply from <user>`, `idle` (operator spoke last, or no comments) | the newest comment is not the operator's and the PR is not open |
 
 - **Newest comment:** comments are paginated oldest first, so fetch with
   `per_page=1` and read `x-pagination-total-pages` (case-insensitive header),
   then fetch that last page. Element `[-1]` of an unpaged response is wrong on
   long threads.
+- **An agent speaks for its row** (`source.Enrich`, run by `FetchAll`): a
+  Kelos Task that is not done or failed gives the Vikunja task and PR rows
+  it links to (ParentRefs) its state, time and busy flag, and clears their
+  needs-you; a running Task beats a queued one, then the most recent. Skipped
+  when the Kelos Task source failed.
+- **Task links:** a Task's PR is `status.results.pr`, else the `PR: <url>`
+  line of its prompt when it has a role label (conflict, follow-up and
+  plumbing prompts start with one; an implementation prompt is the owner's
+  text and is not read). Its Vikunja task is the `vikunja.spe.quebec/task`
+  label, else the `kelos/vikunja-<id>` branch in `spec.branch` or
+  `status.results.branch`.
 - **Staleness:** a needs-you PR or agent reply untouched for 30 days shows as
   `stale` and is not flagged (abandoned experiment PRs would stay red forever).
 - **Vikunja token:** `VIKUNJA_API_TOKEN`, else
@@ -58,9 +69,9 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
 - Tree: a row that obviously belongs to another shown row is nested under it,
   with `├─`/`└─`/`│` guides before its NAME. Links, most specific first:
   - PR → Vikunja task: head branch `kelos/vikunja-<id>`.
-  - Kelos Task → its PR (`status.results.pr`), else the Vikunja task (label
-    `vikunja.spe.quebec/task`, else `status.results.branch`
-    `kelos/vikunja-<id>`).
+  - Kelos Task → its PR (`status.results.pr`, else the prompt's `PR:` line),
+    else the Vikunja task (label `vikunja.spe.quebec/task`, else
+    `spec.branch` or `status.results.branch` `kelos/vikunja-<id>`).
   A row whose parents are not shown stays top-level. Each level is sorted by
   the rule above, a subtree ranking as its most urgent, most recent row (a
   failing PR lifts its Vikunja task). Counts and colours are per row.
@@ -95,6 +106,7 @@ hard-coded beyond these defaults:
 | Vikunja token Secret (namespace/name/key) | `vikunja` / `agent-claude` / `token` |
 | Operator Vikunja username | `eric` |
 | In-progress label id | `1` |
+| PR-open label title | `pr open` |
 | Kelos console URL | `https://kelos.spe.quebec` |
 | Stale days | `30` |
 | Refresh interval | `30s` |

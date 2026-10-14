@@ -1,6 +1,7 @@
 package source
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -25,6 +26,8 @@ const (
 	stateBlocked        = "blocked"
 	resultPR            = "pr"
 	resultBranch        = "branch"
+	// detailSep separates the parts of a Task's DETAIL.
+	detailSep = " · "
 	// RecentDone is how long a finished Task stays listed; its PR then shows
 	// among the PR rows.
 	RecentDone = time.Hour
@@ -52,7 +55,11 @@ type kelosSession struct {
 
 type kelosTask struct {
 	Metadata objectMeta `json:"metadata"`
-	Status   struct {
+	Spec     struct {
+		Prompt string `json:"prompt"`
+		Branch string `json:"branch"`
+	} `json:"spec"`
+	Status struct {
 		Phase          string            `json:"phase"`
 		PodName        string            `json:"podName"`
 		StartTime      string            `json:"startTime"`
@@ -169,39 +176,46 @@ func (k Kelos) Tasks(ctx context.Context) ([]Row, error) {
 
 func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bool) {
 	st := t.Status
+	pr := taskPR(t)
 	row := Row{
 		Source:     SourceKelosTask,
 		Name:       t.Metadata.Name,
-		Detail:     taskDetail(t),
-		Target:     k.taskTarget(t),
-		ParentRefs: taskParents(t),
+		Target:     k.taskTarget(t, pr),
+		ParentRefs: taskParents(t, pr),
 	}
 	switch st.Phase {
 	case phaseSucceeded:
 		row.State, row.Since = stateDone, parseTime(st.CompletionTime)
+		row.Detail = taskDetail(t, pr, row.State)
 		return row, !row.Since.IsZero() && now.Sub(row.Since) <= RecentDone
 	case phaseFailed:
 		row.State, row.Since, row.NeedsYou = stateFailed, parseTime(st.CompletionTime), true
+		row.Detail = taskDetail(t, pr, row.State)
 		if st.Message != "" {
-			row.Detail = st.Message
+			row.Detail = strings.Join(nonEmpty(taskActivity(t), st.Message), detailSep)
 		}
 		return row, true
 	}
-	start := st.StartTime
-	if start == "" {
-		start = t.Metadata.CreationTimestamp
-	}
-	row.Since = parseTime(start)
-	switch p, ok := pods[st.PodName]; {
-	case ok && waitingOnBlockers(p):
-		row.State = stateBlocked
-	case st.Phase == "":
-		row.State = strings.ToLower(phasePending)
-	default:
-		row.State = strings.ToLower(st.Phase)
-	}
+	row.Since = parseTime(cmp.Or(st.StartTime, t.Metadata.CreationTimestamp))
+	row.State = liveState(t, pods)
 	row.Busy = row.State == stateRunning
+	if activity := taskActivity(t); row.Busy && activity != "" {
+		row.State = activity
+	}
+	row.Detail = taskDetail(t, pr, row.State)
 	return row, true
+}
+
+// liveState is the state of an unfinished Task: blocked while its
+// wait-for-blockers init container runs, else its lowercased phase.
+func liveState(t kelosTask, pods map[string]pod) string {
+	if p, ok := pods[t.Status.PodName]; ok && waitingOnBlockers(p) {
+		return stateBlocked
+	}
+	if t.Status.Phase == "" {
+		return strings.ToLower(phasePending)
+	}
+	return strings.ToLower(t.Status.Phase)
 }
 
 // waitingOnBlockers reports whether the pod is held by its wait-for-blockers
@@ -215,19 +229,37 @@ func waitingOnBlockers(p pod) bool {
 	return false
 }
 
-func taskDetail(t kelosTask) string {
+// taskPR is the PR a Task produced (its result) or works on (named in the
+// prompt Kelos gives conflict, follow-up and plumbing Tasks; an
+// implementation prompt is the owner's text and is not read).
+func taskPR(t kelosTask) string {
+	if pr := t.Status.Results[resultPR]; pr != "" {
+		return pr
+	}
+	if t.Metadata.Labels[roleLabel] != "" {
+		return promptPR(t.Spec.Prompt)
+	}
+	return ""
+}
+
+// taskDetail lists the Task's activity (unless it is the state), its
+// Vikunja task and its PR.
+func taskDetail(t kelosTask, pr, state string) string {
 	var parts []string
+	if activity := taskActivity(t); activity != "" && activity != state {
+		parts = append(parts, activity)
+	}
 	if id := t.Metadata.Labels[vikunjaTaskLabel]; id != "" {
 		parts = append(parts, "vikunja #"+id)
 	}
-	if pr := t.Status.Results[resultPR]; pr != "" {
+	if pr != "" {
 		parts = append(parts, pr)
 	}
-	return strings.Join(parts, " ")
+	return strings.Join(parts, detailSep)
 }
 
-func (k Kelos) taskTarget(t kelosTask) Target {
-	if pr := t.Status.Results[resultPR]; pr != "" {
+func (k Kelos) taskTarget(t kelosTask, pr string) Target {
+	if pr != "" {
 		return Target{URL: pr}
 	}
 	if id := t.Metadata.Labels[vikunjaTaskLabel]; id != "" {
@@ -238,17 +270,17 @@ func (k Kelos) taskTarget(t kelosTask) Target {
 	return Target{URL: logs}
 }
 
-// taskParents links a Task to the PR it produced or follows up, then to the
-// Vikunja task it works on (its label, else its agent branch).
-func taskParents(t kelosTask) []string {
-	var pr, task string
-	if prURL := t.Status.Results[resultPR]; prURL != "" {
-		pr = PRRef(prURL)
+// taskParents links a Task to the PR it produced or works on, then to the
+// Vikunja task it works on: its label, else the agent branch it runs on.
+func taskParents(t kelosTask, pr string) []string {
+	var prRef, task string
+	if pr != "" {
+		prRef = PRRef(pr)
 	}
 	if id := t.Metadata.Labels[vikunjaTaskLabel]; id != "" {
 		task = VikunjaRef(id)
-	} else if id, ok := branchTask(t.Status.Results[resultBranch]); ok {
+	} else if id, ok := branchTask(cmp.Or(t.Spec.Branch, t.Status.Results[resultBranch])); ok {
 		task = VikunjaRef(id)
 	}
-	return nonEmpty(pr, task)
+	return nonEmpty(prRef, task)
 }

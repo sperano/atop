@@ -30,8 +30,9 @@ func TestParseDefaults(t *testing.T) {
 	want := Config{
 		Namespace: DefaultNamespace, GitHubOwner: DefaultGitHubOwner, VikunjaURL: DefaultVikunjaURL,
 		TokenNamespace: DefaultTokenNamespace, TokenSecret: DefaultTokenSecret, TokenKey: DefaultTokenKey,
-		Operator: DefaultOperator, InProgressLabel: DefaultInProgressLabel, ConsoleURL: DefaultConsoleURL,
-		StaleDays: DefaultStaleDays, Interval: DefaultInterval,
+		Operator: DefaultOperator, InProgressLabel: DefaultInProgressLabel, PROpenLabel: DefaultPROpenLabel,
+		ConsoleURL: DefaultConsoleURL,
+		StaleDays:  DefaultStaleDays, Interval: DefaultInterval,
 	}
 	if got != want {
 		t.Errorf("got %+v, want %+v", got, want)

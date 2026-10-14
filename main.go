@@ -87,6 +87,7 @@ func buildSources(cfg config.Config) []source.Named {
 		Secret:          source.TokenSecret{Namespace: cfg.TokenNamespace, Name: cfg.TokenSecret, Key: cfg.TokenKey},
 		Operator:        cfg.Operator,
 		InProgressLabel: cfg.InProgressLabel,
+		PROpenLabel:     cfg.PROpenLabel,
 		StaleDays:       cfg.StaleDays,
 		Client:          &http.Client{},
 		Run:             runner,
