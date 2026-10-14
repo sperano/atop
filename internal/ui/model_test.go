@@ -46,6 +46,7 @@ func TestKeyStrings(t *testing.T) {
 		{keyUp, "up"}, {keyDown, "down"}, {keyPgUp, "pgup"}, {keyPgDown, "pgdown"},
 		{keyHome, "home"}, {keyEnd, "end"}, {keyEnter, "enter"}, {keyCtrlC, "ctrl+c"},
 		{keyRune('j'), "j"},
+		{tea.KeyPressMsg{Code: 'h', ShiftedCode: 'H', Mod: tea.ModShift, Text: "H"}, "H"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {

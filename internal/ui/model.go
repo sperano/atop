@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/sperano/atop/internal/hidden"
 	"github.com/sperano/atop/internal/source"
 )
 
@@ -22,6 +23,10 @@ type Options struct {
 	InTmux   bool
 	Interval time.Duration
 	Color    bool
+	Hidden   hidden.Set // rows hidden at start-up
+	// SaveHidden persists the hidden rows after each change; nil keeps them
+	// in memory only.
+	SaveHidden func(hidden.Set) error
 }
 
 // Model is the Bubble Tea model of the interactive table.
@@ -29,7 +34,9 @@ type Model struct {
 	opts       Options
 	styles     styles
 	rows       []source.Row // as fetched, for the summary
-	entries    []Entry      // rows in display order
+	entries    []Entry      // shown rows in display order
+	hidden     hidden.Set
+	showHidden bool // hidden rows are listed, marked, so they can be unhidden
 	selected   int
 	offset     int // index of the first visible row
 	width      int
@@ -54,6 +61,7 @@ func New(opts Options) Model {
 	return Model{
 		opts:       opts,
 		styles:     newStyles(opts.Color),
+		hidden:     opts.Hidden,
 		width:      defaultWidth,
 		height:     defaultHeight,
 		refreshing: true,
@@ -112,14 +120,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// setRows replaces the rows, keeping the selection on the same row
-// (source and name) when it is still there.
+// setRows replaces the rows and forgets hidden rows that are gone.
 func (m *Model) setRows(rows []source.Row) {
+	m.rows = rows
+	if pruned, changed := m.hidden.Prune(rows); changed {
+		m.saveHidden(pruned)
+	}
+	m.arrange()
+}
+
+// arrange lays the rows out again, keeping the selection on the same row
+// (source and name) when it is still shown, else at the same index.
+func (m *Model) arrange() {
 	var key string
 	if row, ok := m.selectedRow(); ok {
 		key = row.Key()
 	}
-	m.rows, m.entries = rows, Arrange(rows)
+	m.entries = arrangeShown(m.rows, m.hidden, m.showHidden)
 	m.selected = m.clamp(m.selected)
 	for i, e := range m.entries {
 		if e.Row.Key() == key {

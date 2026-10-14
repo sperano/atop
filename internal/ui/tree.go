@@ -21,6 +21,7 @@ const (
 type Entry struct {
 	Row    source.Row
 	Prefix string
+	Hidden bool // listed only while hidden rows are shown
 }
 
 // rank orders subtrees: by their most urgent row, then most recent first.

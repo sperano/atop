@@ -57,7 +57,8 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
 `charm.land/lipgloss/v2` (keep the three on the same major).
 
 - Keys: ↑/↓ and k/j move, pgup/pgdn/home/end, enter opens the row's target,
-  `r` refreshes now, `q`/ctrl+c quits. Auto-refresh every `--interval`
+  `r` refreshes now, `q`/ctrl+c quits, `h` hides the selected row (or
+  unhides it while hidden rows are shown), `H` toggles showing hidden rows. Auto-refresh every `--interval`
   (default 30s). While a refresh runs, show it in the status line and keep the
   previous rows. Keep the selection across refreshes by row identity
   (source+name), not by index. Handle window resize.
@@ -78,6 +79,12 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
   the rule above, a subtree ranking as its most urgent, most recent row (a
   failing PR lifts its Vikunja task). Colours and the needs-you and idle
   counts are per row; busy counts agents (see Layout).
+- Hidden rows: kept by identity (source+name) in `--hidden-file`
+  (`internal/hidden`), left out of the table, the header counts (which add
+  `N hidden`) and `--once`; `H` lists them dim with mark `-`. Only the row is
+  hidden: its children move to the top level. A source's error row cannot be
+  hidden. An entry is pruned when its source was read without error and no
+  longer lists it.
 - Ages use the largest unit: `59s`, `1h`, `3d`.
 - `--once` prints one plain-text snapshot and exits. No colour when `NO_COLOR`
   is set or stdout is not a TTY.
@@ -113,6 +120,7 @@ hard-coded beyond these defaults:
 | Kelos console URL | `https://kelos.spe.quebec` |
 | Stale days | `30` |
 | Refresh interval | `30s` |
+| Hidden-rows file | `<os.UserConfigDir>/atop/hidden.json` |
 
 ## Layout and rules
 

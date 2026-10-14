@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
 	"github.com/sperano/atop/internal/config"
+	"github.com/sperano/atop/internal/hidden"
 	"github.com/sperano/atop/internal/source"
 	"github.com/sperano/atop/internal/ui"
 )
@@ -42,26 +43,48 @@ func main() {
 }
 
 func run(cfg config.Config) error {
+	hiddenFile, err := hiddenStore(cfg.HiddenFile)
+	if err != nil {
+		return err
+	}
+	hiddenRows, err := hiddenFile.Load()
+	if err != nil {
+		return fmt.Errorf("hidden rows: %w", err)
+	}
 	sources := buildSources(cfg)
 	fetch := func(ctx context.Context) []source.Row { return source.FetchAll(ctx, sources) }
 	stdoutTTY := term.IsTerminal(os.Stdout.Fd())
 	color := stdoutTTY && os.Getenv("NO_COLOR") == ""
 	if cfg.Once {
-		return printOnce(fetch, stdoutTTY, color)
+		return printOnce(fetch, hiddenRows, stdoutTTY, color)
 	}
 	model := ui.New(ui.Options{
-		Fetch:    fetch,
-		Now:      time.Now,
-		Opener:   ui.ExecOpener{},
-		InTmux:   os.Getenv("TMUX") != "",
-		Interval: cfg.Interval,
-		Color:    color,
+		Fetch:      fetch,
+		Now:        time.Now,
+		Opener:     ui.ExecOpener{},
+		InTmux:     os.Getenv("TMUX") != "",
+		Interval:   cfg.Interval,
+		Color:      color,
+		Hidden:     hiddenRows,
+		SaveHidden: hiddenFile.Save,
 	})
-	_, err := tea.NewProgram(model).Run()
+	_, err = tea.NewProgram(model).Run()
 	return err
 }
 
-func printOnce(fetch func(context.Context) []source.Row, tty, color bool) error {
+// hiddenStore is the file of hidden rows: path, else the default one.
+func hiddenStore(path string) (hidden.File, error) {
+	if path != "" {
+		return hidden.File{Path: path}, nil
+	}
+	path, err := hidden.DefaultPath()
+	if err != nil {
+		return hidden.File{}, fmt.Errorf("hidden rows: %w (set --hidden-file)", err)
+	}
+	return hidden.File{Path: path}, nil
+}
+
+func printOnce(fetch func(context.Context) []source.Row, set hidden.Set, tty, color bool) error {
 	rows := fetch(context.Background())
 	width := fallbackWidth
 	if tty {
@@ -69,7 +92,7 @@ func printOnce(fetch func(context.Context) []source.Row, tty, color bool) error 
 			width = w
 		}
 	}
-	_, err := fmt.Print(ui.Snapshot(rows, time.Now(), width, color))
+	_, err := fmt.Print(ui.Snapshot(rows, set, time.Now(), width, color))
 	return err
 }
 

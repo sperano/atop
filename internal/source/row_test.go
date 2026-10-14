@@ -120,3 +120,24 @@ func TestRowKeyAndErrorRow(t *testing.T) {
 		t.Errorf("unexpected error row %+v", row)
 	}
 }
+
+func TestIsSourceError(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		row  Row
+		want bool
+	}{
+		{"error row", ErrorRow(SourceVikunja, errors.New("down")), true},
+		{"session whose raw status is error", Row{Source: SourceLocal, Name: "atop", State: StateError}, false},
+		{"ordinary row", Row{Source: SourcePR, Name: "atop#3", State: "review"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.row.IsSourceError(); got != tt.want {
+				t.Errorf("IsSourceError() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

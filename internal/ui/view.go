@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/sperano/atop/internal/hidden"
 	"github.com/sperano/atop/internal/source"
 )
 
@@ -13,7 +15,7 @@ const (
 	appName    = "atop"
 	timeLayout = "2006-01-02 15:04:05"
 	titleSep   = " · "
-	keyHelp    = "↑/↓ j/k move · pgup/pgdn home/end · enter open · r refresh · q quit"
+	keyHelp    = "↑/↓ j/k move · pgup/pgdn home/end · enter open · h hide · H show hidden · r refresh · q quit"
 )
 
 // styles colours the table; the zero value renders plain text.
@@ -33,8 +35,12 @@ func newStyles(color bool) styles {
 	return s
 }
 
-func (s styles) row(r source.Row) lipgloss.Style {
+// entry styles a row by its urgency; a hidden row is dim whatever it is.
+func (s styles) entry(e Entry) lipgloss.Style {
+	r := e.Row
 	switch {
+	case e.Hidden:
+		return s.rest
 	case r.NeedsYou:
 		return s.needsYou
 	case r.Busy:
@@ -44,20 +50,27 @@ func (s styles) row(r source.Row) lipgloss.Style {
 	}
 }
 
-func titleLine(rows []source.Row, now time.Time) string {
-	return appName + titleSep + now.Local().Format(timeLayout) + titleSep + Summary(rows)
+// titleLine counts the rows that are not hidden, then the hidden ones.
+func titleLine(rows []source.Row, set hidden.Set, now time.Time) string {
+	shown, hiddenRows := set.Split(rows)
+	line := appName + titleSep + now.Local().Format(timeLayout) + titleSep + Summary(shown)
+	if hiddenRows > 0 {
+		line += fmt.Sprintf("%s%d hidden", titleSep, hiddenRows)
+	}
+	return line
 }
 
-// Snapshot renders the table once, for --once. rows may be in any order.
-func Snapshot(rows []source.Row, now time.Time, width int, color bool) string {
+// Snapshot renders the table once, for --once, leaving out the hidden rows.
+// rows may be in any order.
+func Snapshot(rows []source.Row, set hidden.Set, now time.Time, width int, color bool) string {
 	st := newStyles(color)
 	lines := []string{
-		st.bold.Render(titleLine(rows, now)),
+		st.bold.Render(titleLine(rows, set, now)),
 		"",
 		st.bold.Render(trimLine(headerLine(width))),
 	}
-	for _, e := range Arrange(rows) {
-		lines = append(lines, st.row(e.Row).Render(trimLine(rowLine(e, now, width))))
+	for _, e := range arrangeShown(rows, set, false) {
+		lines = append(lines, st.entry(e).Render(trimLine(rowLine(e, now, width))))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -76,7 +89,7 @@ func (m Model) View() tea.View {
 	now := m.opts.Now()
 	st := m.styles
 	lines := []string{
-		st.bold.Render(fit(titleLine(m.rows, now), m.width)),
+		st.bold.Render(fit(titleLine(m.rows, m.hidden, now), m.width)),
 		"",
 		st.bold.Render(fit(headerLine(m.width), m.width)),
 	}
@@ -97,7 +110,7 @@ func (m Model) bodyLines(now time.Time) []string {
 	end := min(len(m.entries), m.offset+body)
 	for i := m.offset; i < end; i++ {
 		e := m.entries[i]
-		style := m.styles.row(e.Row)
+		style := m.styles.entry(e)
 		if i == m.selected {
 			style = style.Inherit(m.styles.selected)
 		}
@@ -113,6 +126,9 @@ func (m Model) statusLine() string {
 	var parts []string
 	if m.refreshing {
 		parts = append(parts, statusRefreshing)
+	}
+	if m.showHidden {
+		parts = append(parts, statusShowsHidden)
 	}
 	if m.status != "" {
 		parts = append(parts, m.status)
