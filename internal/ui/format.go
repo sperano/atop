@@ -82,14 +82,22 @@ func group(r source.Row) int {
 	}
 }
 
-// Summary counts the rows that need you, are busy, and are idle.
+// agentSources are the sources whose rows are agents; a Vikunja task or PR
+// is busy only because an agent speaks for it, and is not counted again.
+var agentSources = map[string]bool{
+	source.SourceLocal:        true,
+	source.SourceKelosSession: true,
+	source.SourceKelosTask:    true,
+}
+
+// Summary counts the rows that need you, the busy agents, and the idle rows.
 func Summary(rows []source.Row) string {
 	var needs, busy, idle int
 	for _, r := range rows {
 		switch {
 		case r.NeedsYou:
 			needs++
-		case r.Busy:
+		case r.Busy && agentSources[r.Source]:
 			busy++
 		}
 		if r.State == source.StateIdle {

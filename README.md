@@ -6,7 +6,7 @@ Code sessions, Kelos Sessions and Tasks, open GitHub PRs, and in-progress
 Vikunja tasks.
 
 ```
-atop · 2026-10-14 21:55:04 · 2 need you · 6 busy · 2 idle
+atop · 2026-10-14 21:55:04 · 2 need you · 3 busy · 2 idle
 
   SOURCE        NAME                  STATE              AGE DETAIL
 ● vikunja       #182                  reply from claude  48m [claude-opus] CLI: launch specific VMs …
@@ -77,7 +77,9 @@ task or on a PR, that row takes the Task's state (`conflict fix`, `cubic fix`,
 `implementing`, ...) and is not flagged, since nothing is waiting on you. A
 Task that is `blocked`, `waiting` or `pending` does the same without being
 busy. Enter still opens the row's own target. When the Kelos Task source
-fails, rows keep their own state.
+fails, rows keep their own state. The header's busy count is agents only
+(local sessions, Kelos Sessions and Tasks), so a Task speaking for its PR
+and its Vikunja task counts once.
 
 A PR or agent reply that would need you but has been untouched for
 `--stale-days` shows as `stale` and is not flagged, so abandoned experiments do

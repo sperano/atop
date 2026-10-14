@@ -61,7 +61,9 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
   (default 30s). While a refresh runs, show it in the status line and keep the
   previous rows. Keep the selection across refreshes by row identity
   (source+name), not by index. Handle window resize.
-- Layout: header with time and `N need you · N busy · N idle`; columns mark,
+- Layout: header with time and `N need you · N busy · N idle` (busy counts
+  agent rows only: local, kelos session, kelos task; a Task speaking for its
+  PR and Vikunja task is one busy agent); columns mark,
   SOURCE, NAME, STATE, AGE, DETAIL (DETAIL takes the remaining width, truncated
   with `…`); footer with key help and the last action or error. Needs-you rows
   are red with `●`, busy green, the rest dim. Sort: needs you, then busy, then
