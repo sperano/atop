@@ -23,6 +23,7 @@ const (
 	minDetailWidth = 20
 	ellipsis       = "…"
 	needsYouMark   = "●"
+	hiddenMark     = "-"
 	blankMark      = " "
 	unknownAge     = "-"
 )
@@ -128,7 +129,10 @@ func headerLine(width int) string {
 func rowLine(e Entry, now time.Time, width int) string {
 	r := e.Row
 	mark := blankMark
-	if r.NeedsYou {
+	switch {
+	case e.Hidden:
+		mark = hiddenMark
+	case r.NeedsYou:
 		mark = needsYouMark
 	}
 	return formatColumns(mark, r.Source, e.Prefix+r.Name, r.State, FormatAge(r.Since, now), oneLine(r.Detail), width)

@@ -65,9 +65,18 @@ func (r Row) Key() string {
 	return r.Source + "\x00" + r.Name
 }
 
+// errorRowName is the NAME of a source's error row.
+const errorRowName = "-"
+
 // ErrorRow reports a source that could not be read.
 func ErrorRow(source string, err error) Row {
-	return Row{Source: source, Name: "-", State: StateError, Detail: err.Error(), NeedsYou: true}
+	return Row{Source: source, Name: errorRowName, State: StateError, Detail: err.Error(), NeedsYou: true}
+}
+
+// IsSourceError reports whether r is a source's error row, as opposed to a
+// row whose own state happens to be "error".
+func (r Row) IsSourceError() bool {
+	return r.Name == errorRowName && r.State == StateError
 }
 
 // Staleness decides when a needs-you row has been untouched long enough to

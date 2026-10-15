@@ -54,13 +54,41 @@ go install github.com/sperano/atop@latest
 | ↑/↓, k/j | move |
 | pgup/pgdn, home/end | move by a page, to the first or last row |
 | enter | open the row's target (see below) |
+| h | hide the selected row; with hidden rows shown, unhide it |
+| H | show or stop showing hidden rows |
 | r | refresh now |
 | q, ctrl+c | quit |
 
 The table refreshes every `--interval`. While a refresh runs, the status line
 says so and the previous rows stay. The selection follows its row across
-refreshes. `atop --once` prints one plain-text snapshot and exits. Colour is
-off when `NO_COLOR` is set or stdout is not a terminal.
+refreshes. `atop --once` prints one plain-text snapshot, without the hidden
+rows, and exits. Colour is off when `NO_COLOR` is set or stdout is not a
+terminal.
+
+## Hiding rows
+
+`h` hides the selected row: an abandoned PR, a task you are not going to
+look at today. It stays hidden across refreshes and restarts until you
+unhide it, whatever its state, so a hidden row that starts needing you
+stays hidden. Hidden rows are left out of the header counts, which end with
+`N hidden`. `H` lists them again, dim and marked `-`, and `h` on one unhides
+it.
+
+Only the row itself is hidden. Rows nested under it (its PR, the Kelos Task
+working on it) move to the top level. A source's `error` row cannot be
+hidden, since that would also hide the next failure.
+
+A row is remembered by its source and name in `--hidden-file`, a JSON list
+you may edit by hand. atop re-reads the file on every refresh and every `h`,
+so several atops share it and edits show up at the next refresh. Give an
+atop run with other settings (another `--github-owner`, another kubectl
+context) its own `--hidden-file`: it would prune the entries it cannot see. An entry is
+forgotten once its source is read in full without it (the PR was merged, the
+task is done), so a later row with the same name is not hidden by mistake; a
+source that failed, or a PR search that hit its 50-PR limit, forgets nothing.
+While the file cannot be parsed, atop leaves it alone, says so in the footer
+and keeps hidden rows for the current run only; `--once` warns and hides
+nothing.
 
 ## Sources
 
@@ -107,6 +135,7 @@ Every flag defaults to an environment variable, then to a built-in value.
 | `--console-url` | `ATOP_CONSOLE_URL` | `https://kelos.spe.quebec` |
 | `--stale-days` | `ATOP_STALE_DAYS` | `30` |
 | `--interval` | `ATOP_INTERVAL` | `30s` |
+| `--hidden-file` | `ATOP_HIDDEN_FILE` | `<user config dir>/atop/hidden.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 | `--once` | | off |
 
 The Vikunja token comes from `VIKUNJA_API_TOKEN`, else from the

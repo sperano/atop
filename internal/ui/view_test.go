@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/sperano/atop/internal/hidden"
 	"github.com/sperano/atop/internal/source"
 )
 
@@ -15,7 +16,7 @@ const (
 
 func snapshotLines(t *testing.T, rows []source.Row, color bool) []string {
 	t.Helper()
-	return strings.Split(strings.TrimRight(Snapshot(rows, testNow, testWidth, color), "\n"), "\n")
+	return strings.Split(strings.TrimRight(Snapshot(rows, hidden.Set{}, testNow, testWidth, color), "\n"), "\n")
 }
 
 func TestSnapshotPlain(t *testing.T) {
@@ -24,7 +25,7 @@ func TestSnapshotPlain(t *testing.T) {
 		{Source: "pr", Name: "cocovm#1", State: "review", Since: testNow, Detail: strings.Repeat("x", longDetail), NeedsYou: true},
 		{Source: "pr", Name: "cocovm#2", State: "draft", Since: testNow, Detail: "multi\nline"},
 	}
-	out := Snapshot(rows, testNow, testWidth, false)
+	out := Snapshot(rows, hidden.Set{}, testNow, testWidth, false)
 	if strings.Contains(out, escape) {
 		t.Error("plain snapshot contains ESC bytes")
 	}
@@ -52,7 +53,7 @@ func TestSnapshotPlain(t *testing.T) {
 func TestSnapshotColour(t *testing.T) {
 	t.Parallel()
 	rows := []source.Row{{Source: "pr", Name: "a", State: "review", NeedsYou: true}}
-	if out := Snapshot(rows, testNow, testWidth, true); !strings.Contains(out, escape) {
+	if out := Snapshot(rows, hidden.Set{}, testNow, testWidth, true); !strings.Contains(out, escape) {
 		t.Error("colour snapshot has no ANSI sequences")
 	}
 }
@@ -60,7 +61,7 @@ func TestSnapshotColour(t *testing.T) {
 func TestSnapshotNarrowTerminalKeepsMinDetail(t *testing.T) {
 	t.Parallel()
 	rows := []source.Row{{Source: "pr", Name: "a", State: "review", Detail: strings.Repeat("y", longDetail)}}
-	line := strings.Split(Snapshot(rows, testNow, fixedWidthForTest, false), "\n")[3]
+	line := strings.Split(Snapshot(rows, hidden.Set{}, testNow, fixedWidthForTest, false), "\n")[3]
 	if got := ansi.StringWidth(line); got != fixedWidth+minDetailWidth {
 		t.Errorf("width = %d, want %d", got, fixedWidth+minDetailWidth)
 	}

@@ -25,6 +25,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.moveTo(0)
 	case "end":
 		m.moveTo(len(m.entries) - 1)
+	case "h":
+		return m.toggleHidden()
+	case "H":
+		return m.toggleShowHidden()
 	case "r":
 		return m.refresh()
 	case "enter":

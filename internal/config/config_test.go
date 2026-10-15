@@ -15,6 +15,8 @@ const (
 	envInterval     = 5 * time.Second
 	flagInterval    = 2 * time.Minute
 	negativeSeconds = "-5s"
+	envHiddenFile   = "/env/hidden.json"
+	flagHiddenFile  = "/flag/hidden.json"
 )
 
 func envFrom(m map[string]string) func(string) string {
@@ -46,6 +48,7 @@ func TestParseEnvAndFlags(t *testing.T) {
 		"ATOP_STALE_DAYS":        "7",
 		"ATOP_IN_PROGRESS_LABEL": "4",
 		"ATOP_INTERVAL":          "5s",
+		"ATOP_HIDDEN_FILE":       envHiddenFile,
 	}
 	tests := []struct {
 		name  string
@@ -54,10 +57,13 @@ func TestParseEnvAndFlags(t *testing.T) {
 	}{
 		{"env overrides default", nil, func(c Config) bool {
 			return c.GitHubOwner == envOwner && c.StaleDays == envStaleDays &&
-				c.InProgressLabel == envLabel && c.Interval == envInterval
+				c.InProgressLabel == envLabel && c.Interval == envInterval && c.HiddenFile == envHiddenFile
 		}},
 		{"flag beats env", []string{"-github-owner", flagOwner, "-interval", "2m"}, func(c Config) bool {
 			return c.GitHubOwner == flagOwner && c.Interval == flagInterval && c.StaleDays == envStaleDays
+		}},
+		{"hidden file flag beats env", []string{"-hidden-file", flagHiddenFile}, func(c Config) bool {
+			return c.HiddenFile == flagHiddenFile
 		}},
 		{"once flag", []string{"-once"}, func(c Config) bool { return c.Once }},
 	}

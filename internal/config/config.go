@@ -44,7 +44,10 @@ type Config struct {
 	ConsoleURL      string
 	StaleDays       int
 	Interval        time.Duration
-	Once            bool
+	// HiddenFile is where hidden rows are kept; empty means
+	// hidden.DefaultPath.
+	HiddenFile string
+	Once       bool
 }
 
 // Parse reads flags from args, taking each default from getenv when set.
@@ -64,6 +67,7 @@ func Parse(name string, args []string, getenv func(string) string) (Config, erro
 	fs.StringVar(&c.ConsoleURL, "console-url", env.str("ATOP_CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (ATOP_CONSOLE_URL)")
 	fs.IntVar(&c.StaleDays, "stale-days", env.integer("ATOP_STALE_DAYS", DefaultStaleDays), "days after which an untouched PR or reply is stale (ATOP_STALE_DAYS)")
 	fs.DurationVar(&c.Interval, "interval", env.duration("ATOP_INTERVAL", DefaultInterval), "refresh interval (ATOP_INTERVAL)")
+	fs.StringVar(&c.HiddenFile, "hidden-file", env.str("ATOP_HIDDEN_FILE", ""), "file of the rows hidden with h (ATOP_HIDDEN_FILE; default <user config dir>/atop/hidden.json)")
 	fs.BoolVar(&c.Once, "once", false, "print one plain-text snapshot and exit")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
