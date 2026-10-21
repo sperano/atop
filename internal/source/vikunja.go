@@ -29,8 +29,8 @@ const (
 	apiSuffix        = "/api/v1"
 	replyFromPrefix  = "reply from "
 	unknownAuthor    = "?"
-	// StateInReview marks a task whose PR is open (Kelos labels it so).
-	StateInReview = "in review"
+	// StatePROpen marks a task whose PR is open (Kelos labels it so).
+	StatePROpen = "PR open"
 )
 
 // VikunjaWebBase is the web base of a Vikunja API URL.
@@ -208,12 +208,13 @@ func (v Vikunja) newestComment(ctx context.Context, token string, taskID int) (*
 	return &page[len(page)-1], nil
 }
 
-// row maps a task to its state: in review while its PR is open, a reply
+// row maps a task to its state: PR open while its PR is open, a reply
 // when someone else spoke last (needing you unless stale), else idle. A
 // running Kelos Task later overrides this (Enrich).
 func (v Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web string) Row {
 	row := Row{
 		Source: SourceVikunja,
+		Origin: OriginVikunja,
 		Name:   "#" + strconv.Itoa(t.ID),
 		Since:  parseTime(t.Updated),
 		Detail: taskTitle(t),
@@ -227,7 +228,7 @@ func (v Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web s
 	}
 	switch {
 	case hasLabel(t, v.PROpenLabel):
-		row.State = StateInReview
+		row.State = StatePROpen
 	case last == nil || author == v.Operator:
 		row.State = StateIdle
 	case stale.IsStale(row.Since):

@@ -38,7 +38,7 @@ func TestEnrich(t *testing.T) {
 		{
 			name: "a running conflict fix speaks for its PR and task",
 			rows: []Row{
-				vikunjaRow(StateInReview, false),
+				vikunjaRow(StatePROpen, false),
 				prRowFor("conflicts", true),
 				taskRowFor("pr-conflict-1", ActivityConflictFix, true, fresh, enrichPRRef, enrichTaskRef),
 			},

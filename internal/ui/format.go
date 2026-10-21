@@ -13,23 +13,29 @@ import (
 
 // Column widths; DETAIL takes what is left of the terminal.
 const (
-	markWidth      = 1
-	sourceWidth    = 13
-	nameWidth      = 34
-	stateWidth     = 18
-	ageWidth       = 5
-	columnGap      = " "
-	columnCount    = 6
-	minDetailWidth = 20
-	ellipsis       = "…"
-	needsYouMark   = "●"
-	hiddenMark     = "-"
-	blankMark      = " "
-	unknownAge     = "-"
+	markWidth       = 1
+	typeWidth       = 13
+	originWidth     = 8
+	nameWidth       = 34
+	stateWidth      = 18
+	ageWidth        = 5
+	columnGap       = " "
+	columnCount     = 7
+	minDetailWidth  = 20
+	ellipsis        = "…"
+	needsYouMark    = "●"
+	hiddenMark      = "-"
+	blankMark       = " "
+	unknownAge      = "-"
+	stateFailed     = "failed"
+	stateFailure    = "failure"
+	stateChecksFail = "checks failing"
+	stateBlocked    = "blocked"
+	stateConflict   = "conflicts"
 )
 
 // fixedWidth is the width of every column but DETAIL, gaps included.
-const fixedWidth = markWidth + sourceWidth + nameWidth + stateWidth + ageWidth + (columnCount-1)*len(columnGap)
+const fixedWidth = markWidth + typeWidth + originWidth + nameWidth + stateWidth + ageWidth + (columnCount-1)*len(columnGap)
 
 var ageUnits = []struct {
 	suffix string
@@ -110,11 +116,12 @@ func Summary(rows []source.Row) string {
 
 // formatColumns lays out one table line of exactly width cells, or of
 // fixedWidth+minDetailWidth when the terminal is narrower.
-func formatColumns(mark, src, name, state, age, detail string, width int) string {
+func formatColumns(mark, typ, origin, name, state, age, detail string, width int) string {
 	detailWidth := max(minDetailWidth, width-fixedWidth)
 	return strings.Join([]string{
 		padRight(mark, markWidth),
-		padRight(src, sourceWidth),
+		padRight(typ, typeWidth),
+		padRight(origin, originWidth),
 		padRight(name, nameWidth),
 		padRight(state, stateWidth),
 		padLeft(age, ageWidth),
@@ -123,7 +130,7 @@ func formatColumns(mark, src, name, state, age, detail string, width int) string
 }
 
 func headerLine(width int) string {
-	return formatColumns(blankMark, "SOURCE", "NAME", "STATE", "AGE", "DETAIL", width)
+	return formatColumns(blankMark, "TYPE", "ORIGIN", "NAME", "STATE", "AGE", "DETAIL", width)
 }
 
 func rowLine(e Entry, now time.Time, width int) string {
@@ -135,7 +142,11 @@ func rowLine(e Entry, now time.Time, width int) string {
 	case r.NeedsYou:
 		mark = needsYouMark
 	}
-	return formatColumns(mark, r.Source, e.Prefix+r.Name, r.State, FormatAge(r.Since, now), oneLine(r.Detail), width)
+	origin := r.Origin
+	if origin == "" {
+		origin = source.OriginUnknown
+	}
+	return formatColumns(mark, r.Source, origin, e.Prefix+r.Name, r.State, FormatAge(r.Since, now), oneLine(r.Detail), width)
 }
 
 // oneLine flattens newlines so that a detail cannot break the table.

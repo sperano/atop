@@ -116,8 +116,11 @@ func TestRowKeyAndErrorRow(t *testing.T) {
 		t.Error("distinct names must give distinct keys")
 	}
 	row := ErrorRow(SourcePR, errors.New("gh logged out"))
-	if row.Source != SourcePR || row.State != StateError || !row.NeedsYou || row.Detail != "gh logged out" {
+	if row.Source != SourcePR || row.Origin != OriginGitHub || row.State != StateError || !row.NeedsYou || row.Detail != "gh logged out" {
 		t.Errorf("unexpected error row %+v", row)
+	}
+	if got := ErrorRow(SourceKelosTask, errors.New("kubectl unavailable")).Origin; got != OriginUnknown {
+		t.Errorf("Kelos Task collector error origin = %q, want unknown", got)
 	}
 }
 

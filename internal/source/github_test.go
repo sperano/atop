@@ -67,8 +67,8 @@ func TestPRRowStates(t *testing.T) {
 		{"checks expected", prOpts{checks: "EXPECTED"}, "checks running", false, true},
 		{"changes requested", prOpts{review: "CHANGES_REQUESTED"}, "changes requested", false, false},
 		{"changes requested with green checks", prOpts{checks: "SUCCESS", review: "CHANGES_REQUESTED"}, "changes requested", false, false},
-		{"approved and green awaits you", prOpts{checks: "SUCCESS", review: "APPROVED"}, "review", true, false},
-		{"no checks at all", prOpts{}, "review", true, false},
+		{"approved and green awaits you", prOpts{checks: "SUCCESS", review: "APPROVED"}, "awaiting your review", true, false},
+		{"no checks at all", prOpts{}, "awaiting your review", true, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestPRRowStaleness(t *testing.T) {
 		{"stale draft stays draft", prOpts{draft: true, updated: old}, "draft", false},
 		{"stale changes requested stays", prOpts{review: "CHANGES_REQUESTED", updated: old}, "changes requested", false},
 		{"stale running checks stay busy", prOpts{checks: "PENDING", updated: old}, "checks running", false},
-		{"fresh review still needs you", prOpts{}, "review", true},
+		{"fresh review still needs you", prOpts{}, "awaiting your review", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

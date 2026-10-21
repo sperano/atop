@@ -1,29 +1,30 @@
 # atop
 
-A `top` for coding agents: which agent needs you, who is running what, who is
-idle. One table, refreshed every 30 seconds, over five sources: local Claude
-Code sessions, Kelos Sessions and Tasks, open GitHub PRs, and in-progress
-Vikunja tasks.
+A `top` for coding agents—hence **agent top**, or `atop`: which agent needs
+you, who is running what, who is idle. One table, refreshed every 30 seconds,
+over five sources: local Claude Code sessions, Kelos Sessions and Tasks, open
+GitHub PRs, and in-progress Vikunja tasks.
 
 ```
 atop · 2026-10-14 21:55:04 · 2 need you · 3 busy · 2 idle
 
-  SOURCE        NAME                  STATE              AGE DETAIL
-● vikunja       #182                  reply from claude  48m [claude-opus] CLI: launch specific VMs …
-  vikunja       #589                  in review           2h [claude-fable] improve mcp server, let's …
-● pr            └─ puckdb#14          review              2h [claude-fable] Propose new MCP server tools
-  vikunja       #840                  conflict fix        5m [claude-fable] we need a refresh
-  pr            └─ atop#3             conflict fix        5m [claude-fable] Show what each agent is doing
-  kelos task       └─ pr-conflict-9f3 conflict fix        5m https://github.com/sperano/atop/pull/3
-  vikunja       #612                  implementing       12m [gpt-sol] CLI: list VMs
-  kelos task    └─ vikunja-cocovm-612 implementing       12m vikunja #612
-  local claude  atop-da               busy                3m ~/code/atop tmux main:@5.%6
-  vikunja       #701                  idle                1d [claude-opus] write the docs
-  kelos session eric-hollingsworth    idle                3h hollingsworth
+  TYPE          ORIGIN   NAME                  STATE                AGE DETAIL
+● vikunja       vikunja  #182                  reply from claude    48m [claude-opus] CLI: launch specific VMs …
+  vikunja       vikunja  #589                  PR open               2h [claude-fable] improve mcp server, let's …
+● pr            github   └─ puckdb#14          awaiting your review  2h [claude-fable] Propose new MCP server tools
+  vikunja       vikunja  #840                  conflict fix          5m [claude-fable] we need a refresh
+  pr            github   └─ atop#3             conflict fix          5m [claude-fable] Show what each agent is doing
+  kelos task    github      └─ pr-conflict-9f3 conflict fix          5m https://github.com/sperano/atop/pull/3
+  vikunja       vikunja  #612                  implementing         12m [gpt-sol] CLI: list VMs
+  kelos task    vikunja  └─ vikunja-cocovm-612 implementing         12m vikunja #612
+  local claude  local    atop-da               busy                  3m ~/code/atop tmux main:@5.%6
+  vikunja       vikunja  #701                  idle                  1d [claude-opus] write the docs
+  kelos session kelos    eric-hollingsworth    idle                  3h hollingsworth
 ```
 
-Rows that need you come first, red and marked `●`; then busy rows, green;
-then the rest, dim. Each group is ordered most recent first.
+Rows that need you come first and are marked `●`; failures and errors are
+red, blocked work and conflicts are yellow, active agents are green, and
+inactive informational rows are dim. Each group is ordered most recent first.
 
 Related rows form a tree. An agent PR (branch `kelos/vikunja-<id>`) sits
 under its Vikunja task, and a Kelos Task sits under the PR it produced or
@@ -90,15 +91,24 @@ While the file cannot be parsed, atop leaves it alone, says so in the footer
 and keeps hidden rows for the current run only; `--once` warns and hides
 nothing.
 
+## Types and origins
+
+TYPE says what a row represents. ORIGIN says where its work began: `local`
+for local Claude sessions, `kelos` for Kelos Sessions, `github` for PRs,
+and `vikunja` for Vikunja tasks. Kelos Tasks use the explicit
+`kelos.dev/origin` label, whose supported values are `github`, `vikunja`,
+and `wiki`; a missing or unrecognized value is shown as `unknown` rather
+than inferred from a Task name or prompt.
+
 ## Sources
 
-| Source | Shows | Needs you when | Enter opens |
+| Type | Shows | Needs you when | Enter opens |
 | --- | --- | --- | --- |
 | `local claude` | Claude Code sessions on this machine: `busy`, `idle`, or another raw status | the status is neither busy nor idle | `tmux switch-client` to its pane, when atop runs inside tmux |
 | `kelos session` | Kelos Sessions: `busy`/`idle` from the `Active` condition, else the lowercased phase | the phase is `Failed` | the Kelos console |
 | `kelos task` | Kelos Tasks. While one runs, its state is what it does: `implementing`, `discussing`, `conflict fix`, `cubic fix` (a review bot's findings; the bot's name comes from the Task), `pr follow-up`, `task follow-up`; a plumbing Task shows its Kelos role (`merge-close`, `pr-open`, `conflict-reconcile`). Otherwise `blocked` (waiting on its blockers), `waiting` (queued behind the branch lock), `pending`, `done` for an hour after completion, then hidden; the activity then starts DETAIL | the Task failed | its PR, else its Vikunja task, else its logs in the console |
-| `pr` | open PRs of the owner's non-archived repos (first 50): `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `review`; a `kelos:<variant>` label prefixes the title with `[variant]` | conflicts, failing checks, or awaiting review | the PR |
-| `vikunja` | tasks labelled in progress and not done, the title prefixed with the agent user they are assigned to: `in review` (the task carries the `pr open` label Kelos adds while its PR is open), `reply from <user>` (someone else spoke last), `idle` (you spoke last, or nobody did, and no agent is running) | the newest comment is not yours and the PR is not open | the task |
+| `pr` | open PRs of the owner's non-archived repos (first 50): `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `awaiting your review`; a `kelos:<variant>` label prefixes the title with `[variant]` | conflicts, failing checks, or awaiting review | the PR |
+| `vikunja` | tasks labelled in progress and not done, the title prefixed with the agent user they are assigned to: `PR open` (the task carries the `pr open` label Kelos adds while its PR is open), `reply from <user>` (someone else spoke last), `idle` (you spoke last, or nobody did, and no agent is running) | the newest comment is not yours and the PR is not open | the task |
 
 An agent working on a row speaks for it: while a Kelos Task runs on a Vikunja
 task or on a PR, that row takes the Task's state (`conflict fix`, `cubic fix`,
@@ -111,7 +121,7 @@ and its Vikunja task counts once.
 
 A PR or agent reply that would need you but has been untouched for
 `--stale-days` shows as `stale` and is not flagged, so abandoned experiments do
-not stay red forever.
+not stay at the top forever.
 
 Local sessions are read from `~/.claude/sessions/<pid>.json`, skipping those
 whose process has exited. That directory is a Claude Code internal, not a
@@ -142,7 +152,7 @@ The Vikunja token comes from `VIKUNJA_API_TOKEN`, else from the
 `token-namespace`/`token-secret` Secret's `token-key` via kubectl.
 `--operator` is your Vikunja username: a newest comment by anyone else is a
 reply waiting on you. `--pr-open-label` is the title of the label Kelos adds
-to a task while its PR is open; empty turns `in review` off.
+to a task while its PR is open; empty turns `PR open` off.
 
 Kelos Task activities come from the Task itself: its
 `vikunja.spe.quebec/role` label (`pr-conflict`, `pr-followup`,

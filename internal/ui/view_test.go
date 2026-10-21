@@ -33,10 +33,10 @@ func TestSnapshotPlain(t *testing.T) {
 	if !strings.Contains(lines[0], "1 need you") {
 		t.Errorf("title = %q", lines[0])
 	}
-	if !strings.Contains(lines[2], "AGE") || !strings.Contains(lines[2], "DETAIL") {
+	if !strings.Contains(lines[2], "TYPE") || !strings.Contains(lines[2], "ORIGIN") || strings.Contains(lines[2], "SOURCE") {
 		t.Errorf("header = %q", lines[2])
 	}
-	if !strings.HasPrefix(lines[3], "● pr") {
+	if !strings.HasPrefix(lines[3], "● pr") || !strings.Contains(lines[3], "unknown") {
 		t.Errorf("needs-you row = %q", lines[3])
 	}
 	if got := ansi.StringWidth(lines[3]); got != testWidth {
@@ -45,7 +45,7 @@ func TestSnapshotPlain(t *testing.T) {
 	if !strings.HasSuffix(lines[3], "…") {
 		t.Errorf("long detail not truncated with ellipsis: %q", lines[3])
 	}
-	if !strings.HasPrefix(lines[4], "  pr") || !strings.HasSuffix(lines[4], "multi line") {
+	if !strings.HasPrefix(lines[4], "  pr") || !strings.Contains(lines[4], "unknown") || !strings.HasSuffix(lines[4], "multi line") {
 		t.Errorf("second row = %q", lines[4])
 	}
 }
@@ -55,6 +55,32 @@ func TestSnapshotColour(t *testing.T) {
 	rows := []source.Row{{Source: "pr", Name: "a", State: "review", NeedsYou: true}}
 	if out := Snapshot(rows, hidden.Set{}, testNow, testWidth, true); !strings.Contains(out, escape) {
 		t.Error("colour snapshot has no ANSI sequences")
+	}
+}
+
+func TestRowColourFollowsSeverityNotAttention(t *testing.T) {
+	t.Parallel()
+	st := newStyles(true)
+	tests := []struct {
+		name string
+		row  source.Row
+		want string
+	}{
+		{"needs review is normal", source.Row{Source: source.SourcePR, State: "awaiting your review", NeedsYou: true}, st.attention.Render("row")},
+		{"checks failing is red", source.Row{Source: source.SourcePR, State: stateChecksFail}, st.failed.Render("row")},
+		{"blocked is yellow", source.Row{Source: source.SourceKelosTask, State: stateBlocked}, st.blocked.Render("row")},
+		{"conflicts are yellow", source.Row{Source: source.SourcePR, State: stateConflict}, st.blocked.Render("row")},
+		{"active agent is green", source.Row{Source: source.SourceLocal, State: source.StateBusy, Busy: true, NeedsYou: true}, st.busy.Render("row")},
+		{"busy PR stays informational", source.Row{Source: source.SourcePR, State: "checks running", Busy: true}, st.rest.Render("row")},
+		{"PR open stays informational", source.Row{Source: source.SourceVikunja, State: "PR open"}, st.rest.Render("row")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := st.entry(Entry{Row: tt.row}).Render("row"); got != tt.want {
+				t.Errorf("styled row = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

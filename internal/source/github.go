@@ -19,7 +19,7 @@ const (
 	stateChecksFail  = "checks failing"
 	stateChecksRun   = "checks running"
 	stateChanges     = "changes requested"
-	stateReview      = "review"
+	stateReview      = "awaiting your review"
 )
 
 const prQuery = `
@@ -151,6 +151,7 @@ func prRow(pr pullRequest, stale Staleness) Row {
 	}
 	return Row{
 		Source:     SourcePR,
+		Origin:     OriginGitHub,
 		Name:       pr.Repository.Name + "#" + strconv.Itoa(pr.Number),
 		State:      state,
 		Since:      since,

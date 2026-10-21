@@ -10,13 +10,23 @@ import (
 	"time"
 )
 
-// Source names, shown in the SOURCE column and used in row identity.
+// Source names, shown in the TYPE column and used in row identity.
 const (
 	SourceLocal        = "local claude"
 	SourceKelosSession = "kelos session"
 	SourceKelosTask    = "kelos task"
 	SourcePR           = "pr"
 	SourceVikunja      = "vikunja"
+)
+
+// Origin names identify where work represented by a row began.
+const (
+	OriginLocal   = "local"
+	OriginKelos   = "kelos"
+	OriginGitHub  = "github"
+	OriginVikunja = "vikunja"
+	OriginWiki    = "wiki"
+	OriginUnknown = "unknown"
 )
 
 // Shared state names.
@@ -46,6 +56,7 @@ type Target struct {
 // Row is one line of the table.
 type Row struct {
 	Source   string
+	Origin   string
 	Name     string
 	State    string
 	Since    time.Time // zero when unknown
@@ -70,7 +81,22 @@ const errorRowName = "-"
 
 // ErrorRow reports a source that could not be read.
 func ErrorRow(source string, err error) Row {
-	return Row{Source: source, Name: errorRowName, State: StateError, Detail: err.Error(), NeedsYou: true}
+	return Row{Source: source, Origin: defaultOrigin(source), Name: errorRowName, State: StateError, Detail: err.Error(), NeedsYou: true}
+}
+
+func defaultOrigin(source string) string {
+	switch source {
+	case SourceLocal:
+		return OriginLocal
+	case SourceKelosSession:
+		return OriginKelos
+	case SourcePR:
+		return OriginGitHub
+	case SourceVikunja:
+		return OriginVikunja
+	default:
+		return OriginUnknown
+	}
 }
 
 // IsSourceError reports whether r is a source's error row, as opposed to a

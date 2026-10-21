@@ -162,6 +162,30 @@ func TestTaskRowSince(t *testing.T) {
 	}
 }
 
+func TestTaskOriginUsesExplicitMetadata(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		labels obj
+		want   string
+	}{
+		{"github label", obj{taskOriginLabel: OriginGitHub}, OriginGitHub},
+		{"vikunja label", obj{taskOriginLabel: OriginVikunja}, OriginVikunja},
+		{"wiki label", obj{taskOriginLabel: OriginWiki}, OriginWiki},
+		{"missing metadata", nil, OriginUnknown},
+		{"unrecognized metadata", obj{taskOriginLabel: "invented"}, OriginUnknown},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			task := decode[kelosTask](t, taskObj("Running", obj{"prompt": "origin: github"}, tt.labels))
+			row, _ := testKelos().taskRow(task, nil, testNow)
+			if row.Origin != tt.want {
+				t.Errorf("origin = %q, want %q", row.Origin, tt.want)
+			}
+		})
+	}
+}
+
 func TestKelosTasksFetch(t *testing.T) {
 	t.Parallel()
 	pods := obj{"items": []obj{{"metadata": obj{"name": testPodName}, "status": obj{
