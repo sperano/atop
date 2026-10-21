@@ -22,7 +22,7 @@ func snapshotLines(t *testing.T, rows []source.Row, color bool) []string {
 func TestSnapshotPlain(t *testing.T) {
 	t.Parallel()
 	rows := []source.Row{
-		{Source: "pr", Name: "cocovm#1", State: "review", Since: testNow, Detail: strings.Repeat("x", longDetail), NeedsYou: true},
+		{Source: "pr", Name: "cocovm#1", State: "awaiting your review", Since: testNow, Detail: strings.Repeat("x", longDetail), NeedsYou: true},
 		{Source: "pr", Name: "cocovm#2", State: "draft", Since: testNow, Detail: "multi\nline"},
 	}
 	out := Snapshot(rows, hidden.Set{}, testNow, testWidth, false)
@@ -38,6 +38,9 @@ func TestSnapshotPlain(t *testing.T) {
 	}
 	if !strings.HasPrefix(lines[3], "● pr") || !strings.Contains(lines[3], "unknown") {
 		t.Errorf("needs-you row = %q", lines[3])
+	}
+	if !strings.Contains(lines[3], "awaiting your review") {
+		t.Errorf("state was truncated: %q", lines[3])
 	}
 	if got := ansi.StringWidth(lines[3]); got != testWidth {
 		t.Errorf("row width = %d, want %d", got, testWidth)

@@ -17,7 +17,7 @@ const (
 	typeWidth       = 13
 	originWidth     = 8
 	nameWidth       = 34
-	stateWidth      = 18
+	stateWidth      = 20
 	ageWidth        = 5
 	columnGap       = " "
 	columnCount     = 7
