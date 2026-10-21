@@ -31,10 +31,15 @@ const (
 
 // Shared state names.
 const (
-	StateStale = "stale"
-	StateError = "error"
-	StateIdle  = "idle"
-	StateBusy  = "busy"
+	StateStale         = "stale"
+	StateError         = "error"
+	StateIdle          = "idle"
+	StateBusy          = "busy"
+	StateFailed        = "failed"
+	StateFailure       = "failure"
+	StateChecksFailing = "checks failing"
+	StateBlocked       = "blocked"
+	StateConflicts     = "conflicts"
 )
 
 // Day is a calendar day, for staleness and ages.

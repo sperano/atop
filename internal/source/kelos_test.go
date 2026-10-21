@@ -205,7 +205,7 @@ func TestKelosTasksFetch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 1 || rows[0].State != stateBlocked {
+	if len(rows) != 1 || rows[0].State != StateBlocked {
 		t.Fatalf("rows = %+v", rows)
 	}
 	k.Run = (&fakeRunner{}).run

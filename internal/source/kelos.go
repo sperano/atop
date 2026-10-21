@@ -22,9 +22,7 @@ const (
 	phaseSucceeded      = "Succeeded"
 	phaseFailed         = "Failed"
 	stateDone           = "done"
-	stateFailed         = "failed"
 	stateRunning        = "running"
-	stateBlocked        = "blocked"
 	resultPR            = "pr"
 	resultBranch        = "branch"
 	// detailSep separates the parts of a Task's DETAIL.
@@ -192,7 +190,7 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 		row.Detail = taskDetail(t, pr, activity)
 		return row, !row.Since.IsZero() && now.Sub(row.Since) <= RecentDone
 	case phaseFailed:
-		row.State, row.Since, row.NeedsYou = stateFailed, parseTime(st.CompletionTime), true
+		row.State, row.Since, row.NeedsYou = StateFailed, parseTime(st.CompletionTime), true
 		row.Detail = taskDetail(t, pr, activity)
 		if st.Message != "" {
 			row.Detail = strings.Join(nonEmpty(activity, st.Message), detailSep)
@@ -227,7 +225,7 @@ func taskOrigin(t kelosTask) string {
 // wait-for-blockers init container runs, else its lowercased phase.
 func liveState(t kelosTask, pods map[string]pod) string {
 	if p, ok := pods[t.Status.PodName]; ok && waitingOnBlockers(p) {
-		return stateBlocked
+		return StateBlocked
 	}
 	if t.Status.Phase == "" {
 		return strings.ToLower(phasePending)

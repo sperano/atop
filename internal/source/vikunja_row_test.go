@@ -58,7 +58,7 @@ func TestVikunjaRow(t *testing.T) {
 		{"missing author shown as ?", testTask(), testComment("", testNow), "reply from ?", true, testNow,
 			"mcp: peek — PR: #180 & more"},
 		{"pr open label is PR open", labelled(testTask(), "in progress", testPROpenLabel), nil, StatePROpen, false, testNow, "mcp: peek"},
-		{"in review even after an agent reply", labelled(testTask(), testPROpenLabel), testComment("claude", testNow),
+		{"PR open even after an agent reply", labelled(testTask(), testPROpenLabel), testComment("claude", testNow),
 			StatePROpen, false, testNow, "mcp: peek"},
 		{"other labels do not mean review", labelled(testTask(), "in progress"), nil, StateIdle, false, testNow, "mcp: peek"},
 	}

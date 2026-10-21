@@ -13,25 +13,20 @@ import (
 
 // Column widths; DETAIL takes what is left of the terminal.
 const (
-	markWidth       = 1
-	typeWidth       = 13
-	originWidth     = 8
-	nameWidth       = 34
-	stateWidth      = 20
-	ageWidth        = 5
-	columnGap       = " "
-	columnCount     = 7
-	minDetailWidth  = 20
-	ellipsis        = "…"
-	needsYouMark    = "●"
-	hiddenMark      = "-"
-	blankMark       = " "
-	unknownAge      = "-"
-	stateFailed     = "failed"
-	stateFailure    = "failure"
-	stateChecksFail = "checks failing"
-	stateBlocked    = "blocked"
-	stateConflict   = "conflicts"
+	markWidth      = 1
+	typeWidth      = 13
+	originWidth    = 8
+	nameWidth      = 34
+	stateWidth     = 20
+	ageWidth       = 5
+	columnGap      = " "
+	columnCount    = 7
+	minDetailWidth = 20
+	ellipsis       = "…"
+	needsYouMark   = "●"
+	hiddenMark     = "-"
+	blankMark      = " "
+	unknownAge     = "-"
 )
 
 // fixedWidth is the width of every column but DETAIL, gaps included.

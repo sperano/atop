@@ -15,8 +15,6 @@ const (
 	mergeConflicting = "CONFLICTING"
 	changesRequested = "CHANGES_REQUESTED"
 	stateDraft       = "draft"
-	stateConflicts   = "conflicts"
-	stateChecksFail  = "checks failing"
 	stateChecksRun   = "checks running"
 	stateChanges     = "changes requested"
 	stateReview      = "awaiting your review"
@@ -118,9 +116,9 @@ func prState(pr pullRequest) (state string, needsYou, busy bool) {
 	case pr.IsDraft:
 		return stateDraft, false, false
 	case pr.Mergeable == mergeConflicting:
-		return stateConflicts, true, false
+		return StateConflicts, true, false
 	case checksFailed[checks]:
-		return stateChecksFail, true, false
+		return StateChecksFailing, true, false
 	case checksPending[checks]:
 		return stateChecksRun, false, true
 	case pr.ReviewDecision == changesRequested:

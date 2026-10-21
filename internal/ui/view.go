@@ -57,7 +57,7 @@ func (s styles) entry(e Entry) lipgloss.Style {
 
 func failedState(r source.Row) bool {
 	switch r.State {
-	case stateFailed, stateFailure, source.StateError, stateChecksFail:
+	case source.StateFailed, source.StateFailure, source.StateError, source.StateChecksFailing:
 		return true
 	default:
 		return r.IsSourceError()
@@ -65,7 +65,7 @@ func failedState(r source.Row) bool {
 }
 
 func blockedState(r source.Row) bool {
-	return r.State == stateBlocked || r.State == stateConflict
+	return r.State == source.StateBlocked || r.State == source.StateConflicts
 }
 
 // titleLine counts the rows that are not hidden, then the hidden ones.

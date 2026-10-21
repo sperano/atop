@@ -50,9 +50,9 @@ func TestEnrich(t *testing.T) {
 			name: "a blocked implementation is not busy but still speaks",
 			rows: []Row{
 				vikunjaRow("reply from kelos", true),
-				taskRowFor("vikunja-atop-claude-840", stateBlocked, false, fresh, enrichTaskRef),
+				taskRowFor("vikunja-atop-claude-840", StateBlocked, false, fresh, enrichTaskRef),
 			},
-			wantState: map[string]string{"#840": stateBlocked},
+			wantState: map[string]string{"#840": StateBlocked},
 			wantNeeds: map[string]bool{"#840": false},
 			wantBusy:  map[string]bool{"#840": false},
 		},
@@ -61,7 +61,7 @@ func TestEnrich(t *testing.T) {
 			rows: []Row{
 				vikunjaRow("reply from claude", true),
 				taskRowFor("done", stateDone, false, fresh, enrichTaskRef),
-				taskRowFor("failed", stateFailed, false, fresh, enrichTaskRef),
+				taskRowFor("failed", StateFailed, false, fresh, enrichTaskRef),
 			},
 			wantState: map[string]string{"#840": "reply from claude"},
 			wantNeeds: map[string]bool{"#840": true},
@@ -98,10 +98,10 @@ func TestEnrich(t *testing.T) {
 		{
 			name: "a task never speaks for another task",
 			rows: []Row{
-				{Source: SourceKelosTask, Name: "parent", State: stateBlocked, Ref: "task:parent"},
+				{Source: SourceKelosTask, Name: "parent", State: StateBlocked, Ref: "task:parent"},
 				taskRowFor("child", ActivityImplementing, true, fresh, "task:parent"),
 			},
-			wantState: map[string]string{"parent": stateBlocked},
+			wantState: map[string]string{"parent": StateBlocked},
 		},
 	}
 	for _, tt := range tests {

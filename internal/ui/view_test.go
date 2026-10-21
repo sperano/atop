@@ -70,9 +70,9 @@ func TestRowColourFollowsSeverityNotAttention(t *testing.T) {
 		want string
 	}{
 		{"needs review is normal", source.Row{Source: source.SourcePR, State: "awaiting your review", NeedsYou: true}, st.attention.Render("row")},
-		{"checks failing is red", source.Row{Source: source.SourcePR, State: stateChecksFail}, st.failed.Render("row")},
-		{"blocked is yellow", source.Row{Source: source.SourceKelosTask, State: stateBlocked}, st.blocked.Render("row")},
-		{"conflicts are yellow", source.Row{Source: source.SourcePR, State: stateConflict}, st.blocked.Render("row")},
+		{"checks failing is red", source.Row{Source: source.SourcePR, State: source.StateChecksFailing}, st.failed.Render("row")},
+		{"blocked is yellow", source.Row{Source: source.SourceKelosTask, State: source.StateBlocked}, st.blocked.Render("row")},
+		{"conflicts are yellow", source.Row{Source: source.SourcePR, State: source.StateConflicts}, st.blocked.Render("row")},
 		{"active agent is green", source.Row{Source: source.SourceLocal, State: source.StateBusy, Busy: true, NeedsYou: true}, st.busy.Render("row")},
 		{"busy PR stays informational", source.Row{Source: source.SourcePR, State: "checks running", Busy: true}, st.rest.Render("row")},
 		{"PR open stays informational", source.Row{Source: source.SourceVikunja, State: "PR open"}, st.rest.Render("row")},

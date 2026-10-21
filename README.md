@@ -8,23 +8,25 @@ GitHub PRs, and in-progress Vikunja tasks.
 ```
 atop · 2026-10-14 21:55:04 · 2 need you · 3 busy · 2 idle
 
-  TYPE          ORIGIN   NAME                  STATE                AGE DETAIL
-● vikunja       vikunja  #182                  reply from claude    48m [claude-opus] CLI: launch specific VMs …
-  vikunja       vikunja  #589                  PR open               2h [claude-fable] improve mcp server, let's …
-● pr            github   └─ puckdb#14          awaiting your review  2h [claude-fable] Propose new MCP server tools
-  vikunja       vikunja  #840                  conflict fix          5m [claude-fable] we need a refresh
-  pr            github   └─ atop#3             conflict fix          5m [claude-fable] Show what each agent is doing
-  kelos task    github      └─ pr-conflict-9f3 conflict fix          5m https://github.com/sperano/atop/pull/3
-  vikunja       vikunja  #612                  implementing         12m [gpt-sol] CLI: list VMs
-  kelos task    vikunja  └─ vikunja-cocovm-612 implementing         12m vikunja #612
-  local claude  local    atop-da               busy                  3m ~/code/atop tmux main:@5.%6
-  vikunja       vikunja  #701                  idle                  1d [claude-opus] write the docs
-  kelos session kelos    eric-hollingsworth    idle                  3h hollingsworth
+  TYPE          ORIGIN   NAME                               STATE                  AGE DETAIL
+● vikunja       vikunja  #182                               reply from claude      48m [claude-opus] CLI: launch specific VMs …
+  vikunja       vikunja  #589                               PR open                 2h [claude-fable] improve mcp server, let's …
+● pr            github   └─ puckdb#14                       awaiting your review    2h [claude-fable] Propose new MCP server tools
+  vikunja       vikunja  #840                               conflict fix            5m [claude-fable] we need a refresh
+  pr            github   └─ atop#3                          conflict fix            5m [claude-fable] Show what each agent is doing
+  kelos task    github      └─ pr-conflict-9f3              conflict fix            5m https://github.com/sperano/atop/pull/3
+  vikunja       vikunja  #612                               implementing           12m [gpt-sol] CLI: list VMs
+  kelos task    vikunja  └─ vikunja-cocovm-612              implementing           12m vikunja #612
+  local claude  local    atop-da                            busy                    3m ~/code/atop tmux main:@5.%6
+  vikunja       vikunja  #701                               idle                    1d [claude-opus] write the docs
+  kelos session kelos    eric-hollingsworth                 idle                    3h hollingsworth
 ```
 
 Rows that need you come first and are marked `●`; failures and errors are
 red, blocked work and conflicts are yellow, active agents are green, and
-inactive informational rows are dim. Each group is ordered most recent first.
+inactive informational rows are dim. Attention-only rows with no failure,
+block, or active agent state use normal text. Each group is ordered most recent
+first.
 
 Related rows form a tree. An agent PR (branch `kelos/vikunja-<id>`) sits
 under its Vikunja task, and a Kelos Task sits under the PR it produced or
