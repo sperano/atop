@@ -20,7 +20,7 @@ const (
 
 // styles colours the table; the zero value renders plain text.
 type styles struct {
-	needsYou, busy, rest, bold, selected lipgloss.Style
+	attention, failed, blocked, busy, rest, bold, selected lipgloss.Style
 }
 
 func newStyles(color bool) styles {
@@ -28,26 +28,44 @@ func newStyles(color bool) styles {
 	if !color {
 		return s
 	}
-	s.needsYou = lipgloss.NewStyle().Foreground(lipgloss.Red)
+	s.failed = lipgloss.NewStyle().Foreground(lipgloss.Red)
+	s.blocked = lipgloss.NewStyle().Foreground(lipgloss.Yellow)
 	s.busy = lipgloss.NewStyle().Foreground(lipgloss.Green)
 	s.rest = lipgloss.NewStyle().Faint(true)
 	s.bold = lipgloss.NewStyle().Bold(true)
 	return s
 }
 
-// entry styles a row by its urgency; a hidden row is dim whatever it is.
+// entry styles severity and activity independently from its attention mark.
 func (s styles) entry(e Entry) lipgloss.Style {
 	r := e.Row
 	switch {
 	case e.Hidden:
 		return s.rest
-	case r.NeedsYou:
-		return s.needsYou
-	case r.Busy:
+	case failedState(r):
+		return s.failed
+	case blockedState(r):
+		return s.blocked
+	case r.Busy && agentSources[r.Source]:
 		return s.busy
+	case r.NeedsYou:
+		return s.attention
 	default:
 		return s.rest
 	}
+}
+
+func failedState(r source.Row) bool {
+	switch r.State {
+	case source.StateFailed, source.StateFailure, source.StateError, source.StateChecksFailing:
+		return true
+	default:
+		return r.IsSourceError()
+	}
+}
+
+func blockedState(r source.Row) bool {
+	return r.State == source.StateBlocked || r.State == source.StateConflicts
 }
 
 // titleLine counts the rows that are not hidden, then the hidden ones.

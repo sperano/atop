@@ -11,6 +11,7 @@ import (
 
 const (
 	taskPodSelector     = "kelos.dev/component=task"
+	taskOriginLabel     = "kelos.dev/origin"
 	waitForBlockers     = "wait-for-blockers"
 	vikunjaTaskLabel    = "vikunja.spe.quebec/task"
 	vikunjaProjectLabel = "vikunja.spe.quebec/project"
@@ -21,9 +22,7 @@ const (
 	phaseSucceeded      = "Succeeded"
 	phaseFailed         = "Failed"
 	stateDone           = "done"
-	stateFailed         = "failed"
 	stateRunning        = "running"
-	stateBlocked        = "blocked"
 	resultPR            = "pr"
 	resultBranch        = "branch"
 	// detailSep separates the parts of a Task's DETAIL.
@@ -124,6 +123,7 @@ func (k Kelos) sessionRow(s kelosSession) Row {
 	}
 	row := Row{
 		Source: SourceKelosSession,
+		Origin: OriginKelos,
 		Name:   s.Metadata.Name,
 		Since:  parseTime(since),
 		Detail: s.Metadata.Labels[vikunjaProjectLabel],
@@ -179,6 +179,7 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 	pr, activity := taskPR(t), taskActivity(t)
 	row := Row{
 		Source:     SourceKelosTask,
+		Origin:     taskOrigin(t),
 		Name:       t.Metadata.Name,
 		Target:     k.taskTarget(t, pr),
 		ParentRefs: taskParents(t, pr),
@@ -189,7 +190,7 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 		row.Detail = taskDetail(t, pr, activity)
 		return row, !row.Since.IsZero() && now.Sub(row.Since) <= RecentDone
 	case phaseFailed:
-		row.State, row.Since, row.NeedsYou = stateFailed, parseTime(st.CompletionTime), true
+		row.State, row.Since, row.NeedsYou = StateFailed, parseTime(st.CompletionTime), true
 		row.Detail = taskDetail(t, pr, activity)
 		if st.Message != "" {
 			row.Detail = strings.Join(nonEmpty(activity, st.Message), detailSep)
@@ -207,11 +208,24 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 	return row, true
 }
 
+func taskOrigin(t kelosTask) string {
+	switch t.Metadata.Labels[taskOriginLabel] {
+	case OriginGitHub:
+		return OriginGitHub
+	case OriginVikunja:
+		return OriginVikunja
+	case OriginWiki:
+		return OriginWiki
+	default:
+		return OriginUnknown
+	}
+}
+
 // liveState is the state of an unfinished Task: blocked while its
 // wait-for-blockers init container runs, else its lowercased phase.
 func liveState(t kelosTask, pods map[string]pod) string {
 	if p, ok := pods[t.Status.PodName]; ok && waitingOnBlockers(p) {
-		return stateBlocked
+		return StateBlocked
 	}
 	if t.Status.Phase == "" {
 		return strings.ToLower(phasePending)

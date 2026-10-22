@@ -161,7 +161,7 @@ func TestVikunjaFetchEndToEnd(t *testing.T) {
 	for _, r := range rows {
 		states[r.Name] = r.State
 	}
-	want := map[string]string{"#1": "reply from claude", "#2": StateIdle, "#3": StateIdle, "#4": StateInReview}
+	want := map[string]string{"#1": "reply from claude", "#2": StateIdle, "#3": StateIdle, "#4": StatePROpen}
 	for name, state := range want {
 		if states[name] != state {
 			t.Errorf("%s: state = %q, want %q", name, states[name], state)

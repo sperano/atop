@@ -58,7 +58,8 @@ func TestSnapshotDrawsTree(t *testing.T) {
 	}
 	lines := snapshotLines(t, rows, false)[3:]
 	nameCol := func(line string) string {
-		return strings.TrimRight(ansi.Cut(line, markWidth+sourceWidth+2*len(columnGap), markWidth+sourceWidth+2*len(columnGap)+nameWidth), " ")
+		start := markWidth + typeWidth + originWidth + 3*len(columnGap)
+		return strings.TrimRight(ansi.Cut(line, start, start+nameWidth), " ")
 	}
 	want := []string{"#1", "└─ r#7", "   └─ " + string([]rune(long)[:nameWidth-len([]rune("   └─ "))-1]) + ellipsis}
 	for i, w := range want {

@@ -41,7 +41,7 @@ func sourceFailed(rows []Row, source string) bool {
 
 // taskInFlight reports whether a Task row is still going to do something.
 func taskInFlight(r Row) bool {
-	return r.State != stateDone && r.State != stateFailed
+	return r.State != stateDone && r.State != StateFailed
 }
 
 // outranks prefers a running Task, then the most recent one.

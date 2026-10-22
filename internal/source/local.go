@@ -88,6 +88,7 @@ func localRow(s localSession, home string) Row {
 	}
 	return Row{
 		Source:   SourceLocal,
+		Origin:   OriginLocal,
 		Name:     name,
 		State:    status,
 		Since:    since,
