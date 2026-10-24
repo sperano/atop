@@ -2,9 +2,65 @@ package source
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 )
+
+type blockingTaskServer struct {
+	requests atomic.Int32
+	started  chan struct{}
+	release  chan struct{}
+}
+
+func (s *blockingTaskServer) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	if s.requests.Add(1) == 1 {
+		close(s.started)
+		<-s.release
+	}
+	_ = json.NewEncoder(w).Encode([]vikunjaTask{})
+}
+
+func TestVikunjaFetchRejectsConcurrentCalls(t *testing.T) {
+	t.Parallel()
+	handler := &blockingTaskServer{started: make(chan struct{}), release: make(chan struct{})}
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	t.Cleanup(func() {
+		select {
+		case <-handler.release:
+		default:
+			close(handler.release)
+		}
+	})
+	v := testVikunjaSource()
+	v.APIURL = server.URL + apiPrefix
+	v.Token = testToken
+	v.Client = server.Client()
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := v.Fetch(context.Background())
+		firstDone <- err
+	}()
+	<-handler.started
+	if _, err := v.Fetch(context.Background()); !errors.Is(err, errFetchInProgress) {
+		t.Fatalf("concurrent Fetch error = %v, want %v", err, errFetchInProgress)
+	}
+	close(handler.release)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("first Fetch: %v", err)
+	}
+	if _, err := v.Fetch(context.Background()); err != nil {
+		t.Fatalf("Fetch after first completed: %v", err)
+	}
+	if got := handler.requests.Load(); got != 2 {
+		t.Errorf("task requests = %d, want 2", got)
+	}
+}
 
 func TestVikunjaFetchUsesFreshCompleteEmbeddedComment(t *testing.T) {
 	t.Parallel()

@@ -5,15 +5,19 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 )
+
+var errFetchInProgress = errors.New("vikunja fetch already in progress")
 
 const (
 	// HTTPTimeout bounds every Vikunja request.
@@ -92,12 +96,17 @@ type Vikunja struct {
 	Run             Runner
 	Now             func() time.Time
 	commentCache    vikunjaCommentCache
+	fetching        atomic.Bool
 }
 
 // Fetch lists the in-progress tasks with their newest comment.
-// It must not be called concurrently with itself because it caches comment
-// lookups across calls.
+// It returns an error if another Fetch is already in progress.
 func (v *Vikunja) Fetch(ctx context.Context) ([]Row, error) {
+	if !v.fetching.CompareAndSwap(false, true) {
+		return nil, errFetchInProgress
+	}
+	defer v.fetching.Store(false)
+
 	token, err := v.token(ctx)
 	if err != nil {
 		return nil, err
@@ -245,7 +254,7 @@ func (v *Vikunja) newestComment(ctx context.Context, token string, taskID int) (
 // embeddedNewest uses expanded comments only when comment_count proves the
 // per-task slice is complete. Vikunja caps expanded comments across the page.
 func embeddedNewest(task vikunjaTask) (*vikunjaComment, bool) {
-	if task.CommentCount == nil || *task.CommentCount < 0 {
+	if !knownCommentCount(task) {
 		return nil, false
 	}
 	if len(task.Comments) != *task.CommentCount {
