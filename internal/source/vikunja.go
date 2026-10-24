@@ -95,6 +95,8 @@ type Vikunja struct {
 }
 
 // Fetch lists the in-progress tasks with their newest comment.
+// It must not be called concurrently with itself because it caches comment
+// lookups across calls.
 func (v *Vikunja) Fetch(ctx context.Context) ([]Row, error) {
 	token, err := v.token(ctx)
 	if err != nil {
