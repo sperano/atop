@@ -14,6 +14,7 @@ const (
 	envLabel        = 4
 	envInterval     = 5 * time.Second
 	flagInterval    = 2 * time.Minute
+	defaultInterval = 2 * time.Minute
 	negativeSeconds = "-5s"
 	envHiddenFile   = "/env/hidden.json"
 	flagHiddenFile  = "/flag/hidden.json"
@@ -34,7 +35,7 @@ func TestParseDefaults(t *testing.T) {
 		TokenNamespace: DefaultTokenNamespace, TokenSecret: DefaultTokenSecret, TokenKey: DefaultTokenKey,
 		Operator: DefaultOperator, InProgressLabel: DefaultInProgressLabel, PROpenLabel: DefaultPROpenLabel,
 		ConsoleURL: DefaultConsoleURL,
-		StaleDays:  DefaultStaleDays, Interval: DefaultInterval,
+		StaleDays:  DefaultStaleDays, Interval: defaultInterval,
 	}
 	if got != want {
 		t.Errorf("got %+v, want %+v", got, want)

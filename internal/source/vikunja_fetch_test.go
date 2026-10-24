@@ -27,7 +27,9 @@ type vikunjaServer struct {
 	comments map[int][]vikunjaComment // oldest first
 	auths    []string
 	pages    []string // "<taskID>:<page>" for each comment request
+	orders   []string
 	filters  []string
+	expands  []string
 	status   int
 	// pageCap, when set, caps per_page like service.maxitemsperpage and
 	// sends the total-pages header on task lists.
@@ -46,6 +48,7 @@ func (s *vikunjaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, apiPrefix)
 	if path == "/tasks" {
 		s.filters = append(s.filters, q.Get("filter"))
+		s.expands = append(s.expands, strings.Join(q["expand"], ","))
 		s.serveTasks(w, q.Get("page"), q.Get("per_page"))
 		return
 	}
@@ -55,7 +58,8 @@ func (s *vikunjaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.pages = append(s.pages, fmt.Sprintf("%d:%s", id, q.Get("page")))
-	s.serveComment(w, id, q.Get("page"))
+	s.orders = append(s.orders, q.Get("order_by"))
+	s.serveComment(w, id, q.Get("page"), q.Get("order_by"))
 }
 
 func (s *vikunjaServer) serveTasks(w http.ResponseWriter, page, perPage string) {
@@ -70,11 +74,14 @@ func (s *vikunjaServer) serveTasks(w http.ResponseWriter, page, perPage string) 
 	_ = json.NewEncoder(w).Encode(s.tasks[lo:hi])
 }
 
-func (s *vikunjaServer) serveComment(w http.ResponseWriter, id int, page string) {
+func (s *vikunjaServer) serveComment(w http.ResponseWriter, id int, page, order string) {
 	all := s.comments[id]
 	p, _ := strconv.Atoi(page)
 	out := []vikunjaComment{}
-	if p >= 1 && p <= len(all) {
+	if order == newestFirst && p >= 1 && p <= len(all) {
+		index := len(all) - p
+		out = all[index : index+1]
+	} else if p >= 1 && p <= len(all) {
 		out = all[p-1 : p]
 	}
 	if len(all) > 0 {
@@ -84,7 +91,7 @@ func (s *vikunjaServer) serveComment(w http.ResponseWriter, id int, page string)
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-func newVikunja(t *testing.T, s *vikunjaServer) Vikunja {
+func newVikunja(t *testing.T, s *vikunjaServer) *Vikunja {
 	t.Helper()
 	srv := httptest.NewServer(s)
 	t.Cleanup(srv.Close)
@@ -93,7 +100,7 @@ func newVikunja(t *testing.T, s *vikunjaServer) Vikunja {
 	v.Token = testToken
 	v.InProgressLabel = 1
 	v.Client = srv.Client()
-	return v
+	return &v
 }
 
 func commentsOf(n int, authors ...string) []vikunjaComment {
@@ -114,7 +121,7 @@ func TestNewestComment(t *testing.T) {
 		want      string // comment text, "" for none
 		wantPages []string
 	}{
-		{"three pages reads page 3", commentsOf(3, "a"), "comment 3", []string{"1:1", "1:3"}},
+		{"three comments", commentsOf(3, "a"), "comment 3", []string{"1:1"}},
 		{"single page", commentsOf(1, "a"), "comment 1", []string{"1:1"}},
 		{"empty", nil, "", []string{"1:1"}},
 	}
@@ -135,7 +142,67 @@ func TestNewestComment(t *testing.T) {
 			if strings.Join(s.pages, ",") != strings.Join(tt.wantPages, ",") {
 				t.Errorf("requests = %v, want %v", s.pages, tt.wantPages)
 			}
+			if len(s.orders) != 1 || s.orders[0] != newestFirst {
+				t.Errorf("order_by = %v, want [%s]", s.orders, newestFirst)
+			}
 		})
+	}
+}
+
+func TestVikunjaFetchUsesCompleteExpandedComments(t *testing.T) {
+	t.Parallel()
+	count := 2
+	s := &vikunjaServer{
+		tasks: []vikunjaTask{{
+			ID: 1, Title: "expanded", Updated: iso(testNow),
+			Comments: commentsOf(count, "eric", "claude"), CommentCount: &count,
+		}},
+		comments: map[int][]vikunjaComment{1: commentsOf(count, "eric", "claude")},
+	}
+	rows, err := newVikunja(t, s).Fetch(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].State != "reply from claude" {
+		t.Fatalf("rows = %+v", rows)
+	}
+	if len(s.pages) != 0 {
+		t.Errorf("comment requests = %v, want none", s.pages)
+	}
+	if len(s.expands) != 1 || s.expands[0] != "comments,comment_count" {
+		t.Errorf("expand = %v", s.expands)
+	}
+}
+
+func TestVikunjaFetchCachesIncompleteExpandedComments(t *testing.T) {
+	t.Parallel()
+	count := 3
+	all := commentsOf(count, "eric", "eric", "claude")
+	s := &vikunjaServer{
+		tasks: []vikunjaTask{{
+			ID: 1, Updated: iso(testNow), Comments: all[:2], CommentCount: &count,
+		}},
+		comments: map[int][]vikunjaComment{1: all},
+	}
+	v := newVikunja(t, s)
+	for range 2 {
+		rows, err := v.Fetch(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rows[0].State != "reply from claude" {
+			t.Errorf("state = %q", rows[0].State)
+		}
+	}
+	if len(s.pages) != 1 {
+		t.Fatalf("unchanged task made %d comment requests, want 1", len(s.pages))
+	}
+	s.tasks[0].Updated = "2026-10-24T20:00:00Z"
+	if _, err := v.Fetch(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.pages) != 2 {
+		t.Errorf("changed task made %d total comment requests, want 2", len(s.pages))
 	}
 }
 
@@ -174,6 +241,9 @@ func TestVikunjaFetchEndToEnd(t *testing.T) {
 	}
 	if len(s.filters) != 1 || s.filters[0] != "labels in 1 && done = false" {
 		t.Errorf("filters = %q", s.filters)
+	}
+	if len(s.expands) != 1 || s.expands[0] != "comments,comment_count" {
+		t.Errorf("expand = %v", s.expands)
 	}
 }
 

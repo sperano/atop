@@ -1,7 +1,7 @@
 # atop
 
 A `top` for coding agents—hence **agent top**, or `atop`: which agent needs
-you, who is running what, who is idle. One table, refreshed every 30 seconds,
+you, who is running what, who is idle. One table, refreshed every two minutes,
 over five sources: local Claude Code sessions, Kelos Sessions and Tasks, open
 GitHub PRs, and in-progress Vikunja tasks.
 
@@ -146,7 +146,7 @@ Every flag defaults to an environment variable, then to a built-in value.
 | `--pr-open-label` | `ATOP_PR_OPEN_LABEL` | `pr open` |
 | `--console-url` | `ATOP_CONSOLE_URL` | `https://kelos.spe.quebec` |
 | `--stale-days` | `ATOP_STALE_DAYS` | `30` |
-| `--interval` | `ATOP_INTERVAL` | `30s` |
+| `--interval` | `ATOP_INTERVAL` | `2m` |
 | `--hidden-file` | `ATOP_HIDDEN_FILE` | `<user config dir>/atop/hidden.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 | `--once` | | off |
 

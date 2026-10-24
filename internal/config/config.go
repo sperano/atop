@@ -27,7 +27,7 @@ const (
 	DefaultPROpenLabel     = "pr open"
 	DefaultConsoleURL      = "https://kelos.spe.quebec"
 	DefaultStaleDays       = 30
-	DefaultInterval        = 30 * time.Second
+	DefaultInterval        = 2 * time.Minute
 )
 
 // Config holds every setting atop reads at start-up.
