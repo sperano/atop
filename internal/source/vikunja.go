@@ -151,7 +151,7 @@ func (v *Vikunja) comments(ctx context.Context, token string, tasks []vikunjaTas
 	return comments, nil
 }
 
-func (v Vikunja) token(ctx context.Context) (string, error) {
+func (v *Vikunja) token(ctx context.Context) (string, error) {
 	if token := strings.TrimSpace(v.Token); token != "" {
 		return token, nil
 	}
@@ -168,7 +168,7 @@ func (v Vikunja) token(ctx context.Context) (string, error) {
 }
 
 // get fetches a Vikunja API path into v and returns the response headers.
-func (v Vikunja) get(ctx context.Context, token, path string, params url.Values, out any) (http.Header, error) {
+func (v *Vikunja) get(ctx context.Context, token, path string, params url.Values, out any) (http.Header, error) {
 	ctx, cancel := context.WithTimeout(ctx, HTTPTimeout)
 	defer cancel()
 	u := strings.TrimSuffix(v.APIURL, "/") + path + "?" + params.Encode()
@@ -191,7 +191,7 @@ func (v Vikunja) get(ctx context.Context, token, path string, params url.Values,
 	return resp.Header, nil
 }
 
-func (v Vikunja) inProgress(ctx context.Context, token string) ([]vikunjaTask, error) {
+func (v *Vikunja) inProgress(ctx context.Context, token string) ([]vikunjaTask, error) {
 	params := url.Values{
 		"filter":   {fmt.Sprintf("labels in %d && done = false", v.InProgressLabel)},
 		"per_page": {strconv.Itoa(VikunjaPageSize)},
@@ -223,7 +223,7 @@ func lastPage(header http.Header, page, batchLen int) bool {
 }
 
 // newestComment returns a task's newest comment, or nil when it has none.
-func (v Vikunja) newestComment(ctx context.Context, token string, taskID int) (*vikunjaComment, error) {
+func (v *Vikunja) newestComment(ctx context.Context, token string, taskID int) (*vikunjaComment, error) {
 	path := fmt.Sprintf("/tasks/%d/comments", taskID)
 	params := url.Values{
 		"order_by": {newestFirst},
@@ -299,7 +299,7 @@ func commentCount(task vikunjaTask) int {
 // row maps a task to its state: PR open while its PR is open, a reply
 // when someone else spoke last (needing you unless stale), else idle. A
 // running Kelos Task later overrides this (Enrich).
-func (v Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web string) Row {
+func (v *Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web string) Row {
 	row := Row{
 		Source: SourceVikunja,
 		Origin: OriginVikunja,

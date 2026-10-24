@@ -13,8 +13,8 @@ const (
 	commentHTML     = "<p>PR: <b>#180</b> &amp; more</p>"
 )
 
-func testVikunjaSource() Vikunja {
-	return Vikunja{APIURL: testWeb + "/api/v1", Operator: testOperator, PROpenLabel: testPROpenLabel,
+func testVikunjaSource() *Vikunja {
+	return &Vikunja{APIURL: testWeb + "/api/v1", Operator: testOperator, PROpenLabel: testPROpenLabel,
 		StaleDays: testStaleDays, Now: fixedNow}
 }
 

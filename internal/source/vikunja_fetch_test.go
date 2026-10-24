@@ -100,7 +100,7 @@ func newVikunja(t *testing.T, s *vikunjaServer) *Vikunja {
 	v.Token = testToken
 	v.InProgressLabel = 1
 	v.Client = srv.Client()
-	return &v
+	return v
 }
 
 func commentsOf(n int, authors ...string) []vikunjaComment {
