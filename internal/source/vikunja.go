@@ -23,14 +23,13 @@ const (
 	// commentFetchWorkers caps concurrent newest-comment lookups.
 	commentFetchWorkers = 8
 	// commentsPerPage is one because only the newest comment is needed.
-	commentsPerPage     = 1
-	firstPage           = 1
-	totalPagesHeader    = "X-Pagination-Total-Pages"
-	newestFirst         = "desc"
-	unknownCommentCount = -1
-	apiSuffix           = "/api/v1"
-	replyFromPrefix     = "reply from "
-	unknownAuthor       = "?"
+	commentsPerPage  = 1
+	firstPage        = 1
+	totalPagesHeader = "X-Pagination-Total-Pages"
+	newestFirst      = "desc"
+	apiSuffix        = "/api/v1"
+	replyFromPrefix  = "reply from "
+	unknownAuthor    = "?"
 	// StatePROpen marks a task whose PR is open (Kelos labels it so).
 	StatePROpen = "PR open"
 )
@@ -257,24 +256,28 @@ func embeddedNewest(task vikunjaTask) (*vikunjaComment, bool) {
 }
 
 func (v *Vikunja) cachedComment(task vikunjaTask) (*vikunjaComment, bool) {
-	if task.Updated == "" || v.commentCache == nil {
+	if task.Updated == "" || !knownCommentCount(task) || v.commentCache == nil {
 		return nil, false
 	}
 	entry, ok := v.commentCache[task.ID]
-	if !ok || entry.updated != task.Updated || entry.count != commentCount(task) {
+	if !ok || entry.updated != task.Updated || entry.count != *task.CommentCount {
 		return nil, false
 	}
 	return entry.last, true
 }
 
 func (v *Vikunja) cacheComment(task vikunjaTask, last *vikunjaComment) {
-	if task.Updated == "" {
+	if task.Updated == "" || !knownCommentCount(task) {
 		return
 	}
 	if v.commentCache == nil {
 		v.commentCache = make(vikunjaCommentCache)
 	}
-	v.commentCache[task.ID] = commentCacheEntry{updated: task.Updated, count: commentCount(task), last: last}
+	v.commentCache[task.ID] = commentCacheEntry{updated: task.Updated, count: *task.CommentCount, last: last}
+}
+
+func knownCommentCount(task vikunjaTask) bool {
+	return task.CommentCount != nil && *task.CommentCount >= 0
 }
 
 func (v *Vikunja) pruneCommentCache(tasks []vikunjaTask) {
@@ -287,13 +290,6 @@ func (v *Vikunja) pruneCommentCache(tasks []vikunjaTask) {
 			delete(v.commentCache, id)
 		}
 	}
-}
-
-func commentCount(task vikunjaTask) int {
-	if task.CommentCount == nil {
-		return unknownCommentCount
-	}
-	return *task.CommentCount
 }
 
 // row maps a task to its state: PR open while its PR is open, a reply

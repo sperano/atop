@@ -197,12 +197,49 @@ func TestVikunjaFetchCachesIncompleteExpandedComments(t *testing.T) {
 	if len(s.pages) != 1 {
 		t.Fatalf("unchanged task made %d comment requests, want 1", len(s.pages))
 	}
+	count++
+	s.comments[1] = append(s.comments[1], commentsOf(1, "codex")...)
+	rows, err := v.Fetch(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.pages) != 2 {
+		t.Errorf("changed comment count made %d total comment requests, want 2", len(s.pages))
+	}
+	if rows[0].State != "reply from codex" {
+		t.Errorf("state after new comment = %q", rows[0].State)
+	}
+	if s.tasks[0].Updated != iso(testNow) {
+		t.Errorf("updated = %q, want unchanged", s.tasks[0].Updated)
+	}
 	s.tasks[0].Updated = "2026-10-24T20:00:00Z"
 	if _, err := v.Fetch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	if len(s.pages) != 3 {
+		t.Errorf("changed task made %d total comment requests, want 3", len(s.pages))
+	}
+}
+
+func TestVikunjaFetchDoesNotCacheWithoutCommentCount(t *testing.T) {
+	t.Parallel()
+	all := commentsOf(2, "eric", "claude")
+	s := &vikunjaServer{
+		tasks:    []vikunjaTask{{ID: 1, Updated: iso(testNow)}},
+		comments: map[int][]vikunjaComment{1: all},
+	}
+	v := newVikunja(t, s)
+	for range 2 {
+		rows, err := v.Fetch(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rows[0].State != "reply from claude" {
+			t.Errorf("state = %q", rows[0].State)
+		}
+	}
 	if len(s.pages) != 2 {
-		t.Errorf("changed task made %d total comment requests, want 2", len(s.pages))
+		t.Errorf("comment requests = %d, want 2", len(s.pages))
 	}
 }
 
