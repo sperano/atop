@@ -212,12 +212,17 @@ func TestVikunjaFetchCachesIncompleteExpandedComments(t *testing.T) {
 	if s.tasks[0].Updated != iso(testNow) {
 		t.Errorf("updated = %q, want unchanged", s.tasks[0].Updated)
 	}
+	s.comments[1][len(s.comments[1])-1] = commentsOf(1, "gemini")[0]
 	s.tasks[0].Updated = "2026-10-24T20:00:00Z"
-	if _, err := v.Fetch(context.Background()); err != nil {
+	rows, err = v.Fetch(context.Background())
+	if err != nil {
 		t.Fatal(err)
 	}
 	if len(s.pages) != 3 {
 		t.Errorf("changed task made %d total comment requests, want 3", len(s.pages))
+	}
+	if rows[0].State != "reply from gemini" {
+		t.Errorf("state after edited comment = %q", rows[0].State)
 	}
 }
 

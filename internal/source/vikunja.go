@@ -123,11 +123,11 @@ func (v *Vikunja) comments(ctx context.Context, token string, tasks []vikunjaTas
 	comments := make([]*vikunjaComment, len(tasks))
 	lookups := make([]int, 0, len(tasks))
 	for i, task := range tasks {
-		if last, ok := v.cachedComment(task); ok {
+		if last, complete := embeddedNewest(task); complete {
 			comments[i] = last
 			continue
 		}
-		if last, complete := embeddedNewest(task); complete {
+		if last, ok := v.cachedComment(task); ok {
 			comments[i] = last
 			continue
 		}
@@ -275,7 +275,18 @@ func (v *Vikunja) cacheComment(task vikunjaTask, last *vikunjaComment) {
 	if v.commentCache == nil {
 		v.commentCache = make(vikunjaCommentCache)
 	}
+	entry, ok := v.commentCache[task.ID]
+	if ok && entry.updated == task.Updated && entry.count == *task.CommentCount && sameComment(entry.last, last) {
+		return
+	}
 	v.commentCache[task.ID] = commentCacheEntry{updated: task.Updated, count: *task.CommentCount, last: last}
+}
+
+func sameComment(a, b *vikunjaComment) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 func knownCommentCount(task vikunjaTask) bool {
