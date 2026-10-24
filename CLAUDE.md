@@ -30,10 +30,11 @@ render.
 | GitHub PRs | `gh api graphql` search `is:pr is:open owner:<owner> archived:false`, first 50 | `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `review`; a `kelos:<variant>` label → detail `[variant] title` | conflicts, checks failing, review |
 | Vikunja | tasks with label id 1 (`in progress`) and `done = false`, paginated; the newest comment per task; DETAIL is `[assignee] title` | `in review` (label titled `pr open`, whatever the comments), `reply from <user>`, `idle` (operator spoke last, or no comments) | the newest comment is not the operator's and the PR is not open |
 
-- **Newest comment:** comments are paginated oldest first, so fetch with
-  `per_page=1` and read `x-pagination-total-pages` (case-insensitive header),
-  then fetch that last page. Element `[-1]` of an unpaged response is wrong on
-  long threads.
+- **Newest comment:** expand `comments` and `comment_count` on the task list.
+  Vikunja caps expanded comments at 50 globally across the task page, so use
+  the embedded last comment only when its task's count proves the slice is
+  complete. Otherwise fetch one comment with `order_by=desc&per_page=1`.
+  Cache by task `updated` and comment count across refreshes.
 - **An agent speaks for its row** (`source.Enrich`, run by `FetchAll`): a
   Kelos Task that is not done or failed gives the Vikunja task and PR rows
   it links to (ParentRefs) its state, time and busy flag, and clears their
@@ -59,7 +60,7 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
 - Keys: ↑/↓ and k/j move, pgup/pgdn/home/end, enter opens the row's target,
   `r` refreshes now, `q`/ctrl+c quits, `h` hides the selected row (or
   unhides it while hidden rows are shown), `H` toggles showing hidden rows. Auto-refresh every `--interval`
-  (default 30s). While a refresh runs, show it in the status line and keep the
+  (default 2m). While a refresh runs, show it in the status line and keep the
   previous rows. Keep the selection across refreshes by row identity
   (source+name), not by index. Handle window resize.
 - Layout: header with time and `N need you · N busy · N idle` (busy counts
@@ -121,7 +122,7 @@ hard-coded beyond these defaults:
 | PR-open label title | `pr open` |
 | Kelos console URL | `https://kelos.spe.quebec` |
 | Stale days | `30` |
-| Refresh interval | `30s` |
+| Refresh interval | `2m` |
 | Hidden-rows file | `<os.UserConfigDir>/atop/hidden.json` |
 
 ## Layout and rules

@@ -5,15 +5,19 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 )
+
+var errFetchInProgress = errors.New("vikunja fetch already in progress")
 
 const (
 	// HTTPTimeout bounds every Vikunja request.
@@ -22,10 +26,11 @@ const (
 	VikunjaPageSize = 50
 	// commentFetchWorkers caps concurrent newest-comment lookups.
 	commentFetchWorkers = 8
-	// commentsPerPage is one so that the page count is the comment count.
+	// commentsPerPage is one because only the newest comment is needed.
 	commentsPerPage  = 1
 	firstPage        = 1
 	totalPagesHeader = "X-Pagination-Total-Pages"
+	newestFirst      = "desc"
 	apiSuffix        = "/api/v1"
 	replyFromPrefix  = "reply from "
 	unknownAuthor    = "?"
@@ -44,10 +49,12 @@ func VikunjaTaskURL(webBase, id string) string {
 }
 
 type vikunjaTask struct {
-	ID      int    `json:"id"`
-	Title   string `json:"title"`
-	Updated string `json:"updated"`
-	Labels  []struct {
+	ID           int              `json:"id"`
+	Title        string           `json:"title"`
+	Updated      string           `json:"updated"`
+	Comments     []vikunjaComment `json:"comments,omitempty"`
+	CommentCount *int             `json:"comment_count,omitempty"`
+	Labels       []struct {
 		Title string `json:"title"`
 	} `json:"labels"`
 	Assignees []struct {
@@ -62,6 +69,14 @@ type vikunjaComment struct {
 		Username string `json:"username"`
 	} `json:"author"`
 }
+
+type commentCacheEntry struct {
+	updated string
+	count   int
+	last    *vikunjaComment
+}
+
+type vikunjaCommentCache map[int]commentCacheEntry
 
 // TokenSecret names the Kubernetes Secret holding the Vikunja token.
 type TokenSecret struct {
@@ -80,10 +95,18 @@ type Vikunja struct {
 	Client          *http.Client
 	Run             Runner
 	Now             func() time.Time
+	commentCache    vikunjaCommentCache
+	fetching        atomic.Bool
 }
 
 // Fetch lists the in-progress tasks with their newest comment.
-func (v Vikunja) Fetch(ctx context.Context) ([]Row, error) {
+// It returns an error if another Fetch is already in progress.
+func (v *Vikunja) Fetch(ctx context.Context) ([]Row, error) {
+	if !v.fetching.CompareAndSwap(false, true) {
+		return nil, errFetchInProgress
+	}
+	defer v.fetching.Store(false)
+
 	token, err := v.token(ctx)
 	if err != nil {
 		return nil, err
@@ -92,17 +115,8 @@ func (v Vikunja) Fetch(ctx context.Context) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	comments := make([]*vikunjaComment, len(tasks))
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(commentFetchWorkers)
-	for i, t := range tasks {
-		g.Go(func() error {
-			c, err := v.newestComment(gctx, token, t.ID)
-			comments[i] = c
-			return err
-		})
-	}
-	if err := g.Wait(); err != nil {
+	comments, err := v.comments(ctx, token, tasks)
+	if err != nil {
 		return nil, err
 	}
 	stale := Staleness{Days: v.StaleDays, Now: v.Now()}
@@ -114,7 +128,40 @@ func (v Vikunja) Fetch(ctx context.Context) ([]Row, error) {
 	return rows, nil
 }
 
-func (v Vikunja) token(ctx context.Context) (string, error) {
+func (v *Vikunja) comments(ctx context.Context, token string, tasks []vikunjaTask) ([]*vikunjaComment, error) {
+	comments := make([]*vikunjaComment, len(tasks))
+	lookups := make([]int, 0, len(tasks))
+	for i, task := range tasks {
+		if last, complete := embeddedNewest(task); complete {
+			comments[i] = last
+			continue
+		}
+		if last, ok := v.cachedComment(task); ok {
+			comments[i] = last
+			continue
+		}
+		lookups = append(lookups, i)
+	}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(commentFetchWorkers)
+	for _, i := range lookups {
+		g.Go(func() error {
+			c, err := v.newestComment(gctx, token, tasks[i].ID)
+			comments[i] = c
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	for i, t := range tasks {
+		v.cacheComment(t, comments[i])
+	}
+	v.pruneCommentCache(tasks)
+	return comments, nil
+}
+
+func (v *Vikunja) token(ctx context.Context) (string, error) {
 	if token := strings.TrimSpace(v.Token); token != "" {
 		return token, nil
 	}
@@ -131,7 +178,7 @@ func (v Vikunja) token(ctx context.Context) (string, error) {
 }
 
 // get fetches a Vikunja API path into v and returns the response headers.
-func (v Vikunja) get(ctx context.Context, token, path string, params url.Values, out any) (http.Header, error) {
+func (v *Vikunja) get(ctx context.Context, token, path string, params url.Values, out any) (http.Header, error) {
 	ctx, cancel := context.WithTimeout(ctx, HTTPTimeout)
 	defer cancel()
 	u := strings.TrimSuffix(v.APIURL, "/") + path + "?" + params.Encode()
@@ -154,10 +201,11 @@ func (v Vikunja) get(ctx context.Context, token, path string, params url.Values,
 	return resp.Header, nil
 }
 
-func (v Vikunja) inProgress(ctx context.Context, token string) ([]vikunjaTask, error) {
+func (v *Vikunja) inProgress(ctx context.Context, token string) ([]vikunjaTask, error) {
 	params := url.Values{
 		"filter":   {fmt.Sprintf("labels in %d && done = false", v.InProgressLabel)},
 		"per_page": {strconv.Itoa(VikunjaPageSize)},
+		"expand":   {"comments", "comment_count"},
 	}
 	var tasks []vikunjaTask
 	for page := firstPage; ; page++ {
@@ -185,33 +233,91 @@ func lastPage(header http.Header, page, batchLen int) bool {
 }
 
 // newestComment returns a task's newest comment, or nil when it has none.
-// Comments are paginated oldest first, so with one per page the page count
-// is the comment count and the last page holds the newest.
-func (v Vikunja) newestComment(ctx context.Context, token string, taskID int) (*vikunjaComment, error) {
+func (v *Vikunja) newestComment(ctx context.Context, token string, taskID int) (*vikunjaComment, error) {
 	path := fmt.Sprintf("/tasks/%d/comments", taskID)
-	params := url.Values{"per_page": {strconv.Itoa(commentsPerPage)}, "page": {strconv.Itoa(firstPage)}}
+	params := url.Values{
+		"order_by": {newestFirst},
+		"per_page": {strconv.Itoa(commentsPerPage)},
+		"page":     {strconv.Itoa(firstPage)},
+	}
 	var page []vikunjaComment
-	header, err := v.get(ctx, token, path, params, &page)
+	_, err := v.get(ctx, token, path, params, &page)
 	if err != nil {
 		return nil, err
-	}
-	if total, _ := strconv.Atoi(header.Get(totalPagesHeader)); total > 1 {
-		params.Set("page", strconv.Itoa(total))
-		page = nil
-		if _, err := v.get(ctx, token, path, params, &page); err != nil {
-			return nil, err
-		}
 	}
 	if len(page) == 0 {
 		return nil, nil
 	}
-	return &page[len(page)-1], nil
+	return &page[0], nil
+}
+
+// embeddedNewest uses expanded comments only when comment_count proves the
+// per-task slice is complete. Vikunja caps expanded comments across the page.
+func embeddedNewest(task vikunjaTask) (*vikunjaComment, bool) {
+	if !knownCommentCount(task) {
+		return nil, false
+	}
+	if len(task.Comments) != *task.CommentCount {
+		return nil, false
+	}
+	if len(task.Comments) == 0 {
+		return nil, true
+	}
+	return &task.Comments[len(task.Comments)-1], true
+}
+
+func (v *Vikunja) cachedComment(task vikunjaTask) (*vikunjaComment, bool) {
+	if task.Updated == "" || !knownCommentCount(task) || v.commentCache == nil {
+		return nil, false
+	}
+	entry, ok := v.commentCache[task.ID]
+	if !ok || entry.updated != task.Updated || entry.count != *task.CommentCount {
+		return nil, false
+	}
+	return entry.last, true
+}
+
+func (v *Vikunja) cacheComment(task vikunjaTask, last *vikunjaComment) {
+	if task.Updated == "" || !knownCommentCount(task) {
+		return
+	}
+	if v.commentCache == nil {
+		v.commentCache = make(vikunjaCommentCache)
+	}
+	entry, ok := v.commentCache[task.ID]
+	if ok && entry.updated == task.Updated && entry.count == *task.CommentCount && sameComment(entry.last, last) {
+		return
+	}
+	v.commentCache[task.ID] = commentCacheEntry{updated: task.Updated, count: *task.CommentCount, last: last}
+}
+
+func sameComment(a, b *vikunjaComment) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func knownCommentCount(task vikunjaTask) bool {
+	return task.CommentCount != nil && *task.CommentCount >= 0
+}
+
+func (v *Vikunja) pruneCommentCache(tasks []vikunjaTask) {
+	active := make(map[int]struct{}, len(tasks))
+	for _, task := range tasks {
+		active[task.ID] = struct{}{}
+	}
+	for id := range v.commentCache {
+		if _, ok := active[id]; !ok {
+			delete(v.commentCache, id)
+		}
+	}
 }
 
 // row maps a task to its state: PR open while its PR is open, a reply
 // when someone else spoke last (needing you unless stale), else idle. A
 // running Kelos Task later overrides this (Enrich).
-func (v Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web string) Row {
+func (v *Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web string) Row {
 	row := Row{
 		Source: SourceVikunja,
 		Origin: OriginVikunja,
