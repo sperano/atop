@@ -48,11 +48,12 @@ render.
   `status.results.branch`.
 - **Staleness:** a needs-you PR or agent reply untouched for 30 days shows as
   `stale` and is not flagged (abandoned experiment PRs would stay red forever).
-- **No `kubectl` or `gh` binaries** (the server image is `scratch`): Kelos and
-  the token Secret through client-go (`source.NewDynamicClient`: in-cluster
-  when `KUBERNETES_SERVICE_HOST` is set, else the kubeconfig loading rules),
-  get/list only, no watch; GitHub over `net/http`. `gh auth token` is the
-  only command left, the laptop's last GitHub token fallback.
+- **No `kubectl`, and `gh` only for `gh auth token`** (the server image is
+  `scratch`): Kelos and the token Secret through client-go
+  (`source.NewDynamicClient`: in-cluster when `KUBERNETES_SERVICE_HOST` is
+  set, else the kubeconfig loading rules), get/list only, no watch; GitHub
+  over `net/http`. `gh auth token` is the only command left, the laptop's
+  last GitHub token fallback.
 - **Vikunja token:** `VIKUNJA_API_TOKEN`, else key `token` of Secret
   `vikunja/agent-claude` (base64). Never print tokens, nor put them in an
   error.
