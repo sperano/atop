@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { flushSync } from 'svelte';
-import App from './App.svelte';
+import App, { TICK_MS } from './App.svelte';
 import { ApiError, TooSoonError } from './lib/api';
 import type { Row, Snapshot } from './lib/model';
 import { render } from './render';
@@ -72,6 +72,11 @@ beforeEach(() => {
 	openAnswer = true;
 });
 
+afterEach(() => {
+	vi.useRealTimers();
+	vi.restoreAllMocks();
+});
+
 /** Mounts the page and lets its first snapshot and stream arrive. */
 async function mountWith(first: Snapshot = BOARD): Promise<void> {
 	page = render(App, {
@@ -97,6 +102,17 @@ const selectedName = () =>
 		.querySelector<HTMLTableRowElement>('tbody tr[aria-current="true"]')
 		?.cells[3]?.textContent?.trim();
 const statusText = () => page.querySelector('[role="status"]')?.textContent ?? '';
+const headerText = () => page.querySelector('header')?.textContent ?? '';
+/** One CSS pixel, the rounding allowed on measured positions. */
+const PIXEL = 1;
+const ages = () => bodyRows().map((tr) => tr.cells[5]?.textContent);
+
+/** ms in the browser's zone, in the TUI's layout. */
+function localTime(ms: number): string {
+	const t = new Date(ms);
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())} ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+}
 
 async function press(keys: string): Promise<void> {
 	await userEvent.keyboard(keys);
@@ -112,12 +128,7 @@ function send(s: Snapshot): void {
 describe('the board', () => {
 	test('draws the header, the columns and the rows as sent', async () => {
 		await mountWith();
-		const local = new Date(TEST_NOW);
-		const pad = (n: number) => String(n).padStart(2, '0');
-		const time = `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} ${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
-		expect(page.querySelector('header')?.textContent).toBe(
-			`vigie · ${time} · 2 need you · 1 busy · 1 idle`
-		);
+		expect(headerText()).toBe(`vigie · ${localTime(TEST_NOW)} · 2 need you · 1 busy · 1 idle`);
 		expect([...page.querySelectorAll('thead th')].map((th) => th.textContent)).toEqual([
 			'mark',
 			'TYPE',
@@ -149,7 +160,7 @@ describe('the board', () => {
 		]);
 	});
 
-	test('recomputes ages against the clock', async () => {
+	test('computes the ages from the clock, not the snapshot', async () => {
 		page = render(App, {
 			api,
 			openStream: streams.open,
@@ -159,7 +170,30 @@ describe('the board', () => {
 		api.answer(BOARD);
 		await settle();
 		flushSync();
-		expect(bodyRows().map((tr) => tr.cells[5]?.textContent)).toEqual(['5h', '4h', '-', '-']);
+		expect(ages()).toEqual(['5h', '4h', '-', '-']);
+	});
+
+	test('the header time and the ages move on every tick', async () => {
+		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+		let clock = TEST_NOW;
+		page = render(App, {
+			api,
+			openStream: streams.open,
+			timer: timers.timer,
+			now: () => clock
+		});
+		api.answer(BOARD);
+		await settle();
+		flushSync();
+		clock = TEST_NOW + HOUR_MS;
+		vi.advanceTimersByTime(TICK_MS - 1);
+		flushSync();
+		expect(headerText()).toContain(localTime(TEST_NOW));
+		expect(ages()).toEqual(['2h', '1h', '-', '-']);
+		vi.advanceTimersByTime(1);
+		flushSync();
+		expect(headerText()).toContain(localTime(TEST_NOW + HOUR_MS));
+		expect(ages()).toEqual(['3h', '2h', '-', '-']);
 	});
 
 	test('names with a target are links that open a new tab; the others are not', async () => {
@@ -225,8 +259,20 @@ describe('moving', () => {
 		expect(pageSize).toBeGreaterThan(1);
 		await press('{PageDown}');
 		expect(selectedName()).toBe(`r${pageSize}`);
-		await press('{PageDown}{PageUp}{PageUp}');
+		// A second page lands past the rows shown first: the table scrolls to it.
+		await press('{PageDown}');
+		expect(selectedName()).toBe(`r${2 * pageSize}`);
+		// Rows are fractions of a pixel high: allow one pixel of rounding.
+		const inView = (i: number) => {
+			const shown = viewport.getBoundingClientRect();
+			const r = bodyRows()[i]!.getBoundingClientRect();
+			return r.top >= shown.top - PIXEL && r.bottom <= shown.bottom + PIXEL;
+		};
+		expect(inView(2 * pageSize)).toBe(true);
+		expect(inView(0)).toBe(false);
+		await press('{PageUp}{PageUp}');
 		expect(selectedName()).toBe('r0');
+		expect(inView(0)).toBe(true);
 	});
 
 	test('a click selects the row', async () => {
@@ -282,6 +328,31 @@ describe('enter', () => {
 		await press('{Enter}');
 		expect(statusText()).toBe(`error: the browser did not open ${TASK.target}`);
 	});
+
+	test('opens a new tab by default, cut off from this page', async () => {
+		const tab = { opener: window } as unknown as Window;
+		const windowOpen = vi.spyOn(window, 'open').mockReturnValue(tab);
+		page = render(App, { api, openStream: streams.open, timer: timers.timer });
+		api.answer(BOARD);
+		await settle();
+		streams.last.open();
+		flushSync();
+		await press('{Enter}');
+		expect(windowOpen.mock.calls).toEqual([[TASK.target, '_blank']]);
+		expect(tab.opener).toBeNull();
+		expect(statusText()).toBe(`opened ${TASK.target}`);
+	});
+
+	test('by default, says when the browser blocked the tab', async () => {
+		vi.spyOn(window, 'open').mockReturnValue(null);
+		page = render(App, { api, openStream: streams.open, timer: timers.timer });
+		api.answer(BOARD);
+		await settle();
+		streams.last.open();
+		flushSync();
+		await press('{Enter}');
+		expect(statusText()).toBe(`error: the browser did not open ${TASK.target}`);
+	});
 });
 
 describe('r', () => {
@@ -294,6 +365,20 @@ describe('r', () => {
 		expect(bodyRows()).toHaveLength(4);
 		send(BOARD);
 		expect(statusText()).toBe('');
+	});
+
+	test('refreshes the layout with the hidden rows while they are shown', async () => {
+		await mountWith();
+		await press('H');
+		api.answer(snapshot([TASK]));
+		await settle();
+		streams.last.open();
+		flushSync();
+		api.refreshAnswer = () => Promise.resolve(snapshot([TASK, PR], { refreshing: true }));
+		await press('r');
+		expect(api.calls.at(-1)).toBe('refresh true');
+		expect(statusText()).toBe('refreshing… · showing hidden rows (marked -)');
+		expect(bodyRows()).toHaveLength(2);
 	});
 
 	test('says when the server refreshed too recently', async () => {
@@ -392,9 +477,24 @@ describe('the connection', () => {
 		expect(bodyRows()).toHaveLength(1);
 	});
 
-	test('leaves keys with a modifier to the browser', async () => {
+	test.each(['ctrlKey', 'metaKey', 'altKey'])(
+		'leaves a key with %s to the browser',
+		async (modifier) => {
+			await mountWith();
+			const event = new KeyboardEvent('keydown', { key: 'r', [modifier]: true, cancelable: true });
+			window.dispatchEvent(event);
+			await settle();
+			expect(event.defaultPrevented).toBe(false);
+			expect(api.calls).toEqual(['snapshot false']);
+		}
+	);
+
+	test('takes a key without a modifier from the browser', async () => {
 		await mountWith();
-		await press('{Control>}r{/Control}');
-		expect(api.calls).toEqual(['snapshot false']);
+		const event = new KeyboardEvent('keydown', { key: 'r', cancelable: true });
+		window.dispatchEvent(event);
+		await settle();
+		expect(event.defaultPrevented).toBe(true);
+		expect(api.calls).toEqual(['snapshot false', 'refresh false']);
 	});
 });

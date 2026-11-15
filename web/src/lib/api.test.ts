@@ -15,13 +15,16 @@ import { DecodeError } from './decode';
 interface Call {
 	url: string;
 	method: string;
+	signal?: AbortSignal | null;
 }
 
 /** A fetch that answers every call with respond's answer and records it. */
 function fakeFetch(respond: () => Response): { fetcher: typeof fetch; calls: Call[] } {
 	const calls: Call[] = [];
 	const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
-		calls.push({ url: String(input), method: init?.method ?? 'GET' });
+		const call: Call = { url: String(input), method: init?.method ?? 'GET' };
+		if (init?.signal) call.signal = init.signal;
+		calls.push(call);
 		return respond();
 	}) as typeof fetch;
 	return { fetcher, calls };
@@ -55,6 +58,13 @@ describe('snapshot', () => {
 		const { fetcher, calls } = fakeFetch(() => json(snapshotJSON(SNAPSHOT)));
 		expect(await createApi(fetcher).snapshot(true)).toEqual(SNAPSHOT);
 		expect(calls).toEqual([{ url: '/api/v1/snapshot?show_hidden=true', method: 'GET' }]);
+	});
+
+	test('passes the abort signal to fetch', async () => {
+		const { fetcher, calls } = fakeFetch(() => json(snapshotJSON(SNAPSHOT)));
+		const signal = new AbortController().signal;
+		await createApi(fetcher).snapshot(false, signal);
+		expect(calls[0]?.signal).toBe(signal);
 	});
 
 	test("throws the server's error", async () => {

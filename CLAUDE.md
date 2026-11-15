@@ -72,7 +72,7 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
 - Layout: header with time and `N need you · N busy · N idle` (busy counts
   agent rows only: local, kelos session, kelos task; a Task speaking for its
   PR and Vikunja task is one busy agent); columns mark,
-  SOURCE, NAME, STATE, AGE, DETAIL (DETAIL takes the remaining width, truncated
+  TYPE, ORIGIN, NAME, STATE, AGE, DETAIL (DETAIL takes the remaining width, truncated
   with `…`); footer with key help and the last action or error. Needs-you rows
   are red with `●`, busy green, the rest dim. Sort: needs you, then busy, then
   the rest, each most recent first.
@@ -162,9 +162,9 @@ the loaded set to the new path on its first change.
     calling the injected opener.
 - Gate before every PR: `gofmt -l .` is empty (with `web/node_modules`
   present, list the files from git instead: gofmt ignores `go.mod`'s
-  `ignore`), `go vet ./...`, `go test ./...`, `staticcheck ./...`; in `web/`,
-  `npm run lint`, `npm run check`, `npm test`, `npm run build`, then
-  `go vet -tags webdist ./...` and `go test -tags webdist ./...`. CI
+  `ignore`), `go vet ./...`, `go test -race ./...`, `staticcheck ./...`; in
+  `web/`, `npm run lint`, `npm run check`, `npm test`, `npm run build`, then
+  `go vet -tags webdist ./...` and `go test -race -tags webdist ./...`. CI
   (`.github/workflows/ci.yml`) runs the same on push and PR, plus
   `docker buildx build --platform linux/amd64,linux/arm64 .` (no push).
 - The README covers install, keys, the sources table (what each shows, when

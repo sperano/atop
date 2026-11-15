@@ -38,6 +38,8 @@ func TestFrontendRoutes(t *testing.T) {
 		{"an unknown API path is the API's 404", http.MethodGet, "/api/v1/nope", http.StatusNotFound, "404 page not found\n", ""},
 		{"the API still answers", http.MethodGet, readyzPath, http.StatusOK, "", ""},
 		{"healthz is the API's", http.MethodGet, healthzPath, http.StatusOK, "", ""},
+		{"healthz/ is the API's 404", http.MethodGet, healthzPath + "/", http.StatusNotFound, "404 page not found\n", ""},
+		{"readyz/ is the API's 404", http.MethodGet, readyzPath + "/", http.StatusNotFound, "404 page not found\n", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -83,7 +85,15 @@ func TestFrontendKeepsTheAPIsJSONAndMethods(t *testing.T) {
 func TestNoFrontendServesTheAPIAlone(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, nil)
+	h.refreshWith(testRows()[1:2])
 	if resp := do(t, h.srv, http.MethodGet, "/"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("GET / without a frontend = %d, want 404", resp.StatusCode)
+	}
+	resp := do(t, h.srv, http.MethodGet, snapshotURL)
+	if snap := decodeSnapshot(t, resp); len(snap.Rows) != 1 || snap.Rows[0].Name != "vigie#3" {
+		t.Errorf("snapshot rows = %v, want vigie#3", rowNames(snap))
+	}
+	if resp := do(t, h.srv, http.MethodGet, healthzPath); resp.StatusCode != http.StatusOK {
+		t.Errorf("GET %s without a frontend = %d, want 200", healthzPath, resp.StatusCode)
 	}
 }

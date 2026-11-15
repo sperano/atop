@@ -1,6 +1,7 @@
 // Package server serves the board over HTTP: a JSON snapshot, a stream of
-// Server-Sent Events, refreshes and hidden rows. It has no authentication of
-// its own: it is meant to run behind a proxy that does it.
+// Server-Sent Events, refreshes and hidden rows, and the web UI's files
+// next to them. It has no authentication of its own: it is meant to run
+// behind a proxy that does it.
 package server
 
 import (
@@ -39,7 +40,8 @@ type Options struct {
 	// them as stored; nil keeps them in memory only.
 	UpdateHidden func(change func(hidden.Set) hidden.Set) (hidden.Set, error)
 	// Frontend is the web UI's files, served at / with index.html for
-	// every path that is none of them; nil serves the API alone.
+	// every other path, except a missing path with a file extension, which
+	// is a 404; nil serves the API alone.
 	Frontend fs.FS
 	// Tick returns a channel that fires every d and a func that stops it;
 	// nil uses a time.Ticker.

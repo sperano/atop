@@ -110,11 +110,14 @@ export function deferred<T>(): Deferred<T> {
 export class FakeApi implements Api {
 	readonly snapshots: Deferred<Snapshot>[] = [];
 	readonly calls: string[] = [];
+	/** The signal of every snapshot call, in call order. */
+	readonly signals: (AbortSignal | undefined)[] = [];
 	refreshAnswer: () => Promise<Snapshot> = () => Promise.reject(new Error('no refresh answer'));
 	hiddenAnswer: () => Promise<void> = () => Promise.resolve();
 
-	snapshot(showHidden: boolean): Promise<Snapshot> {
+	snapshot(showHidden: boolean, signal?: AbortSignal): Promise<Snapshot> {
 		this.calls.push(`snapshot ${showHidden}`);
+		this.signals.push(signal);
 		const d = deferred<Snapshot>();
 		this.snapshots.push(d);
 		return d.promise;

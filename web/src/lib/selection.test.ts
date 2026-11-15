@@ -27,6 +27,8 @@ describe('moveTo', () => {
 		['pageUp', 2, 0],
 		['pageDown', 5, 9],
 		['pageDown', 2, 6],
+		['pageDown', 8, 9],
+		['pageDown', 9, 9],
 		['home', 7, 0],
 		['end', 2, 9]
 	])('%s from %i goes to %i', (move, from, want) => {

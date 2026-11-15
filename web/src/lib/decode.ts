@@ -53,6 +53,21 @@ function severity(o: Fields, key: string, path: string): Severity {
 	return v as Severity;
 }
 
+const WEB_SCHEMES: readonly string[] = ['http:', 'https:'];
+
+/**
+ * A target the page may link and open: an absolute http or https URL with a
+ * host, as the TUI's opener accepts (internal/ui/open.go). Targets come from
+ * Kelos Tasks' results and prompts, so anything else (a javascript: URL)
+ * becomes no target rather than script run on this page's origin.
+ */
+function webTarget(o: Fields, key: string, path: string): string {
+	const v = string(o, key, path);
+	if (!URL.canParse(v)) return '';
+	const url = new URL(v);
+	return WEB_SCHEMES.includes(url.protocol) && url.host !== '' ? v : '';
+}
+
 function decodeRow(value: unknown, path: string): Row {
 	const o = object(value, path);
 	return {
@@ -66,7 +81,7 @@ function decodeRow(value: unknown, path: string): Row {
 		since: optionalTime(o, 'since', path),
 		age: string(o, 'age', path),
 		detail: string(o, 'detail', path),
-		target: string(o, 'target', path),
+		target: webTarget(o, 'target', path),
 		severity: severity(o, 'severity', path),
 		needsYou: boolean(o, 'needs_you', path),
 		busy: boolean(o, 'busy', path),

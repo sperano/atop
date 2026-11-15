@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { row, snapshot, snapshotJSON, TEST_NOW } from '../testing/builders';
+import { HOUR_MS, row, snapshot, snapshotJSON, TEST_NOW } from '../testing/builders';
 import { decodeSnapshot, DecodeError } from './decode';
 
 const PR = row({
@@ -17,9 +17,12 @@ const PR = row({
 	needsYou: true
 });
 
+const BUSY = row({ source: 'kelos task', name: 'busy', state: 'implementing', busy: true });
+const HIDDEN = row({ source: 'vikunja', name: '7', hidden: true });
+
 describe('decodeSnapshot', () => {
 	test('decodes what the server sends', () => {
-		const want = snapshot([PR], {
+		const want = snapshot([PR, BUSY, HIDDEN], {
 			refreshing: true,
 			error: 'hidden rows: denied',
 			counts: { needYou: 1, busy: 2, idle: 3, hidden: 4 }
@@ -30,11 +33,49 @@ describe('decodeSnapshot', () => {
 	test('decodes the server test fixture byte for byte', () => {
 		// internal/server/handlers_test.go, TestSnapshotRowJSON.
 		const json = `{"fetched_at":"2026-11-15T12:00:00Z","refreshing":false,"error":"","counts":{"need_you":1,"busy":0,"idle":0,"hidden":0},"rows":[{"source":"pr","name":"vigie#3","origin":"github","depth":0,"guides":"","mark":"●","state":"review","since":"2026-11-15T11:00:00Z","age":"1h","detail":"Serve the board","target":"https://github.com/o/vigie/pull/3","severity":"attention","needs_you":true,"busy":false,"hidden":false}]}`;
-		const got = decodeSnapshot(JSON.parse(json));
-		expect(got.fetchedAt).toBe(TEST_NOW);
-		expect(got.rows[0]?.since).toBe(TEST_NOW - 60 * 60 * 1000);
-		expect(got.rows[0]?.needsYou).toBe(true);
+		expect(decodeSnapshot(JSON.parse(json))).toEqual(
+			snapshot(
+				[
+					row({
+						source: 'pr',
+						name: 'vigie#3',
+						origin: 'github',
+						mark: '●',
+						state: 'review',
+						since: TEST_NOW - HOUR_MS,
+						age: '1h',
+						detail: 'Serve the board',
+						target: 'https://github.com/o/vigie/pull/3',
+						severity: 'attention',
+						needsYou: true
+					})
+				],
+				{ counts: { needYou: 1, busy: 0, idle: 0, hidden: 0 } }
+			)
+		);
 	});
+
+	test.each([
+		['javascript:alert(document.domain)'],
+		['data:text/html,<script>alert(1)</script>'],
+		['//evil.example/x'],
+		['/api/v1/snapshot'],
+		['https://'],
+		['not a url']
+	])('drops a target that is no http(s) URL: %s', (target) => {
+		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
+		expect(got.rows[0]?.target).toBe('');
+	});
+
+	test.each([['https://github.com/o/vigie/pull/3'], ['http://kelos.example/api/x']])(
+		'keeps an http(s) target: %s',
+		(target) => {
+			const got = decodeSnapshot(
+				snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })]))
+			);
+			expect(got.rows[0]?.target).toBe(target);
+		}
+	);
 
 	test('maps null times to undefined', () => {
 		const got = decodeSnapshot(

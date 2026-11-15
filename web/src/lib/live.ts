@@ -13,7 +13,7 @@ import { eventsPath, type Api } from './api';
 import { decodeSnapshot } from './decode';
 import type { Snapshot } from './model';
 
-/** The event every stream frame carries (internal/server/events.go). */
+/** The event every snapshot frame carries (internal/server/events.go); keepalive frames carry none. */
 export const SNAPSHOT_EVENT = 'snapshot';
 /** EventSource.readyState once it gave up, or was closed. */
 const CLOSED = 2;

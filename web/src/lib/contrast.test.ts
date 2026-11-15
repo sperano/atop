@@ -44,7 +44,19 @@ describe('contrast', () => {
 	});
 
 	test('mid grey on white is below the text threshold', () => {
-		// WCAG's own example value: sRGB 50% grey is about 3.95:1 on white.
-		expect(contrast(MID_GREY, WHITE)).toBeCloseTo(3.95, 1);
+		// A channel of 0.5 is about 3.98:1 on white through the sRGB curve, and
+		// about 3.92:1 through a plain 2.2 power (a channel of 128/255 is 3.95:1).
+		expect(contrast(MID_GREY, WHITE)).toBeCloseTo(3.98, 2);
+	});
+
+	test('luminance weights each channel', () => {
+		expect(luminance([1, 0, 0])).toBeCloseTo(0.2126, 4);
+		expect(luminance([0, 1, 0])).toBeCloseTo(0.7152, 4);
+		expect(luminance([0, 0, 1])).toBeCloseTo(0.0722, 4);
+	});
+
+	test('a dark channel is on the linear segment of the sRGB curve', () => {
+		// 0.02 / 12.92; the power branch would give about 0.001755.
+		expect(luminance([0.02, 0.02, 0.02])).toBeCloseTo(0.001548, 6);
 	});
 });

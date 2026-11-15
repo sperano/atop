@@ -1,6 +1,6 @@
 // The snapshot `vigie serve` sends (internal/server/snapshot.go), decoded
 // from its JSON. The server nests, sorts, counts and classifies the rows: the
-// page only draws them.
+// page only draws them, recomputing each age from since.
 
 /** How a row is coloured (internal/board/severity.go). */
 export const SEVERITIES = ['failed', 'blocked', 'busy', 'attention', 'quiet'] as const;
@@ -21,7 +21,7 @@ export interface Row {
 	/** The age when the snapshot was made; the page recomputes it from since. */
 	readonly age: string;
 	readonly detail: string;
-	/** The URL enter opens, empty when the row has none. */
+	/** The http(s) URL enter opens, empty when the row has none (or another kind). */
 	readonly target: string;
 	readonly severity: Severity;
 	readonly needsYou: boolean;

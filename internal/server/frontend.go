@@ -12,7 +12,7 @@ const (
 	// API, never the UI's page.
 	apiPrefix = "/api/"
 	// indexFile is the UI's entry page, served for every path that is none
-	// of its files.
+	// of its files, but a missing asset (see frontendHandler).
 	indexFile = "index.html"
 	// cacheControlHeader and noCache make the browser ask again for the entry
 	// page, which names the hashed assets of the build it belongs to.
@@ -28,8 +28,12 @@ func withFrontend(api http.Handler, frontend fs.FS) http.Handler {
 	}
 	mux := http.NewServeMux()
 	mux.Handle(apiPrefix, api)
-	mux.Handle(healthzPath, api)
-	mux.Handle(readyzPath, api)
+	// The probes' paths with a trailing slash stay the API's 404: a probe
+	// misconfigured with one must fail, not get the page's 200.
+	for _, p := range []string{healthzPath, readyzPath} {
+		mux.Handle(p, api)
+		mux.Handle(p+"/", api)
+	}
 	mux.Handle("/", frontendHandler(frontend))
 	return mux
 }

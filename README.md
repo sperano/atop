@@ -138,7 +138,9 @@ the system says), status line and keys (`↑/↓`, `k/j`, `pgup/pgdn`,
 link, so a middle-click opens it in a new tab; enter opens the selected
 row's target in a new tab too. A lost stream is said in the status line and
 reconnected, with the previous rows kept. Any path that is not an API path
-or a file of the UI loads the UI.
+or a file of the UI loads the UI, except a missing file with an extension
+(an asset an old page names), which is a 404. Only `http` and `https`
+targets become links or open on enter.
 
 `go build` and `go install` embed a placeholder page that says the UI was
 not built. To embed the UI, build it first, then build with the `webdist`

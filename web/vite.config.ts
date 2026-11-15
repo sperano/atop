@@ -8,6 +8,9 @@ const DEV_API_TARGET = 'http://localhost:8080';
 
 // Tests of Svelte components (Foo.svelte.test.ts) run in Chromium, the rest in Node.
 const COMPONENT_TESTS = 'src/**/*.svelte.test.ts';
+// The Node tests' time zone: not UTC, so that a local time read through the
+// UTC getters fails them on a UTC host (CI).
+const NODE_TEST_TZ = 'America/Montreal';
 
 const emulateColorScheme: BrowserCommand<[colorScheme: 'light' | 'dark' | null]> = async (
 	context,
@@ -59,7 +62,8 @@ export default defineConfig({
 				test: {
 					name: 'node',
 					environment: 'node',
-					include: ['src/**/*.test.ts'],
+					env: { TZ: NODE_TEST_TZ },
+					include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
 					exclude: [COMPONENT_TESTS]
 				}
 			}

@@ -160,6 +160,43 @@ describe('LiveBoard', () => {
 		expect(got).toEqual([{ snapshot: HIDDEN, showHidden: true }]);
 	});
 
+	test("drops the former layout's failed snapshot", async () => {
+		live.start(false);
+		live.setShowHidden(true);
+		api.fail(new Error('aborted')); // the aborted show_hidden=false call
+		await settle();
+		expect(lastConnection()).toEqual({ state: 'connecting' });
+		expect(timers.pending).toHaveLength(0);
+		api.answer(HIDDEN);
+		await settle();
+		expect(got).toEqual([{ snapshot: HIDDEN, showHidden: true }]);
+	});
+
+	test("switching the layout aborts the former layout's snapshot", () => {
+		live.start(false);
+		live.setShowHidden(true);
+		expect(api.signals.map((s) => s?.aborted)).toEqual([true, false]);
+	});
+
+	test('switching the layout starts the wait over', async () => {
+		live.start(false);
+		for (let i = 0; i < 2; i++) {
+			api.fail(new Error('offline'));
+			await settle();
+			timers.fire();
+		}
+		expect(lastConnection()).toEqual({ state: 'connecting' });
+		live.setShowHidden(true);
+		api.fail(new Error('offline')); // the abandoned third show_hidden=false call
+		api.fail(new Error('offline'));
+		await settle();
+		expect(lastConnection()).toEqual({
+			state: 'retrying',
+			error: 'offline',
+			retryInMs: RETRY_BASE_MS
+		});
+	});
+
 	test('a retry pending for the former layout does not fire', async () => {
 		live.start(false);
 		api.fail(new Error('offline'));
@@ -193,7 +230,15 @@ describe('LiveBoard', () => {
 		live.start(false);
 		api.fail(new Error('offline'));
 		await settle();
+		expect(lastConnection()).toMatchObject({ state: 'retrying' });
+		expect(timers.pending).toHaveLength(1);
 		live.stop();
-		expect(timers.pending.every((t) => t.cancelled)).toBe(true);
+		expect(timers.pending[0]?.cancelled).toBe(true);
+	});
+
+	test('stop aborts a snapshot in flight', () => {
+		live.start(false);
+		live.stop();
+		expect(api.signals.map((s) => s?.aborted)).toEqual([true]);
 	});
 });

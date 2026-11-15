@@ -1,3 +1,18 @@
+<script module lang="ts">
+	/** How often the header's time and the ages move on. */
+	export const TICK_MS = 1000;
+
+	/**
+	 * Opens url in a new tab without giving it this page. Not through the
+	 * noopener feature: window.open then returns null even when the tab opened.
+	 */
+	function openInNewTab(url: string): boolean {
+		const tab = window.open(url, '_blank');
+		if (tab) tab.opener = null;
+		return tab !== null;
+	}
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import BoardTable from './BoardTable.svelte';
@@ -9,8 +24,6 @@
 	import { moveTo, reselect } from './lib/selection';
 	import * as status from './lib/status';
 
-	/** How often the header's time and the ages move on. */
-	const TICK_MS = 1000;
 	const NO_COUNTS = { needYou: 0, busy: 0, idle: 0, hidden: 0 };
 
 	interface Props {
@@ -22,13 +35,7 @@
 		timer?: Timer;
 	}
 
-	let {
-		api,
-		openUrl = (url) => window.open(url, '_blank', 'noopener,noreferrer') !== null,
-		now = Date.now,
-		openStream,
-		timer
-	}: Props = $props();
+	let { api, openUrl = openInNewTab, now = Date.now, openStream, timer }: Props = $props();
 
 	let snapshot = $state<Snapshot>();
 	let showHidden = $state(false);

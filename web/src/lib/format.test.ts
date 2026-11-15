@@ -1,10 +1,13 @@
 import { describe, expect, test } from 'vitest';
+import { TEST_NOW } from '../testing/builders';
 import { formatAge, formatCounts, formatTime, titleLine } from './format';
 
 const NOW = Date.UTC(2026, 9, 5, 12, 0, 0);
 const S = 1000;
 const M = 60 * S;
 const H = 60 * M;
+/** getTimezoneOffset in Montreal on standard time (UTC-5). */
+const MONTREAL_WINTER_OFFSET_MIN = 5 * 60;
 
 describe('formatAge', () => {
 	// internal/board/age_test.go's cases.
@@ -37,19 +40,22 @@ describe('formatCounts', () => {
 });
 
 describe('formatTime', () => {
+	test('runs in a zone that is not UTC', () => {
+		// vite.config.ts sets TZ for the node project; in UTC the next tests
+		// could not tell local time from UTC.
+		expect(new Date(TEST_NOW).getTimezoneOffset()).toBe(MONTREAL_WINTER_OFFSET_MIN);
+	});
+
 	test('is local time in the TUI layout', () => {
-		// The node project runs in UTC unless TZ says otherwise: build the
-		// expectation from local fields.
-		const local = new Date(2026, 0, 2, 3, 4, 5).getTime();
-		expect(formatTime(local)).toBe('2026-01-02 03:04:05');
+		// TEST_NOW is 12:00:00 UTC, 07:00:00 in Montreal.
+		expect(formatTime(TEST_NOW + 4 * S)).toBe('2026-11-15 07:00:04');
 	});
 });
 
 describe('titleLine', () => {
-	test('is name, time and counts', () => {
-		const local = new Date(2026, 10, 15, 21, 55, 4).getTime();
-		expect(titleLine({ needYou: 2, busy: 3, idle: 2, hidden: 0 }, local)).toBe(
-			'vigie · 2026-11-15 21:55:04 · 2 need you · 3 busy · 2 idle'
+	test('is name, local time and counts', () => {
+		expect(titleLine({ needYou: 2, busy: 3, idle: 2, hidden: 0 }, TEST_NOW)).toBe(
+			'vigie · 2026-11-15 07:00:00 · 2 need you · 3 busy · 2 idle'
 		);
 	});
 });
