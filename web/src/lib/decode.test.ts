@@ -78,6 +78,9 @@ describe('decodeSnapshot', () => {
 		['https://a[b@x.example/'],
 		['https://x.example/%zz'],
 		['https://x.example/#%2'],
+		['https://x.example/?q=%zz'],
+		['https://\u017f@x.example/'],
+		['https://\u212a@x.example/'],
 		['not a url']
 	])('drops a target that is no http(s) URL both parsers take: %s', (target) => {
 		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
@@ -91,7 +94,9 @@ describe('decodeSnapshot', () => {
 		['https://user:pw@x.example:8080/a b?q=1#f'],
 		['https://[::1]:8080/'],
 		['https://bücher.example/%C3%BC'],
-		['https://x.example/a\\b']
+		['https://x.example/a\\b'],
+		['https://x.example/?q=%41'],
+		['hTtP://x.example/']
 	])('keeps an http(s) target: %s', (target) => {
 		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
 		expect(got.rows[0]?.target).toBe(target);

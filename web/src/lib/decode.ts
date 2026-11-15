@@ -57,9 +57,10 @@ function severity(o: Fields, key: string, path: string): Severity {
 // url.Parse takes there: userinfo of ASCII letters, digits and
 // -._~!$&'()*+,;=:@, then a host of those (no @) plus [] and non-ASCII. The
 // WHATWG parser alone also takes http:///x, https:/x, a backslash or a %
-// escape in the host, and userinfo Go refuses.
+// escape in the host, and userinfo Go refuses. No i flag: under /iu, \w and
+// [a-z] also match U+017F and U+212A, non-ASCII userinfo Go refuses.
 const WEB_URL =
-	/^https?:\/\/(?:[\w.~!$&'()*+,;=:@-]*@)?[\w.~!$&'()*+,;=:[\]\u{80}-\u{10ffff}-]+(?:[/?#]|$)/iu;
+	/^[Hh][Tt][Tt][Pp][Ss]?:\/\/(?:[\w.~!$&'()*+,;=:@-]*@)?[\w.~!$&'()*+,;=:[\]\u{80}-\u{10ffff}-]+(?:[/?#]|$)/u;
 // A % that starts no escape, which Go's url.Parse refuses in a path or a
 // fragment; the query it leaves unchecked.
 const BAD_ESCAPE = /%(?![\da-f]{2})/i;

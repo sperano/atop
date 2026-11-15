@@ -219,6 +219,18 @@ describe('colorViolations', () => {
 			['red']
 		],
 		[
+			'a style attribute around a nested-brace expression',
+			'<p style="color: {f({a: 1})}; background: white">x</p>',
+			'.svelte',
+			['white']
+		],
+		[
+			'a style: directive around a nested-brace expression',
+			'<p style:border="{f({a: 1})} solid tan">x</p>',
+			'.svelte',
+			['tan']
+		],
+		[
 			'an expression naming no colour',
 			"<p style:display={on ? 'block' : 'none'}>x</p>",
 			'.svelte',
