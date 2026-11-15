@@ -40,8 +40,10 @@ export const NAMED_COLORS = new Set(
 // scanned as values. A .css file is CSS throughout. An expression runs to its
 // matching }, nested braces, braces in its string literals and its comments
 // skipped, so a quote inside a quoted value's {…} does not end the value. A {
-// that closes nowhere is text. A quote in a regex literal is read as opening a
-// string: telling a regex from a division takes a JavaScript parser.
+// that closes nowhere is text. A / opens a regex literal, skipped too, where
+// no operand ends before it (after an operator, a punctuator or a keyword such
+// as typeof), and divides elsewhere; one that does not close on its line
+// divides.
 const STYLE_BLOCK = /(<style\b[^>]*>)([\s\S]*?)<\/style>/gi;
 const STYLE_ATTRIBUTE_START = /\bstyle(:[\w-]+(?:\|[\w-]+)*)?=(["'{])/g;
 const OPEN_BRACE = '{';
@@ -53,6 +55,29 @@ const BLOCK_COMMENT = '/*';
 const BLOCK_COMMENT_END = '*/';
 const COMMENT_OPENER_LENGTH = 2;
 const NEWLINE = '\n';
+const SLASH = '/';
+const REGEX_CLASS_OPEN = '[';
+const REGEX_CLASS_CLOSE = ']';
+// What a / after which divides ends with: a name, a number, a bracket or a string.
+const OPERAND_END = /[\w$)\]}"'`]/;
+const WORD_CHARACTER = /[\w$]/;
+const SPACE = /\s/;
+// The keywords after which an operand starts, so a / opens a regex.
+const KEYWORDS_BEFORE_OPERAND = new Set([
+	'await',
+	'case',
+	'delete',
+	'do',
+	'else',
+	'in',
+	'instanceof',
+	'new',
+	'of',
+	'return',
+	'typeof',
+	'void',
+	'yield'
+]);
 // What a value names that is no colour: comments, url()s (an asset such as
 // gold.svg) and strings (a font such as 'Gold Sans').
 const CSS_COMMENT = /\/\*[\s\S]*?\*\//g;
@@ -102,8 +127,9 @@ function stringEnd(text, open) {
 }
 
 /**
- * The index of the last character of the script comment opening at
- * text[open] (text.length if it never ends), or null if none opens there.
+ * The index of what ends the script comment opening at text[open]: the
+ * newline after a line comment, the closing / of a block comment (text.length if
+ * either never ends), or null if no comment opens there.
  */
 function commentEnd(text, open) {
 	const opener = text.slice(open, open + COMMENT_OPENER_LENGTH);
@@ -116,6 +142,41 @@ function commentEnd(text, open) {
 	return end === -1 ? text.length : end + BLOCK_COMMENT_END.length - 1;
 }
 
+/** Whether a / at text[i] of the expression opening at text[open] opens a regex: no operand ends before it. */
+function regexMayOpen(text, open, i) {
+	let last = i - 1;
+	while (last > open && SPACE.test(text[last])) last--;
+	if (!OPERAND_END.test(text[last])) return true;
+	if (!WORD_CHARACTER.test(text[last])) return false;
+	let first = last;
+	while (first > open && WORD_CHARACTER.test(text[first - 1])) first--;
+	return KEYWORDS_BEFORE_OPERAND.has(text.slice(first, last + 1));
+}
+
+/** The index of the / closing the regex literal opening at text[open], or -1 if none does on its line. */
+function regexEnd(text, open) {
+	let inClass = false;
+	for (let i = open + 1; i < text.length && text[i] !== NEWLINE; i++) {
+		if (text[i] === ESCAPE) i++;
+		else if (text[i] === REGEX_CLASS_OPEN) inClass = true;
+		else if (text[i] === REGEX_CLASS_CLOSE) inClass = false;
+		else if (text[i] === SLASH && !inClass) return i;
+	}
+	return -1;
+}
+
+/**
+ * The index of what ends the comment or regex literal at text[i] of the
+ * expression opening at text[open] (as commentEnd and regexEnd give it), or
+ * null if neither opens there.
+ */
+function skippedEnd(text, open, i) {
+	const comment = commentEnd(text, i);
+	if (comment !== null || text[i] !== SLASH || !regexMayOpen(text, open, i)) return comment;
+	const end = regexEnd(text, i);
+	return end === -1 ? null : end;
+}
+
 /**
  * The script expression opening at text[open]: the index of its closing }
  * (-1 if none) and its string literals as [start, end] of their insides.
@@ -124,8 +185,8 @@ function scriptExpression(text, open) {
 	const strings = [];
 	let depth = 0;
 	for (let i = open; i < text.length; i++) {
-		const comment = commentEnd(text, i);
-		if (comment !== null) i = comment;
+		const skipped = skippedEnd(text, open, i);
+		if (skipped !== null) i = skipped;
 		else if (SCRIPT_QUOTES.has(text[i])) {
 			const end = stringEnd(text, i);
 			if (end === -1) return { close: -1, strings };

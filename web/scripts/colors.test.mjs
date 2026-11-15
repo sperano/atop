@@ -297,6 +297,54 @@ describe('colorViolations', () => {
 			['red', 'white']
 		],
 		[
+			'an unclosed block comment in a style attribute expression',
+			"<p style={/* on ? 'red' : 'blue'}>\nx</p>",
+			'.svelte',
+			[]
+		],
+		[
+			'a regex holding // in a style attribute expression',
+			"<p style={/a\\//.test(x) ? 'color: red' : ''}>x</p>",
+			'.svelte',
+			['red']
+		],
+		[
+			'a regex holding a quote in a style attribute expression',
+			"<p style={/'/.test(x) ? 'color: red' : 'color: blue'}>x</p>",
+			'.svelte',
+			['red', 'blue']
+		],
+		[
+			'a regex class holding / and } in a style: directive expression',
+			"<p style:color={/[/}]/.test(x) ? 'red' : 'blue'}>x</p>",
+			'.svelte',
+			['red', 'blue']
+		],
+		[
+			'a regex after a keyword in a style: directive expression',
+			"<p style:color={typeof /'/ ? 'red' : 'blue'}>x</p>",
+			'.svelte',
+			['red', 'blue']
+		],
+		[
+			'a division after a name in a style attribute expression',
+			"<p style={n / 2 ? '/' : 'color: red'}>x</p>",
+			'.svelte',
+			['red']
+		],
+		[
+			'a division after a bracket in a style attribute expression',
+			"<p style={f(n) / 2 ? '/' : 'color: red'}>x</p>",
+			'.svelte',
+			['red']
+		],
+		[
+			'a / closing no regex on its line in a style attribute expression',
+			"<p style={[/ 'color: red']}>\nx</p>",
+			'.svelte',
+			['red']
+		],
+		[
 			'two expressions in a style attribute',
 			"<p style=\"color: {on ? 'red' : c}; background: {off ? 'navy' : d}\">x</p>",
 			'.svelte',
