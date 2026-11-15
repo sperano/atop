@@ -230,6 +230,41 @@ func TestPostRefreshCooldown(t *testing.T) {
 	<-done
 }
 
+func TestPostRefreshJoinsARunningRefreshInTheCooldown(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	h.refreshWith(testRows())
+	done := h.srv.Refresh() // started inside the cooldown, which only POST honours
+	<-h.fetch.started
+	resp := do(t, h.srv, http.MethodPost, refreshURL)
+	if resp.StatusCode != http.StatusAccepted || !decodeSnapshot(t, resp).Refreshing {
+		t.Errorf("POST during a running refresh = %d, want 202 and the refresh running", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Retry-After"); got != "" {
+		t.Errorf("Retry-After = %q, want none", got)
+	}
+	h.fetch.rows <- testRows()
+	<-done
+	if got := h.fetch.calls.Load(); got != 2 {
+		t.Errorf("fetches = %d, want 2 (the POST joined the second)", got)
+	}
+}
+
+func TestPostRefreshCustomCooldown(t *testing.T) {
+	t.Parallel()
+	const cooldown, elapsed = time.Minute, 30 * time.Second
+	h := newHarness(t, func(o *Options) { o.RefreshCooldown = cooldown })
+	h.refreshWith(testRows())
+	h.clock.advance(elapsed)
+	resp := do(t, h.srv, http.MethodPost, refreshURL)
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Errorf("POST %s into a %s cooldown = %d, want 429", elapsed, cooldown, resp.StatusCode)
+	}
+	if got, want := resp.Header.Get("Retry-After"), "30"; got != want {
+		t.Errorf("Retry-After = %q, want %q", got, want)
+	}
+}
+
 func TestPostRefreshShowHidden(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, nil)

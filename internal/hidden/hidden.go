@@ -103,8 +103,8 @@ func (s Set) PruneRead(rows []source.Row, read []string) Set {
 	return s.prune(rows, func(src string) bool { return slices.Contains(read, src) })
 }
 
-// prune forgets the entries of the sources fetched reports that are absent
-// from rows.
+// prune forgets the entries absent from rows whose source fetched reports
+// and was read in full (no error row, PR search under its limit).
 func (s Set) prune(rows []source.Row, fetched func(src string) bool) Set {
 	unsure := make(map[string]bool)
 	counts := make(map[string]int)
