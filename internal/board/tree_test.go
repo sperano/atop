@@ -1,4 +1,4 @@
-package ui
+package board
 
 import (
 	"slices"
@@ -105,7 +105,7 @@ func TestArrange(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := display(Arrange(tt.rows)); !slices.Equal(got, tt.want) {
+			if got := display(arrange(tt.rows)); !slices.Equal(got, tt.want) {
 				t.Errorf("got  %q\nwant %q", got, tt.want)
 			}
 		})

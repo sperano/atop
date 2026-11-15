@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/sperano/vigie/internal/board"
 	"github.com/sperano/vigie/internal/hidden"
 	"github.com/sperano/vigie/internal/source"
 )
@@ -33,8 +34,8 @@ type Options struct {
 type Model struct {
 	opts       Options
 	styles     styles
-	rows       []source.Row // as fetched, for the summary
-	entries    []Entry      // shown rows in display order
+	rows       []source.Row  // as fetched
+	entries    []board.Entry // shown rows in display order, for the keys
 	hidden     hidden.Set
 	showHidden bool // hidden rows are listed, marked, so they can be unhidden
 	selected   int
@@ -134,7 +135,7 @@ func (m *Model) arrange() {
 	if row, ok := m.selectedRow(); ok {
 		key = row.Key()
 	}
-	m.entries = arrangeShown(m.rows, m.hidden, m.showHidden)
+	m.entries = m.build(m.opts.Now()).Entries
 	m.selected = m.clamp(m.selected)
 	for i, e := range m.entries {
 		if e.Row.Key() == key {
@@ -145,11 +146,21 @@ func (m *Model) arrange() {
 	m.scrollToSelection()
 }
 
-func (m Model) selectedRow() (source.Row, bool) {
+// build lays the rows out as they stand at now.
+func (m Model) build(now time.Time) board.Board {
+	return board.Build(m.rows, m.hidden, m.showHidden, now)
+}
+
+func (m Model) selectedEntry() (board.Entry, bool) {
 	if m.selected < 0 || m.selected >= len(m.entries) {
-		return source.Row{}, false
+		return board.Entry{}, false
 	}
-	return m.entries[m.selected].Row, true
+	return m.entries[m.selected], true
+}
+
+func (m Model) selectedRow() (source.Row, bool) {
+	e, ok := m.selectedEntry()
+	return e.Row, ok
 }
 
 func (m Model) clamp(i int) int {

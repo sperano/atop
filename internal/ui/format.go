@@ -3,12 +3,10 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/sperano/vigie/internal/source"
+	"github.com/sperano/vigie/internal/board"
 )
 
 // Column widths; DETAIL takes what is left of the terminal.
@@ -23,38 +21,11 @@ const (
 	columnCount    = 7
 	minDetailWidth = 20
 	ellipsis       = "…"
-	needsYouMark   = "●"
-	hiddenMark     = "-"
 	blankMark      = " "
-	unknownAge     = "-"
 )
 
 // fixedWidth is the width of every column but DETAIL, gaps included.
 const fixedWidth = markWidth + typeWidth + originWidth + nameWidth + stateWidth + ageWidth + (columnCount-1)*len(columnGap)
-
-var ageUnits = []struct {
-	suffix string
-	size   time.Duration
-}{
-	{"d", source.Day},
-	{"h", time.Hour},
-	{"m", time.Minute},
-	{"s", time.Second},
-}
-
-// FormatAge renders the time since `since` in its largest whole unit.
-func FormatAge(since, now time.Time) string {
-	if since.IsZero() {
-		return unknownAge
-	}
-	elapsed := max(now.Sub(since), 0)
-	for _, u := range ageUnits {
-		if elapsed >= u.size {
-			return fmt.Sprintf("%d%s", elapsed/u.size, u.suffix)
-		}
-	}
-	return "0" + ageUnits[len(ageUnits)-1].suffix
-}
 
 // fit truncates text to width display cells, ending with an ellipsis.
 func fit(text string, width int) string {
@@ -70,43 +41,6 @@ func padRight(text string, width int) string {
 func padLeft(text string, width int) string {
 	text = fit(text, width)
 	return strings.Repeat(" ", width-ansi.StringWidth(text)) + text
-}
-
-// group orders rows: needs you, then busy, then the rest.
-func group(r source.Row) int {
-	switch {
-	case r.NeedsYou:
-		return 0
-	case r.Busy:
-		return 1
-	default:
-		return 2
-	}
-}
-
-// agentSources are the sources whose rows are agents; a Vikunja task or PR
-// is busy only because an agent speaks for it, and is not counted again.
-var agentSources = map[string]bool{
-	source.SourceLocal:        true,
-	source.SourceKelosSession: true,
-	source.SourceKelosTask:    true,
-}
-
-// Summary counts the rows that need you, the busy agents, and the idle rows.
-func Summary(rows []source.Row) string {
-	var needs, busy, idle int
-	for _, r := range rows {
-		switch {
-		case r.NeedsYou:
-			needs++
-		case r.Busy && agentSources[r.Source]:
-			busy++
-		}
-		if r.State == source.StateIdle {
-			idle++
-		}
-	}
-	return fmt.Sprintf("%d need you · %d busy · %d idle", needs, busy, idle)
 }
 
 // formatColumns lays out one table line of exactly width cells, or of
@@ -128,20 +62,9 @@ func headerLine(width int) string {
 	return formatColumns(blankMark, "TYPE", "ORIGIN", "NAME", "STATE", "AGE", "DETAIL", width)
 }
 
-func rowLine(e Entry, now time.Time, width int) string {
+func rowLine(e board.Entry, width int) string {
 	r := e.Row
-	mark := blankMark
-	switch {
-	case e.Hidden:
-		mark = hiddenMark
-	case r.NeedsYou:
-		mark = needsYouMark
-	}
-	origin := r.Origin
-	if origin == "" {
-		origin = source.OriginUnknown
-	}
-	return formatColumns(mark, r.Source, origin, e.Prefix+r.Name, r.State, FormatAge(r.Since, now), oneLine(r.Detail), width)
+	return formatColumns(e.Mark, r.Source, e.Origin, e.Prefix+r.Name, r.State, e.Age, oneLine(r.Detail), width)
 }
 
 // oneLine flattens newlines so that a detail cannot break the table.

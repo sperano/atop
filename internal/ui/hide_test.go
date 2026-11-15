@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/vigie/internal/board"
 	"github.com/sperano/vigie/internal/hidden"
 	"github.com/sperano/vigie/internal/source"
 )
@@ -176,21 +177,6 @@ func TestRefreshSyncsHidden(t *testing.T) {
 	}
 }
 
-func TestHiddenParentLeavesChildAtTop(t *testing.T) {
-	t.Parallel()
-	parent := source.Row{Source: "vikunja", Name: "#7", State: "idle", Ref: "vikunja:7"}
-	child := source.Row{Source: "pr", Name: "vigie#3", State: "review", ParentRefs: []string{"vikunja:7"}}
-	set := hidden.New(hidden.Entry{Source: "vikunja", Name: "#7"})
-	entries := arrangeShown([]source.Row{parent, child}, set, false)
-	if len(entries) != 1 || entries[0].Row.Name != "vigie#3" || entries[0].Prefix != "" {
-		t.Errorf("entries = %+v, want the PR alone at the top level", entries)
-	}
-	entries = arrangeShown([]source.Row{parent, child}, set, true)
-	if len(entries) != 2 || entries[1].Prefix != branchLast || !entries[0].Hidden {
-		t.Errorf("with hidden shown, entries = %+v, want the PR nested under the hidden task", entries)
-	}
-}
-
 func TestTitleCountsHidden(t *testing.T) {
 	t.Parallel()
 	rows := []source.Row{
@@ -209,7 +195,7 @@ func TestTitleCountsHidden(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := titleLine(rows, tt.set, testNow); !strings.HasSuffix(got, tt.want) {
+			if got := titleLine(board.Build(rows, tt.set, false, testNow).Counts, testNow); !strings.HasSuffix(got, tt.want) {
 				t.Errorf("title = %q, want suffix %q", got, tt.want)
 			}
 		})
@@ -232,13 +218,18 @@ func TestHiddenRowMarkedInView(t *testing.T) {
 		hidden bool
 		want   string
 	}{
-		{"needs you", false, needsYouMark + " pr"},
-		{"hidden", true, hiddenMark + " pr"},
+		{"needs you", false, board.MarkNeedsYou + " pr"},
+		{"hidden", true, board.MarkHidden + " pr"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := rowLine(Entry{Row: row, Hidden: tt.hidden}, testNow, testWidth); !strings.HasPrefix(got, tt.want) {
+			set := hidden.Set{}
+			if tt.hidden {
+				set = set.Hide(row)
+			}
+			entry := board.Build([]source.Row{row}, set, true, testNow).Entries[0]
+			if got := rowLine(entry, testWidth); !strings.HasPrefix(got, tt.want) {
 				t.Errorf("row line %q, want prefix %q", got, tt.want)
 			}
 		})

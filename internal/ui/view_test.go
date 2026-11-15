@@ -3,8 +3,10 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/sperano/vigie/internal/board"
 	"github.com/sperano/vigie/internal/hidden"
 	"github.com/sperano/vigie/internal/source"
 )
@@ -80,7 +82,7 @@ func TestRowColourFollowsSeverityNotAttention(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := st.entry(Entry{Row: tt.row}).Render("row"); got != tt.want {
+			if got := st.entry(board.Entry{Row: tt.row}).Render("row"); got != tt.want {
 				t.Errorf("styled row = %q, want %q", got, tt.want)
 			}
 		})
@@ -119,5 +121,17 @@ func TestViewNoRows(t *testing.T) {
 	m := send(New(Options{Now: fixedNow, Opener: &fakeOpener{}}), rowsMsg{})
 	if v := m.View().Content; !strings.Contains(v, statusNoRows) {
 		t.Errorf("view lacks %q: %q", statusNoRows, v)
+	}
+}
+
+func TestViewAgesFollowTheClock(t *testing.T) {
+	t.Parallel()
+	now := testNow
+	rows := []source.Row{{Source: "pr", Name: "a", State: "review", Since: testNow}}
+	m := New(Options{Now: func() time.Time { return now }, Opener: &fakeOpener{}})
+	m = send(m, rowsMsg{rows: rows})
+	now = testNow.Add(time.Hour) // no refresh in between
+	if v := m.View().Content; !strings.Contains(v, " 1h ") {
+		t.Errorf("view does not age the row to 1h without a refresh:\n%s", v)
 	}
 }

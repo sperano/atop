@@ -2,6 +2,7 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"github.com/sperano/vigie/internal/board"
 )
 
 const (
@@ -44,23 +45,23 @@ func (m *Model) moveTo(i int) {
 
 // open starts opening the selected row's target.
 func (m Model) open() (tea.Model, tea.Cmd) {
-	row, ok := m.selectedRow()
+	entry, ok := m.selectedEntry()
 	if !ok {
 		return m, nil
 	}
-	opener, target := m.opts.Opener, row.Target
+	opener, target := m.opts.Opener, entry.Target
 	switch {
-	case target.URL != "":
-		m.status = "opening " + target.URL
+	case target.Kind == board.TargetURL:
+		m.status = "opening " + target.Value
 		return m, func() tea.Msg {
-			return openedMsg{what: target.URL, err: opener.OpenURL(target.URL)}
+			return openedMsg{what: target.Value, err: opener.OpenURL(target.Value)}
 		}
-	case target.TmuxPane != "" && !m.opts.InTmux:
+	case target.Kind == board.TargetTmux && !m.opts.InTmux:
 		m.status = statusNotInTmux
-	case target.TmuxPane != "":
-		m.status = "switching to " + target.TmuxPane
+	case target.Kind == board.TargetTmux:
+		m.status = "switching to " + target.Value
 		return m, func() tea.Msg {
-			return openedMsg{what: target.TmuxPane, err: opener.SwitchTmux(target.TmuxPane)}
+			return openedMsg{what: target.Value, err: opener.SwitchTmux(target.Value)}
 		}
 	default:
 		m.status = statusNothing
