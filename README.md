@@ -129,11 +129,58 @@ own `--hidden-file`, with the same rules as the TUI's, except that it never
 forgets hidden local sessions, which it does not read; in a container, point
 it at a writable volume.
 
+### Web UI
+
+The server also serves a web UI at `/`: the TUI's table in a browser, live
+from the event stream, with its header, columns, colours (light or dark, as
+the system says), status line and keys (`↑/↓`, `k/j`, `pgup/pgdn`,
+`home/end`, `enter`, `r`, `h`, `H`; no `q`). Every name with a target is a
+link, so a middle-click opens it in a new tab; enter opens the selected
+row's target in a new tab too. A lost stream is said in the status line and
+reconnected, with the previous rows kept. Any path that is not an API path
+or a file of the UI loads the UI, except a missing file with an extension
+(an asset an old page names), which is a 404. Only `http` and `https`
+targets become links or open on enter.
+
+`go build` and `go install` embed a placeholder page that says the UI was
+not built. To embed the UI, build it first, then build with the `webdist`
+tag:
+
+```bash
+(cd web && npm ci && npm run build)
+go build -tags webdist .
+```
+
+For work on the UI, `npm run dev` in `web/` serves it with Vite and proxies
+`/api` to a `vigie serve` on `localhost:8080`. Its checks are `npm run lint`,
+`npm run check` and `npm test` (the component tests run in Chromium:
+`npx playwright install chromium` once).
+
 **The server has no authentication.** Anyone who reaches it can read every
 row and hide any of them. Bind it with `--listen` (default `:8080`, every
 interface) to an address only an authenticating proxy reaches, such as
 `127.0.0.1:8080` behind a forward-auth proxy; an empty address is refused. Its event streams stay open:
-give the proxy's route no request timeout.
+give the proxy's route no request timeout. The web UI has no login of its
+own either: the proxy's is the only one.
+
+### Image
+
+The `Dockerfile` builds an image of `vigie serve` with the UI embedded, for
+`linux/amd64` and `linux/arm64`, without emulation (Node and Go run on the
+build platform, Go cross-compiles):
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 .
+```
+
+It is `scratch` with the binary, the CA bundle (GitHub and Vikunja are
+reached over HTTPS) and the licenses of everything it ships under
+`/licenses`. It runs as `65532:65532`, listens on `8080`, and keeps its hidden
+rows in `/data/hidden.json` (`VIGIE_HIDDEN_FILE`): mount a writable volume on
+`/data` to keep them across restarts. Probe `GET /healthz` and
+`GET /readyz`. In a pod it reads Kelos (and the Vikunja token Secret, unless
+`VIKUNJA_API_TOKEN` is set) with its service account, and takes the GitHub token from `GH_TOKEN` or
+`GITHUB_TOKEN` (there is no `gh` in the image).
 
 ## Types and origins
 

@@ -1,0 +1,73 @@
+/*
+ * Every colour of the page: light tokens on :root, redefined for the dark
+ * scheme. The system decides; there is no switch. Components use the tokens
+ * and never a colour of their own (npm run lint:colors).
+ */
+:root {
+	color-scheme: light dark;
+
+	--color-page: #f6f7f9;
+	--color-fg: #18212b;
+	--color-muted: #566170;
+	--color-border: #d3d9e0;
+	--color-header: #1d2b3a;
+	--color-on-header: #f1f4f8;
+	--color-selected: #dce6f2;
+	/* Row severities (internal/board/severity.go) and the needs-you mark. */
+	--color-failed: #b3261e;
+	--color-blocked: #865400;
+	--color-busy: #17743a;
+	--color-mark: #b3261e;
+	--color-focus: #2b67ad;
+
+	--font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+	--font-size: 0.875rem;
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--focus-ring: 2px solid var(--color-focus);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--color-page: #11161c;
+		--color-fg: #e3e8ee;
+		--color-muted: #98a3b0;
+		--color-border: #2b3541;
+		--color-header: #1b2632;
+		--color-on-header: #e3e8ee;
+		--color-selected: #263546;
+		--color-failed: #ff8a80;
+		--color-blocked: #e6b450;
+		--color-busy: #5fd07a;
+		--color-mark: #ff8a80;
+		--color-focus: #75aef0;
+	}
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	height: 100%;
+}
+
+body {
+	background: var(--color-page);
+	color: var(--color-fg);
+	font-family: var(--font-mono);
+	font-size: var(--font-size);
+	line-height: 1.5;
+}
+
+a {
+	color: inherit;
+}
+
+:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 1px;
+}

@@ -72,7 +72,7 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
 - Layout: header with time and `N need you · N busy · N idle` (busy counts
   agent rows only: local, kelos session, kelos task; a Task speaking for its
   PR and Vikunja task is one busy agent); columns mark,
-  SOURCE, NAME, STATE, AGE, DETAIL (DETAIL takes the remaining width, truncated
+  TYPE, ORIGIN, NAME, STATE, AGE, DETAIL (DETAIL takes the remaining width, truncated
   with `…`); footer with key help and the last action or error. Needs-you rows
   are red with `●`, busy green, the rest dim. Sort: needs you, then busy, then
   the rest, each most recent first.
@@ -144,7 +144,10 @@ the loaded set to the new path on its first change.
   enter targets and header counts, shared by every front end), `internal/ui`
   (Bubble Tea model, keys, styling, view, opener), `internal/server` (the
   `vigie serve` HTTP API: snapshot, SSE events, refresh, hidden rows;
-  local sessions are off there), `internal/config`.
+  local sessions are off there), `internal/config`, and `web/` (the Svelte 5
+  + Vite + strict TypeScript UI, npm, conventions copied from sillage: the
+  binary embeds `web/placeholder` by default and `web/dist` with `-tags
+  webdist`, which the `Dockerfile` uses; `go.mod` ignores `web/node_modules`).
 - Inject command runners, HTTP clients, the clock and the opener through small
   interfaces or func fields, so that parsers, fetchers and the model can be
   tested without a cluster.
@@ -157,9 +160,13 @@ the loaded set to the new path on its first change.
   - newest-comment pagination (`httptest`);
   - model key handling: moves, clamping, selection kept across refresh, enter
     calling the injected opener.
-- Gate before every PR: `gofmt -l .` is empty, `go vet ./...`,
-  `go test ./...`, `staticcheck ./...`. CI (`.github/workflows/ci.yml`) runs
-  the same on push and PR.
+- Gate before every PR: `gofmt -l .` is empty (with `web/node_modules`
+  present, list the files from git instead: gofmt ignores `go.mod`'s
+  `ignore`), `go vet ./...`, `go test -race ./...`, `staticcheck ./...`; in
+  `web/`, `npm run lint`, `npm run check`, `npm test`, `npm run build`, then
+  `go vet -tags webdist ./...` and `go test -race -tags webdist ./...`. CI
+  (`.github/workflows/ci.yml`) runs the same on push and PR, plus
+  `docker buildx build --platform linux/amd64,linux/arm64 .` (no push).
 - The README covers install, keys, the sources table (what each shows, when
   it is flagged, what enter opens), configuration, requirements (cluster
   access through a kubeconfig or in-cluster, a GitHub token and its lookup
