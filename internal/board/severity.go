@@ -5,7 +5,8 @@ import "github.com/sperano/vigie/internal/source"
 // Severity is how a row is coloured, apart from its needs-you mark.
 type Severity string
 
-// Severities, most alarming first.
+// Severities, in the order SeverityOf tests them: a busy agent ranks above
+// a row that only needs you.
 const (
 	SeverityFailed    Severity = "failed"    // red: a failure or a source error
 	SeverityBlocked   Severity = "blocked"   // yellow: blocked work, conflicts

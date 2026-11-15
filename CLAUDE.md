@@ -130,6 +130,7 @@ hard-coded beyond these defaults:
 | Stale days | `30` |
 | Refresh interval | `2m` |
 | Hidden-rows file | `<os.UserConfigDir>/vigie/hidden.json` |
+| Server listen address (`vigie serve` only; not empty) | `:8080` |
 
 When the default file is missing, read the former `atop/hidden.json`; write
 the loaded set to the new path on its first change.

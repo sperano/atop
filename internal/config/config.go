@@ -82,6 +82,9 @@ func Parse(name string, args []string, getenv func(string) string) (Config, erro
 	if fs.NArg() > 0 {
 		return Config{}, fmt.Errorf("%w: unexpected argument %q", ErrInvalid, fs.Arg(0))
 	}
+	if c.Serve && c.Listen == "" {
+		return Config{}, fmt.Errorf("%w: listen address must not be empty", ErrInvalid)
+	}
 	if c.Interval <= 0 {
 		return Config{}, fmt.Errorf("%w: interval must be positive, got %s", ErrInvalid, c.Interval)
 	}

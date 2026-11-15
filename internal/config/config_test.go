@@ -235,6 +235,7 @@ func TestParseArgumentErrors(t *testing.T) {
 		{"listen is a serve flag only", []string{"-listen", flagListen}, false, ""},
 		{"unknown subcommand", []string{"serv"}, true, `unexpected argument "serv"`},
 		{"argument after serve", []string{ServeCommand, "now"}, true, `unexpected argument "now"`},
+		{"empty listen", []string{ServeCommand, "-listen", ""}, true, "listen address must not be empty"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

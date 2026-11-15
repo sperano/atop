@@ -50,7 +50,7 @@ func run(cfg config.Config) error {
 	sources := buildSources(cfg)
 	fetch := func(ctx context.Context) []source.Row { return source.FetchAll(ctx, sources) }
 	if cfg.Serve {
-		return serve(cfg, fetch, hiddenFile)
+		return serve(cfg, fetch, sourceNames(sources), hiddenFile)
 	}
 	stdoutTTY := term.IsTerminal(os.Stdout.Fd())
 	color := stdoutTTY && os.Getenv("NO_COLOR") == ""
@@ -140,6 +140,15 @@ func buildSources(cfg config.Config) []source.Named {
 		return sources
 	}
 	return append([]source.Named{{Name: source.SourceLocal, Fetch: fetchLocal}}, sources...)
+}
+
+// sourceNames lists the names of sources, in order.
+func sourceNames(sources []source.Named) []string {
+	names := make([]string, 0, len(sources))
+	for _, s := range sources {
+		names = append(names, s.Name)
+	}
+	return names
 }
 
 // fetchLocal lists local sessions; a missing home directory fails only this

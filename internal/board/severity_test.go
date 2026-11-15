@@ -19,6 +19,7 @@ func TestSeverityOf(t *testing.T) {
 		{"checks failing", source.Row{Source: source.SourcePR, State: source.StateChecksFailing}, false, SeverityFailed},
 		{"failed task", source.Row{Source: source.SourceKelosTask, State: source.StateFailed, NeedsYou: true}, false, SeverityFailed},
 		{"failure", source.Row{Source: source.SourceKelosTask, State: source.StateFailure}, false, SeverityFailed},
+		{"error state", source.Row{Source: source.SourceLocal, State: source.StateError}, false, SeverityFailed},
 		{"source error", source.ErrorRow(source.SourcePR, errors.New("down")), false, SeverityFailed},
 		{"blocked", source.Row{Source: source.SourceKelosTask, State: source.StateBlocked}, false, SeverityBlocked},
 		{"conflicts", source.Row{Source: source.SourcePR, State: source.StateConflicts}, false, SeverityBlocked},

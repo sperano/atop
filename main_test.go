@@ -41,14 +41,6 @@ func TestHiddenStoreCustomPathHasNoLegacyFallback(t *testing.T) {
 	}
 }
 
-func sourceNames(sources []source.Named) []string {
-	names := make([]string, 0, len(sources))
-	for _, s := range sources {
-		names = append(names, s.Name)
-	}
-	return names
-}
-
 func TestBuildSources(t *testing.T) {
 	agentAndWork := []string{source.SourceKelosSession, source.SourceKelosTask, source.SourcePR, source.SourceVikunja}
 	tests := []struct {

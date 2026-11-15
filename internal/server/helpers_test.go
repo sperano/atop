@@ -41,6 +41,22 @@ func testRows() []source.Row {
 	}
 }
 
+// testSources are the sources of testRows, which the fetch reads.
+var testSources = []string{source.SourceKelosSession, source.SourcePR, source.SourceVikunja, source.SourceKelosTask, mirrorSource}
+
+// fakeClock is testNow until the test advances it.
+type fakeClock struct {
+	offset atomic.Int64 // nanoseconds after testNow
+}
+
+func (c *fakeClock) now() time.Time {
+	return testNow.Add(time.Duration(c.offset.Load()))
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.offset.Add(int64(d))
+}
+
 // fakeFetch blocks every fetch until the test sends its rows, so that a
 // test decides when a refresh ends.
 type fakeFetch struct {
@@ -98,6 +114,7 @@ type harness struct {
 	srv   *Server
 	fetch *fakeFetch
 	ticks *fakeTicks
+	clock *fakeClock
 	file  hidden.File
 }
 
@@ -105,9 +122,12 @@ type harness struct {
 // file in a temporary directory; edit adjusts its options.
 func newHarness(t *testing.T, edit func(*Options)) *harness {
 	t.Helper()
-	h := &harness{fetch: newFakeFetch(), ticks: &fakeTicks{}, file: hidden.File{Path: filepath.Join(t.TempDir(), hiddenFileTmp)}}
+	h := &harness{
+		fetch: newFakeFetch(), ticks: &fakeTicks{}, clock: &fakeClock{},
+		file: hidden.File{Path: filepath.Join(t.TempDir(), hiddenFileTmp)},
+	}
 	opts := Options{
-		Fetch: h.fetch.fetch, Now: func() time.Time { return testNow }, Interval: testInterval,
+		Fetch: h.fetch.fetch, Sources: testSources, Now: h.clock.now, Interval: testInterval,
 		UpdateHidden: h.file.Update, Tick: h.ticks.tick,
 	}
 	if edit != nil {

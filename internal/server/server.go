@@ -18,15 +18,22 @@ const (
 	DefaultFetchTimeout = time.Minute
 	// DefaultMaxStreams caps the open event streams.
 	DefaultMaxStreams = 64
+	// DefaultRefreshCooldown spaces the refreshes clients ask for, so that
+	// a client looping POST /refresh cannot spend the sources' rate limits.
+	DefaultRefreshCooldown = 10 * time.Second
 )
 
 // Options wires the server to its data, clock and hidden-row store.
 type Options struct {
-	Fetch        func(ctx context.Context) []source.Row // every source's rows, in any order
-	Now          func() time.Time
-	Interval     time.Duration // between background refreshes
-	FetchTimeout time.Duration // zero means DefaultFetchTimeout
-	MaxStreams   int           // zero means DefaultMaxStreams
+	Fetch func(ctx context.Context) []source.Row // every source's rows, in any order
+	// Sources names the sources Fetch reads; a refresh forgets hidden rows
+	// of these only, leaving those another front end hid (local sessions).
+	Sources         []string
+	Now             func() time.Time
+	Interval        time.Duration // between background refreshes
+	FetchTimeout    time.Duration // zero means DefaultFetchTimeout
+	MaxStreams      int           // zero means DefaultMaxStreams
+	RefreshCooldown time.Duration // zero means DefaultRefreshCooldown
 	// UpdateHidden applies a change to the stored hidden rows and returns
 	// them as stored; nil keeps them in memory only.
 	UpdateHidden func(change func(hidden.Set) hidden.Set) (hidden.Set, error)
@@ -53,6 +60,7 @@ type Server struct {
 	hidden    hidden.Set
 	fetchedAt time.Time     // zero until the first refresh ends
 	running   chan struct{} // closed when the running refresh ends; nil when none runs
+	endedAt   time.Time     // when the last refresh ended, zero before
 	lastErr   string        // the last hidden-row update's error, empty when it worked
 }
 
@@ -63,6 +71,9 @@ func New(opts Options) *Server {
 	}
 	if opts.MaxStreams <= 0 {
 		opts.MaxStreams = DefaultMaxStreams
+	}
+	if opts.RefreshCooldown <= 0 {
+		opts.RefreshCooldown = DefaultRefreshCooldown
 	}
 	if opts.Tick == nil {
 		opts.Tick = tick
@@ -96,17 +107,28 @@ func (s *Server) Run(ctx context.Context) {
 // Refresh starts a refresh, or joins the one running, and returns a channel
 // closed when it ends. Two refreshes never run at once.
 func (s *Server) Refresh() <-chan struct{} {
+	done, _ := s.refreshAfter(0)
+	return done
+}
+
+// refreshAfter is Refresh, except that it starts none within cooldown of
+// the last refresh's end: it returns a nil channel and the wait left.
+func (s *Server) refreshAfter(cooldown time.Duration) (<-chan struct{}, time.Duration) {
 	s.mu.Lock()
 	if s.running != nil {
 		defer s.mu.Unlock()
-		return s.running
+		return s.running, 0
+	}
+	if wait := s.endedAt.Add(cooldown).Sub(s.opts.Now()); cooldown > 0 && !s.endedAt.IsZero() && wait > 0 {
+		s.mu.Unlock()
+		return nil, wait
 	}
 	done := make(chan struct{})
 	s.running = done
 	s.mu.Unlock()
 	go s.refresh(done)
 	s.events.publish()
-	return done
+	return done, 0
 }
 
 func (s *Server) refresh(done chan struct{}) {
@@ -115,13 +137,15 @@ func (s *Server) refresh(done chan struct{}) {
 	cancel()
 	closed := s.life.Err() != nil // the rows are the errors of a cancelled fetch
 	if !closed {
-		_ = s.applyHidden(func(set hidden.Set) hidden.Set { return set.Prune(rows) }, true)
+		_ = s.applyHidden(func(set hidden.Set) hidden.Set { return set.PruneRead(rows, s.opts.Sources) }, true)
 	}
 	s.mu.Lock()
+	now := s.opts.Now()
 	if !closed {
 		s.rows = rows
-		s.fetchedAt = s.opts.Now()
+		s.fetchedAt = now
 	}
+	s.endedAt = now
 	s.running = nil
 	s.mu.Unlock()
 	close(done)

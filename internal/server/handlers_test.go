@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sperano/vigie/internal/board"
 	"github.com/sperano/vigie/internal/hidden"
@@ -16,6 +17,7 @@ import (
 
 const (
 	prPath      = "/api/v1/hidden/pr/vigie%233"
+	refreshURL  = "/api/v1/refresh"
 	errRowPath  = "/api/v1/hidden/" + mirrorSource + "/-"
 	snapshotURL = "/api/v1/snapshot"
 )
@@ -71,7 +73,7 @@ func TestSnapshotNestsAndSorts(t *testing.T) {
 	want := []Row{
 		{Source: source.SourceVikunja, Name: "#7", Depth: 0, Target: taskURL, Severity: board.SeverityQuiet},
 		{Source: source.SourcePR, Name: "vigie#3", Depth: 1, Guides: "└─ ", Mark: board.MarkNeedsYou, Target: prURL, Severity: board.SeverityAttention},
-		{Source: source.SourceKelosTask, Name: "fix", Depth: 2, Guides: "   └─ ", Severity: board.SeverityBusy},
+		{Source: source.SourceKelosTask, Name: "fix", Depth: 2, Guides: "   └─ ", Severity: board.SeverityBusy, Busy: true},
 		{Source: mirrorSource, Name: "-", Depth: 0, Mark: board.MarkNeedsYou, Severity: board.SeverityFailed},
 		{Source: source.SourceKelosSession, Name: "eric", Depth: 0, Severity: board.SeverityQuiet},
 	}
@@ -81,7 +83,7 @@ func TestSnapshotNestsAndSorts(t *testing.T) {
 	for i, w := range want {
 		g := snap.Rows[i]
 		if g.Source != w.Source || g.Name != w.Name || g.Depth != w.Depth || g.Guides != w.Guides ||
-			g.Mark != w.Mark || g.Target != w.Target || g.Severity != w.Severity {
+			g.Mark != w.Mark || g.Target != w.Target || g.Severity != w.Severity || g.Busy != w.Busy {
 			t.Errorf("row %d = %+v\nwant   %+v", i, g, w)
 		}
 	}
@@ -111,6 +113,7 @@ func TestShowHidden(t *testing.T) {
 		i := slices.IndexFunc(snap.Rows, func(r Row) bool { return r.Name == "eric" })
 		if listed := i >= 0; listed != tt.wantListed {
 			t.Errorf("%q: hidden row listed = %v, want %v", tt.query, listed, tt.wantListed)
+			continue
 		}
 		if tt.wantListed && (!snap.Rows[i].Hidden || snap.Rows[i].Mark != board.MarkHidden) {
 			t.Errorf("%q: hidden row = %+v, want hidden and marked %q", tt.query, snap.Rows[i], board.MarkHidden)
@@ -189,6 +192,66 @@ func TestPostRefreshStartsOrJoins(t *testing.T) {
 	<-done
 	if got := h.fetch.calls.Load(); got != 1 {
 		t.Errorf("fetches = %d, want 1", got)
+	}
+}
+
+func TestPostRefreshCooldown(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	h.refreshWith(testRows())
+	const halfSecond = time.Second / 2
+	tests := []struct {
+		advance    time.Duration
+		retryAfter string
+	}{
+		{0, "10"},
+		{DefaultRefreshCooldown - time.Second - halfSecond, "2"}, // 1.5 s left, rounded up
+	}
+	for _, tt := range tests {
+		h.clock.advance(tt.advance)
+		resp := do(t, h.srv, http.MethodPost, refreshURL)
+		if got, want := body(t, resp), `{"error":"`+errTooSoon+`"}`+"\n"; resp.StatusCode != http.StatusTooManyRequests || got != want {
+			t.Errorf("POST after %s = %d %s, want 429 %s", tt.advance, resp.StatusCode, got, want)
+		}
+		if got := resp.Header.Get("Retry-After"); got != tt.retryAfter {
+			t.Errorf("Retry-After = %q, want %q", got, tt.retryAfter)
+		}
+	}
+	if got := h.fetch.calls.Load(); got != 1 {
+		t.Errorf("fetches during the cooldown = %d, want only the first refresh", got)
+	}
+	h.clock.advance(time.Second + halfSecond)
+	if resp := do(t, h.srv, http.MethodPost, refreshURL); resp.StatusCode != http.StatusAccepted {
+		t.Errorf("POST after the cooldown = %d, want 202", resp.StatusCode)
+	}
+	done := h.srv.Refresh() // the one the POST started
+	<-h.fetch.started
+	h.fetch.rows <- testRows()
+	<-done
+}
+
+func TestPostRefreshShowHidden(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	h.refreshWith(testRows())
+	if resp := do(t, h.srv, http.MethodPut, prPath); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("PUT = %d", resp.StatusCode)
+	}
+	for _, tt := range []struct {
+		query      string
+		wantListed bool
+	}{{"", false}, {"?show_hidden=true", true}} {
+		h.clock.advance(DefaultRefreshCooldown)
+		resp := do(t, h.srv, http.MethodPost, refreshURL+tt.query)
+		snap := decodeSnapshot(t, resp)
+		i := slices.IndexFunc(snap.Rows, func(r Row) bool { return r.Name == "vigie#3" })
+		if resp.StatusCode != http.StatusAccepted || (i >= 0) != tt.wantListed || (tt.wantListed && !snap.Rows[i].Hidden) {
+			t.Errorf("POST %q = %d, rows %q; want 202, hidden PR listed (and hidden) = %v", tt.query, resp.StatusCode, rowNames(snap), tt.wantListed)
+		}
+		done := h.srv.Refresh()
+		<-h.fetch.started
+		h.fetch.rows <- testRows()
+		<-done
 	}
 }
 
@@ -282,6 +345,15 @@ func TestHideWithAnUnparsableFile(t *testing.T) {
 	snap := h.srv.snapshot(false)
 	if !strings.HasPrefix(snap.Error, "hidden rows: ") || snap.Counts.Hidden != 0 {
 		t.Errorf("snapshot error %q, %d hidden; want the store error and nothing hidden", snap.Error, snap.Counts.Hidden)
+	}
+	if err := os.Remove(h.file.Path); err != nil {
+		t.Fatal(err)
+	}
+	if resp := do(t, h.srv, http.MethodPut, prPath); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("PUT once the file is gone = %d %s, want 204", resp.StatusCode, body(t, resp))
+	}
+	if snap := h.srv.snapshot(false); snap.Error != "" || snap.Counts.Hidden != 1 {
+		t.Errorf("after a working PUT: error %q, %d hidden; want no error and 1 hidden", snap.Error, snap.Counts.Hidden)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/sperano/vigie/internal/hidden"
 	"github.com/sperano/vigie/internal/source"
@@ -26,6 +27,7 @@ const (
 	errNoRow      = "no such row"
 	errCannotHide = "a source error cannot be hidden"
 	errNotReady   = "first refresh not done"
+	errTooSoon    = "refreshed too recently"
 )
 
 // Handler routes the API.
@@ -50,13 +52,18 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRefresh starts a refresh or joins the running one, and answers at
-// once; the new snapshot arrives on the event stream.
+// once; the new snapshot arrives on the event stream. Within the cooldown of
+// the last refresh it starts none and answers 429 with Retry-After.
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	showHidden, ok := parseShowHidden(w, r)
 	if !ok {
 		return
 	}
-	s.Refresh()
+	if _, wait := s.refreshAfter(s.opts.RefreshCooldown); wait > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int((wait+time.Second-1)/time.Second)))
+		writeError(w, http.StatusTooManyRequests, errTooSoon)
+		return
+	}
 	writeJSON(w, http.StatusAccepted, s.snapshot(showHidden))
 }
 

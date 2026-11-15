@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,5 +196,49 @@ func TestMemoryHiddenRowsWithoutAStore(t *testing.T) {
 	}
 	if _, err := os.Stat(h.file.Path); !os.IsNotExist(err) {
 		t.Errorf("a store-less server wrote %s (stat: %v)", h.file.Path, err)
+	}
+}
+
+func TestRefreshKeepsHiddenRowsOfUnreadSources(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	local := hidden.Entry{Source: source.SourceLocal, Name: "laptop"}
+	gone := hidden.Entry{Source: source.SourcePR, Name: "vigie#1"}
+	if err := h.file.Save(hidden.New(local, gone)); err != nil {
+		t.Fatal(err)
+	}
+	h.refreshWith(testRows())
+	if got := storedEntries(t, h.file); !slices.Equal(got, []hidden.Entry{local}) {
+		t.Errorf("stored = %v, want only the local entry %v", got, local)
+	}
+}
+
+func TestRefreshPrunesInMemoryWhenTheStoreFails(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	h.refreshWith(testRows())
+	gone := source.Row{Source: source.SourcePR, Name: "vigie#1"}
+	for _, r := range []source.Row{testRows()[1], gone} {
+		if err := h.srv.applyHidden(func(s hidden.Set) hidden.Set { return s.Hide(r) }, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(h.file.Path, []byte("not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h.clock.advance(testInterval)
+	h.refreshWith(testRows())
+	snap := h.srv.snapshot(false)
+	if snap.Counts.Hidden != 1 || slices.Contains(rowNames(snap), "pr vigie#3") {
+		t.Errorf("rows %q, counts %+v; want the PR still hidden", rowNames(snap), snap.Counts)
+	}
+	if !strings.HasPrefix(snap.Error, "hidden rows: ") {
+		t.Errorf("Error = %q, want the store error", snap.Error)
+	}
+	h.srv.mu.Lock()
+	n := h.srv.hidden.Len()
+	h.srv.mu.Unlock()
+	if n != 1 {
+		t.Errorf("hidden entries in memory = %d, want 1 (the gone PR pruned)", n)
 	}
 }

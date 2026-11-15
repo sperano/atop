@@ -154,6 +154,28 @@ func TestPrune(t *testing.T) {
 	}
 }
 
+func TestPruneRead(t *testing.T) {
+	t.Parallel()
+	set := New(entryOf(prRow), entryOf(taskRow))
+	tests := []struct {
+		name     string
+		read     []string
+		wantKept []Entry
+	}{
+		{"an unread source keeps its entries", []string{source.SourcePR}, []Entry{entryOf(taskRow)}},
+		{"every source read", []string{source.SourcePR, taskRow.Source}, []Entry{}},
+		{"nothing read", nil, []Entry{entryOf(prRow), entryOf(taskRow)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := set.PruneRead(nil, tt.read).Entries(); !slices.Equal(nonNil(got), tt.wantKept) {
+				t.Errorf("kept %v, want %v", got, tt.wantKept)
+			}
+		})
+	}
+}
+
 func TestSplit(t *testing.T) {
 	t.Parallel()
 	set := New(entryOf(prRow))
