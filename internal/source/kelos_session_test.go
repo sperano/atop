@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -64,19 +65,30 @@ func TestSessionRow(t *testing.T) {
 
 func TestKelosSessionsFetch(t *testing.T) {
 	t.Parallel()
-	list := obj{"items": []obj{sessionObj("Ready", activeCond("True", testNow), testNow)}}
-	run := &fakeRunner{replies: map[string]string{"get sessions.kelos.dev": string(mustJSON(t, list))}}
+	mine := sessionObj("Ready", activeCond("True", testNow), testNow)
+	other := sessionObj("Failed", nil, testNow)
 	k := testKelos()
-	k.Run = run.run
+	k.Client = clientOf(fakeKube(
+		kubeObj(t, kelosAPIVersion, "Session", testNS, mine),
+		kubeObj(t, kelosAPIVersion, "Session", "other-ns", other),
+	))
 	rows, err := k.Sessions(context.Background())
-	if err != nil || len(rows) != 1 || rows[0].State != StateBusy {
+	if err != nil || len(rows) != 1 || rows[0].Name != "s" || rows[0].State != StateBusy {
 		t.Fatalf("rows=%+v err=%v", rows, err)
 	}
-	if len(run.calls) != 1 || run.calls[0] != "kubectl -n kelos-agents get sessions.kelos.dev -o json" {
-		t.Errorf("calls = %v", run.calls)
+}
+
+func TestKelosSessionsFetchErrors(t *testing.T) {
+	t.Parallel()
+	kube := fakeKube()
+	failList(kube, "sessions", errBoom)
+	k := testKelos()
+	k.Client = clientOf(kube)
+	if _, err := k.Sessions(context.Background()); !errors.Is(err, errBoom) || err.Error() != "listing sessions.kelos.dev: boom" {
+		t.Errorf("list error = %v", err)
 	}
-	k.Run = (&fakeRunner{}).run
-	if _, err := k.Sessions(context.Background()); err == nil {
-		t.Error("expected a runner error")
+	k.Client = failingClient(errBoom)
+	if _, err := k.Sessions(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("client error = %v, want %v", err, errBoom)
 	}
 }

@@ -102,13 +102,17 @@ func printOnce(fetch func(context.Context) []source.Row, set hidden.Set, tty, co
 }
 
 func buildSources(cfg config.Config) []source.Named {
-	runner := source.Runner(source.ExecRunner)
+	kube := source.NewDynamicClient(os.Getenv)
+	httpClient := &http.Client{}
 	vikunjaWeb := source.VikunjaWebBase(cfg.VikunjaURL)
 	kelos := source.Kelos{
 		Namespace: cfg.Namespace, ConsoleURL: cfg.ConsoleURL, VikunjaWeb: vikunjaWeb,
-		Run: runner, Now: time.Now,
+		Client: kube, Now: time.Now,
 	}
-	github := source.GitHub{Owner: cfg.GitHubOwner, StaleDays: cfg.StaleDays, Run: runner, Now: time.Now}
+	github := source.GitHub{
+		Owner: cfg.GitHubOwner, StaleDays: cfg.StaleDays, Client: httpClient,
+		Token: source.GitHubToken(os.Getenv, source.ExecRunner), Now: time.Now,
+	}
 	vikunja := source.Vikunja{
 		APIURL:          cfg.VikunjaURL,
 		Token:           os.Getenv("VIKUNJA_API_TOKEN"),
@@ -117,8 +121,8 @@ func buildSources(cfg config.Config) []source.Named {
 		InProgressLabel: cfg.InProgressLabel,
 		PROpenLabel:     cfg.PROpenLabel,
 		StaleDays:       cfg.StaleDays,
-		Client:          &http.Client{},
-		Run:             runner,
+		Client:          httpClient,
+		Kube:            kube,
 		Now:             time.Now,
 	}
 	return []source.Named{

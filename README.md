@@ -33,7 +33,7 @@ under its Vikunja task, and a Kelos Task sits under the PR it produced or
 follows up, else under its Vikunja task. A row whose parent is not shown
 stays at the top level. A tree is ranked by its most urgent row, so a PR
 awaiting review lifts its task with it. A source that
-cannot be read (no kubeconfig, `gh` logged out, Vikunja down) shows as one
+cannot be read (no kubeconfig, no GitHub token, Vikunja down) shows as one
 `error` row that needs you; the other sources still render.
 
 ## Install
@@ -45,9 +45,13 @@ go install github.com/sperano/vigie@latest
 ## Requirements
 
 - macOS or Linux.
-- `kubectl` with a current context that can read the Kelos namespace (and the
-  Vikunja token Secret, unless `VIKUNJA_API_TOKEN` is set).
-- `gh` logged in (`gh auth status`).
+- Access to the cluster: in a pod, its service account; elsewhere a
+  kubeconfig (`KUBECONFIG`, else `~/.kube/config`, current context), as
+  `kubectl` would use it. It needs `get` and `list` on Kelos Sessions, Tasks
+  and pods in the Kelos namespace, and `get` on the Vikunja token Secret
+  unless `VIKUNJA_API_TOKEN` is set. `kubectl` itself is not needed.
+- A GitHub token (see Configuration). `gh` is needed only to supply it on a
+  laptop.
 - `tmux`, to jump to a local Claude Code session with enter.
 
 ## Keys
@@ -84,7 +88,7 @@ hidden, since that would also hide the next failure.
 A row is remembered by its source and name in `--hidden-file`, a JSON list
 you may edit by hand. `vigie` re-reads the file on every refresh and every `h`,
 so several processes share it and edits show up at the next refresh. Give a
-`vigie` run with other settings (another `--github-owner`, another kubectl
+`vigie` run with other settings (another `--github-owner`, another kubeconfig
 context) its own `--hidden-file`: it would prune the entries it cannot see. An entry is
 forgotten once its source is read in full without it (the PR was merged, the
 task is done), so a later row with the same name is not hidden by mistake; a
@@ -157,7 +161,14 @@ variable when the new name is unset.
 | `--once` | | off |
 
 The Vikunja token comes from `VIKUNJA_API_TOKEN`, else from the
-`token-namespace`/`token-secret` Secret's `token-key` via kubectl.
+`token-namespace`/`token-secret` Secret's `token-key`, read through the
+Kubernetes API. Kelos is reached in-cluster when `KUBERNETES_SERVICE_HOST` is
+set, else through the kubeconfig.
+
+PRs are read from `https://api.github.com/graphql` with the first token
+found: `GH_TOKEN`, else `GITHUB_TOKEN`, else the output of `gh auth token`.
+To read check states on private repositories the token must be a GitHub App
+installation token or a classic PAT: a fine-grained PAT cannot read them.
 `--operator` is your Vikunja username: a newest comment by anyone else is a
 reply waiting on you. `--pr-open-label` is the title of the label Kelos adds
 to a task while its PR is open; empty turns `PR open` off.

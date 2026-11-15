@@ -3,7 +3,6 @@ package source
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -36,16 +35,4 @@ func ExecRunner(ctx context.Context, name string, args ...string) ([]byte, error
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
 	return out, nil
-}
-
-// runJSON runs a command and decodes its standard output into v.
-func runJSON(ctx context.Context, run Runner, v any, name string, args ...string) error {
-	out, err := run(ctx, name, args...)
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(out, v); err != nil {
-		return fmt.Errorf("%s: decoding output: %w", name, err)
-	}
-	return nil
 }

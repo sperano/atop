@@ -3,8 +3,13 @@ package source
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -186,31 +191,74 @@ func TestTaskOriginUsesExplicitMetadata(t *testing.T) {
 	}
 }
 
+func blockedPodObj(t *testing.T, labels obj) *unstructured.Unstructured {
+	return kubeObj(t, coreVersion, "Pod", testNS, obj{"metadata": obj{"name": testPodName, "labels": labels},
+		"status": obj{"initContainerStatuses": []obj{{"name": waitForBlockers, "state": obj{"running": obj{}}}}}})
+}
+
 func TestKelosTasksFetch(t *testing.T) {
 	t.Parallel()
-	pods := obj{"items": []obj{{"metadata": obj{"name": testPodName}, "status": obj{
-		"initContainerStatuses": []obj{{"name": waitForBlockers, "state": obj{"running": obj{}}}}}}}}
-	tasks := obj{"items": []obj{
-		taskObj("Running", nil, nil),
-		{"metadata": obj{"name": "old"}, "status": obj{"phase": "Succeeded",
-			"completionTime": iso(testNow.Add(-2 * time.Hour))}},
-	}}
-	run := &fakeRunner{replies: map[string]string{
-		"get pods -l kelos.dev/component=task": string(mustJSON(t, pods)),
-		"get tasks.kelos.dev":                  string(mustJSON(t, tasks)),
-	}}
+	taskPod := obj{"kelos.dev/component": "task"}
+	tests := []struct {
+		name      string
+		pod       obj // labels of the blocked pod
+		wantState string
+	}{
+		{"task pod blocks its task", taskPod, StateBlocked},
+		{"pod outside the selector is not read", obj{"kelos.dev/component": "other"}, stateRunning},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			old := obj{"metadata": obj{"name": "old"}, "status": obj{"phase": "Succeeded",
+				"completionTime": iso(testNow.Add(-2 * time.Hour))}}
+			elsewhere := obj{"metadata": obj{"name": "elsewhere"}, "status": obj{"phase": "Running"}}
+			k := testKelos()
+			k.Client = clientOf(fakeKube(
+				blockedPodObj(t, tt.pod),
+				kubeObj(t, kelosAPIVersion, "Task", testNS, taskObj("Running", nil, nil)),
+				kubeObj(t, kelosAPIVersion, "Task", testNS, old),
+				kubeObj(t, kelosAPIVersion, "Task", "other-ns", elsewhere),
+			))
+			rows, err := k.Tasks(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != 1 || rows[0].Name != testTaskName || rows[0].State != tt.wantState {
+				t.Fatalf("rows = %+v", rows)
+			}
+		})
+	}
+}
+
+func TestKelosTasksFetchErrors(t *testing.T) {
+	t.Parallel()
+	for _, resource := range []string{"pods", "tasks"} {
+		t.Run(resource, func(t *testing.T) {
+			t.Parallel()
+			kube := fakeKube()
+			failList(kube, resource, errBoom)
+			k := testKelos()
+			k.Client = clientOf(kube)
+			_, err := k.Tasks(context.Background())
+			if !errors.Is(err, errBoom) || !strings.HasPrefix(err.Error(), "listing "+resource) {
+				t.Errorf("err = %v", err)
+			}
+		})
+	}
+}
+
+func TestKelosListFailureIsOneErrorRow(t *testing.T) {
+	t.Parallel()
+	kube := fakeKube()
+	failList(kube, "tasks", errBoom)
 	k := testKelos()
-	k.Run = run.run
-	rows, err := k.Tasks(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rows) != 1 || rows[0].State != StateBlocked {
-		t.Fatalf("rows = %+v", rows)
-	}
-	k.Run = (&fakeRunner{}).run
-	if _, err := k.Tasks(context.Background()); err == nil {
-		t.Error("expected a runner error")
+	k.Client = clientOf(kube)
+	rows := FetchAll(context.Background(), []Named{{Name: SourceKelosTask, Fetch: k.Tasks}})
+	want := ErrorRow(SourceKelosTask, fmt.Errorf("listing tasks.kelos.dev: %w", errBoom))
+	if len(rows) != 1 || rows[0].Source != want.Source || rows[0].State != StateError ||
+		rows[0].Detail != want.Detail || !rows[0].NeedsYou {
+		t.Fatalf("rows = %+v, want one %+v", rows, want)
 	}
 }
 

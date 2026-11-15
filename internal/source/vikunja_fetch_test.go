@@ -2,7 +2,6 @@ package source
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -386,36 +385,38 @@ func (f failingComments) RoundTrip(r *http.Request) (*http.Response, error) {
 func TestVikunjaToken(t *testing.T) {
 	t.Parallel()
 	secret := TokenSecret{Namespace: "vikunja", Name: "agent-claude", Key: "token"}
-	encoded := base64.StdEncoding.EncodeToString([]byte(testToken)) + "\n"
+	// The explicit token must not touch the cluster.
+	noCluster := failingClient(errors.New("cluster read"))
 	tests := []struct {
-		name      string
-		token     string
-		runner    *fakeRunner
-		want      string
-		wantErr   bool
-		wantCalls int
+		name    string
+		token   string
+		kube    func(t *testing.T) DynamicClient
+		want    string
+		wantErr string
 	}{
-		{"explicit token wins", testToken, &fakeRunner{}, testToken, false, 0},
-		{"explicit token trimmed", testToken + "\n", &fakeRunner{}, testToken, false, 0},
-		{"secret token trimmed", "", &fakeRunner{replies: map[string]string{"get secret": base64.StdEncoding.EncodeToString([]byte(testToken + "\n"))}}, testToken, false, 1},
-		{"read from secret", "", &fakeRunner{replies: map[string]string{"get secret": encoded}}, testToken, false, 1},
-		{"bad base64", "", &fakeRunner{replies: map[string]string{"get secret": "!!!"}}, "", true, 1},
-		{"kubectl failure", "", &fakeRunner{errs: map[string]error{"get secret": errors.New("denied")}}, "", true, 1},
+		{"explicit token wins", testToken, func(*testing.T) DynamicClient { return noCluster }, testToken, ""},
+		{"explicit token trimmed", testToken + "\n", func(*testing.T) DynamicClient { return noCluster }, testToken, ""},
+		{"blank explicit token reads the secret", " ", func(t *testing.T) DynamicClient {
+			return clientOf(fakeKube(secretObj(t, obj{"token": b64(testToken)})))
+		}, testToken, ""},
+		{"secret token trimmed", "", func(t *testing.T) DynamicClient {
+			return clientOf(fakeKube(secretObj(t, obj{"token": b64(testToken + "\n")})))
+		}, testToken, ""},
+		{"empty secret value", "", func(t *testing.T) DynamicClient {
+			return clientOf(fakeKube(secretObj(t, obj{"token": b64("\n")})))
+		}, "", `vikunja token: secret vikunja/agent-claude key "token" is empty`},
+		{"bad base64", "", func(t *testing.T) DynamicClient {
+			return clientOf(fakeKube(secretObj(t, obj{"token": "!!!"})))
+		}, "", `vikunja token: decoding secret vikunja/agent-claude key "token": illegal base64 data at input byte 0`},
+		{"no cluster", "", func(*testing.T) DynamicClient { return failingClient(errBoom) }, "", "vikunja token: boom"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			v := Vikunja{Token: tt.token, Secret: secret, Run: tt.runner.run}
+			v := Vikunja{Token: tt.token, Secret: secret, Kube: tt.kube(t)}
 			got, err := v.token(context.Background())
-			if (err != nil) != tt.wantErr || got != tt.want {
-				t.Errorf("got %q err=%v", got, err)
-			}
-			if len(tt.runner.calls) != tt.wantCalls {
-				t.Errorf("calls = %v", tt.runner.calls)
-			}
-			if tt.wantCalls == 1 && !strings.HasPrefix(tt.runner.calls[0],
-				"kubectl -n vikunja get secret agent-claude -o jsonpath={.data.token}") {
-				t.Errorf("command = %q", tt.runner.calls[0])
+			if got != tt.want || errText(err) != tt.wantErr {
+				t.Errorf("got %q err=%v, want %q err=%q", got, err, tt.want, tt.wantErr)
 			}
 		})
 	}
