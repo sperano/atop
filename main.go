@@ -49,6 +49,9 @@ func run(cfg config.Config) error {
 	}
 	sources := buildSources(cfg)
 	fetch := func(ctx context.Context) []source.Row { return source.FetchAll(ctx, sources) }
+	if cfg.Serve {
+		return serve(cfg, fetch, hiddenFile)
+	}
 	stdoutTTY := term.IsTerminal(os.Stdout.Fd())
 	color := stdoutTTY && os.Getenv("NO_COLOR") == ""
 	if cfg.Once {
@@ -101,6 +104,8 @@ func printOnce(fetch func(context.Context) []source.Row, set hidden.Set, tty, co
 	return err
 }
 
+// buildSources lists the sources to fetch. The server leaves out the local
+// Claude sessions: a pod has none, and a browser cannot switch tmux panes.
 func buildSources(cfg config.Config) []source.Named {
 	kube := source.NewDynamicClient(os.Getenv)
 	httpClient := &http.Client{}
@@ -125,13 +130,16 @@ func buildSources(cfg config.Config) []source.Named {
 		Kube:            kube,
 		Now:             time.Now,
 	}
-	return []source.Named{
-		{Name: source.SourceLocal, Fetch: fetchLocal},
+	sources := []source.Named{
 		{Name: source.SourceKelosSession, Fetch: kelos.Sessions},
 		{Name: source.SourceKelosTask, Fetch: kelos.Tasks},
 		{Name: source.SourcePR, Fetch: github.Fetch},
 		{Name: source.SourceVikunja, Fetch: vikunja.Fetch},
 	}
+	if cfg.Serve {
+		return sources
+	}
+	return append([]source.Named{{Name: source.SourceLocal, Fetch: fetchLocal}}, sources...)
 }
 
 // fetchLocal lists local sessions; a missing home directory fails only this

@@ -63,26 +63,23 @@ func TestSnapshotColour(t *testing.T) {
 	}
 }
 
-func TestRowColourFollowsSeverityNotAttention(t *testing.T) {
+func TestRowColourFollowsSeverity(t *testing.T) {
 	t.Parallel()
 	st := newStyles(true)
 	tests := []struct {
-		name string
-		row  source.Row
-		want string
+		severity board.Severity
+		want     string
 	}{
-		{"needs review is normal", source.Row{Source: source.SourcePR, State: "awaiting your review", NeedsYou: true}, st.attention.Render("row")},
-		{"checks failing is red", source.Row{Source: source.SourcePR, State: source.StateChecksFailing}, st.failed.Render("row")},
-		{"blocked is yellow", source.Row{Source: source.SourceKelosTask, State: source.StateBlocked}, st.blocked.Render("row")},
-		{"conflicts are yellow", source.Row{Source: source.SourcePR, State: source.StateConflicts}, st.blocked.Render("row")},
-		{"active agent is green", source.Row{Source: source.SourceLocal, State: source.StateBusy, Busy: true, NeedsYou: true}, st.busy.Render("row")},
-		{"busy PR stays informational", source.Row{Source: source.SourcePR, State: "checks running", Busy: true}, st.rest.Render("row")},
-		{"PR open stays informational", source.Row{Source: source.SourceVikunja, State: "PR open"}, st.rest.Render("row")},
+		{board.SeverityFailed, st.failed.Render("row")},
+		{board.SeverityBlocked, st.blocked.Render("row")},
+		{board.SeverityBusy, st.busy.Render("row")},
+		{board.SeverityAttention, st.attention.Render("row")},
+		{board.SeverityQuiet, st.rest.Render("row")},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(string(tt.severity), func(t *testing.T) {
 			t.Parallel()
-			if got := st.entry(board.Entry{Row: tt.row}).Render("row"); got != tt.want {
+			if got := st.entry(board.Entry{Severity: tt.severity}).Render("row"); got != tt.want {
 				t.Errorf("styled row = %q, want %q", got, tt.want)
 			}
 		})
