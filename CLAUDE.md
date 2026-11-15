@@ -18,16 +18,16 @@ gh api repos/sperano/hollingsworth/contents/scripts/agents_top.py?ref=feat/agent
 
 ## Sources
 
-Fetched concurrently. A failing source (no kubeconfig, `gh` logged out,
+Fetched concurrently. A failing source (no kubeconfig, no GitHub token,
 Vikunja down) becomes one `error` row flagged as needing you; the others still
 render.
 
 | Source | How | States | Needs you when |
 | --- | --- | --- | --- |
 | Local Claude Code sessions | `~/.claude/sessions/<pid>.json` (`pid`, `name`, `cwd`, `tmux`, `status` idle/busy, `statusUpdatedAt` ms); skip files whose pid is missing, ≤0 or dead (`kill(pid,0)`, EPERM = alive) | `busy`, `idle`, other raw status | status is neither busy nor idle |
-| Kelos Sessions | `kubectl -n kelos-agents get sessions.kelos.dev -o json`; `Active` condition | `busy`, `idle`, lowercased phase if not Ready | phase Failed |
-| Kelos Tasks | `kubectl … get tasks.kelos.dev` + pods `-l kelos.dev/component=task` | while Running, its activity: `implementing` (no role label, `vikunja.spe.quebec/task` label), `discussing` (name `vikunja-discuss-*`), `conflict fix` (role `pr-conflict`), `<bot> fix` (role `pr-followup` whose prompt names a `Review bot:` and whose `<request>` is not a `/` command; `cubic-dev-ai[bot]` → `cubic`), `pr follow-up`, `task follow-up`, any other role as is, else `running`; `blocked` (the `wait-for-blockers` init container is running), `waiting`, `pending`, `done` for 1 h after completion, then hidden; DETAIL starts with the activity when the state is a phase | Failed |
-| GitHub PRs | `gh api graphql` search `is:pr is:open owner:<owner> archived:false`, first 50 | `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `review`; a `kelos:<variant>` label → detail `[variant] title` | conflicts, checks failing, review |
+| Kelos Sessions | client-go dynamic client, list `sessions.kelos.dev` (`v1alpha2`) in `kelos-agents`; `Active` condition | `busy`, `idle`, lowercased phase if not Ready | phase Failed |
+| Kelos Tasks | list `tasks.kelos.dev` + pods `-l kelos.dev/component=task` | while Running, its activity: `implementing` (no role label, `vikunja.spe.quebec/task` label), `discussing` (name `vikunja-discuss-*`), `conflict fix` (role `pr-conflict`), `<bot> fix` (role `pr-followup` whose prompt names a `Review bot:` and whose `<request>` is not a `/` command; `cubic-dev-ai[bot]` → `cubic`), `pr follow-up`, `task follow-up`, any other role as is, else `running`; `blocked` (the `wait-for-blockers` init container is running), `waiting`, `pending`, `done` for 1 h after completion, then hidden; DETAIL starts with the activity when the state is a phase | Failed |
+| GitHub PRs | POST to `https://api.github.com/graphql` (token: `GH_TOKEN`, else `GITHUB_TOKEN`, else `gh auth token`); search `is:pr is:open owner:<owner> archived:false`, first 50 | `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `review`; a `kelos:<variant>` label → detail `[variant] title` | conflicts, checks failing, review |
 | Vikunja | tasks with label id 1 (`in progress`) and `done = false`, paginated; the newest comment per task; DETAIL is `[assignee] title` | `in review` (label titled `pr open`, whatever the comments), `reply from <user>`, `idle` (operator spoke last, or no comments) | the newest comment is not the operator's and the PR is not open |
 
 - **Newest comment:** expand `comments` and `comment_count` on the task list.
@@ -48,9 +48,14 @@ render.
   `status.results.branch`.
 - **Staleness:** a needs-you PR or agent reply untouched for 30 days shows as
   `stale` and is not flagged (abandoned experiment PRs would stay red forever).
-- **Vikunja token:** `VIKUNJA_API_TOKEN`, else
-  `kubectl -n vikunja get secret agent-claude -o jsonpath={.data.token}`
-  (base64). Never print tokens.
+- **No `kubectl` or `gh` binaries** (the server image is `scratch`): Kelos and
+  the token Secret through client-go (`source.NewDynamicClient`: in-cluster
+  when `KUBERNETES_SERVICE_HOST` is set, else the kubeconfig loading rules),
+  get/list only, no watch; GitHub over `net/http`. `gh auth token` is the
+  only command left, the laptop's last GitHub token fallback.
+- **Vikunja token:** `VIKUNJA_API_TOKEN`, else key `token` of Secret
+  `vikunja/agent-claude` (base64). Never print tokens, nor put them in an
+  error.
 
 ## TUI
 
@@ -150,8 +155,9 @@ the loaded set to the new path on its first change.
   `go test ./...`, `staticcheck ./...`. CI (`.github/workflows/ci.yml`) runs
   the same on push and PR.
 - The README covers install, keys, the sources table (what each shows, when
-  it is flagged, what enter opens), configuration, requirements (a kubectl
-  context, `gh` logged in), and a note that `~/.claude/sessions` is a Claude
+  it is flagged, what enter opens), configuration, requirements (cluster
+  access through a kubeconfig or in-cluster, a GitHub token and its lookup
+  order), and a note that `~/.claude/sessions` is a Claude
   Code internal, not a documented interface.
 - Before a PR: review with the `idiomatic-go` agent, then `pr-challenger`.
 - Work in a git worktree under `.claude/worktrees/<branch>`; never on `main`.

@@ -3,7 +3,6 @@ package source
 import (
 	"cmp"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,7 +92,7 @@ type Vikunja struct {
 	PROpenLabel     string // title of the label Kelos puts on a task whose PR is open
 	StaleDays       int
 	Client          *http.Client
-	Run             Runner
+	Kube            DynamicClient // reads Secret when Token is empty
 	Now             func() time.Time
 	commentCache    vikunjaCommentCache
 	fetching        atomic.Bool
@@ -165,16 +164,14 @@ func (v *Vikunja) token(ctx context.Context) (string, error) {
 	if token := strings.TrimSpace(v.Token); token != "" {
 		return token, nil
 	}
-	jsonpath := fmt.Sprintf("jsonpath={.data.%s}", v.Secret.Key)
-	out, err := v.Run(ctx, "kubectl", "-n", v.Secret.Namespace, "get", "secret", v.Secret.Name, "-o", jsonpath)
+	token, err := secretValue(ctx, v.Kube, v.Secret)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("vikunja token: %w", err)
 	}
-	token, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(out)))
-	if err != nil {
-		return "", fmt.Errorf("decoding Vikunja token: %w", err)
+	if token == "" {
+		return "", fmt.Errorf("vikunja token: secret %s/%s key %q is empty", v.Secret.Namespace, v.Secret.Name, v.Secret.Key)
 	}
-	return strings.TrimSpace(string(token)), nil
+	return token, nil
 }
 
 // get fetches a Vikunja API path into v and returns the response headers.

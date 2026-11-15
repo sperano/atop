@@ -40,18 +40,3 @@ func TestExecRunner(t *testing.T) {
 		}
 	})
 }
-
-func TestRunJSON(t *testing.T) {
-	t.Parallel()
-	f := &fakeRunner{replies: map[string]string{"good": `{"a":1}`, "bad": `not json`}}
-	var v struct{ A int }
-	if err := runJSON(context.Background(), f.run, &v, "good"); err != nil || v.A != 1 {
-		t.Errorf("good: v=%+v err=%v", v, err)
-	}
-	if err := runJSON(context.Background(), f.run, &v, "bad"); err == nil {
-		t.Error("bad JSON: expected an error")
-	}
-	if err := runJSON(context.Background(), f.run, &v, "missing"); err == nil {
-		t.Error("runner error: expected it to propagate")
-	}
-}

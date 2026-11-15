@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -84,24 +86,23 @@ type itemList[T any] struct {
 	Items []T `json:"items"`
 }
 
-// Kelos reads Kelos Sessions and Tasks with kubectl.
+// Kelos reads Kelos Sessions and Tasks from the Kubernetes API.
 type Kelos struct {
 	Namespace  string
 	ConsoleURL string
 	VikunjaWeb string // Vikunja web base, for a Task's Vikunja link
-	Run        Runner
+	Client     DynamicClient
 	Now        func() time.Time
 }
 
-func (k Kelos) items(ctx context.Context, v any, args ...string) error {
-	full := append([]string{"-n", k.Namespace, "get"}, args...)
-	return runJSON(ctx, k.Run, v, "kubectl", append(full, "-o", "json")...)
+func (k Kelos) items(ctx context.Context, v any, gvr schema.GroupVersionResource, selector string) error {
+	return listJSON(ctx, k.Client, gvr, k.Namespace, selector, v)
 }
 
 // Sessions lists the namespace's Kelos Sessions.
 func (k Kelos) Sessions(ctx context.Context) ([]Row, error) {
 	var list itemList[kelosSession]
-	if err := k.items(ctx, &list, "sessions.kelos.dev"); err != nil {
+	if err := k.items(ctx, &list, sessionsResource, ""); err != nil {
 		return nil, err
 	}
 	rows := make([]Row, 0, len(list.Items))
@@ -153,11 +154,11 @@ func findCondition(conds []kubeCondition, kind string) *kubeCondition {
 // RecentDone ago.
 func (k Kelos) Tasks(ctx context.Context) ([]Row, error) {
 	var pods itemList[pod]
-	if err := k.items(ctx, &pods, "pods", "-l", taskPodSelector); err != nil {
+	if err := k.items(ctx, &pods, podsResource, taskPodSelector); err != nil {
 		return nil, err
 	}
 	var tasks itemList[kelosTask]
-	if err := k.items(ctx, &tasks, "tasks.kelos.dev"); err != nil {
+	if err := k.items(ctx, &tasks, tasksResource, ""); err != nil {
 		return nil, err
 	}
 	byName := make(map[string]pod, len(pods.Items))

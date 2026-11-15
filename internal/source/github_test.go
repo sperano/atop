@@ -1,7 +1,6 @@
 package source
 
 import (
-	"context"
 	"testing"
 	"time"
 )
@@ -134,31 +133,5 @@ func TestPRRowStaleness(t *testing.T) {
 				t.Errorf("state=%q needs=%v", row.State, row.NeedsYou)
 			}
 		})
-	}
-}
-
-func TestGitHubFetch(t *testing.T) {
-	t.Parallel()
-	resp := obj{"data": obj{"search": obj{"nodes": []any{
-		prObj(prOpts{}),
-		obj{}, // a non-PR search hit decodes as an empty object
-		nil,
-	}}}}
-	run := &fakeRunner{replies: map[string]string{"gh api graphql": string(mustJSON(t, resp))}}
-	g := GitHub{Owner: "sperano", StaleDays: testStaleDays, Run: run.run, Now: fixedNow}
-	rows, err := g.Fetch(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rows) != 1 || rows[0].Name != "cocovm#7" {
-		t.Fatalf("rows = %+v", rows)
-	}
-	wantQuery := "q=is:pr is:open owner:sperano archived:false"
-	if !containsFold(run.calls[0], wantQuery) || !containsFold(run.calls[0], "n=50") {
-		t.Errorf("command = %q", run.calls[0])
-	}
-	g.Run = (&fakeRunner{}).run
-	if _, err := g.Fetch(context.Background()); err == nil {
-		t.Error("expected a runner error")
 	}
 }

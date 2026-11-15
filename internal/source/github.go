@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -66,19 +67,19 @@ type pullRequest struct {
 }
 
 type prSearch struct {
-	Data struct {
-		Search struct {
-			// Pointers: a non-PR search hit decodes as an empty object.
-			Nodes []*pullRequest `json:"nodes"`
-		} `json:"search"`
-	} `json:"data"`
+	Search struct {
+		// Pointers: a non-PR search hit decodes as an empty object.
+		Nodes []*pullRequest `json:"nodes"`
+	} `json:"search"`
 }
 
-// GitHub lists the owner's open PRs with the gh CLI.
+// GitHub lists the owner's open PRs through the GraphQL API.
 type GitHub struct {
 	Owner     string
 	StaleDays int
-	Run       Runner
+	APIURL    string // GraphQL endpoint; GitHubGraphQLURL when empty
+	Client    *http.Client
+	Token     TokenFunc
 	Now       func() time.Time
 }
 
@@ -86,14 +87,13 @@ type GitHub struct {
 func (g GitHub) Fetch(ctx context.Context) ([]Row, error) {
 	query := fmt.Sprintf("is:pr is:open owner:%s archived:false", g.Owner)
 	var res prSearch
-	err := runJSON(ctx, g.Run, &res, "gh", "api", "graphql",
-		"-f", "query="+prQuery, "-f", "q="+query, "-F", "n="+strconv.Itoa(PRSearchLimit))
-	if err != nil {
+	vars := map[string]any{"q": query, "n": PRSearchLimit}
+	if err := g.graphQL(ctx, prQuery, vars, &res); err != nil {
 		return nil, err
 	}
 	stale := Staleness{Days: g.StaleDays, Now: g.Now()}
 	var rows []Row
-	for _, pr := range res.Data.Search.Nodes {
+	for _, pr := range res.Search.Nodes {
 		if pr != nil && pr.URL != "" {
 			rows = append(rows, prRow(*pr, stale))
 		}
