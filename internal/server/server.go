@@ -5,6 +5,7 @@ package server
 
 import (
 	"context"
+	"io/fs"
 	"sync"
 	"time"
 
@@ -37,6 +38,9 @@ type Options struct {
 	// UpdateHidden applies a change to the stored hidden rows and returns
 	// them as stored; nil keeps them in memory only.
 	UpdateHidden func(change func(hidden.Set) hidden.Set) (hidden.Set, error)
+	// Frontend is the web UI's files, served at / with index.html for
+	// every path that is none of them; nil serves the API alone.
+	Frontend fs.FS
 	// Tick returns a channel that fires every d and a func that stops it;
 	// nil uses a time.Ticker.
 	Tick func(d time.Duration) (<-chan time.Time, func())

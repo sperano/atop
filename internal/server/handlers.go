@@ -17,8 +17,10 @@ const (
 	routeRefresh  = "POST /api/v1/refresh"
 	routeHide     = "PUT /api/v1/hidden/{source}/{name}"
 	routeUnhide   = "DELETE /api/v1/hidden/{source}/{name}"
-	routeHealthz  = "GET /healthz"
-	routeReadyz   = "GET /readyz"
+	routeHealthz  = "GET " + healthzPath
+	routeReadyz   = "GET " + readyzPath
+	healthzPath   = "/healthz"
+	readyzPath    = "/readyz"
 	// showHiddenParam lists the hidden rows too, as H does in the TUI.
 	showHiddenParam = "show_hidden"
 )
@@ -30,8 +32,13 @@ const (
 	errTooSoon    = "refreshed too recently"
 )
 
-// Handler routes the API.
+// Handler routes the API, and every other path to the web UI when the
+// server has one.
 func (s *Server) Handler() http.Handler {
+	return withFrontend(s.apiHandler(), s.opts.Frontend)
+}
+
+func (s *Server) apiHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(routeSnapshot, s.handleSnapshot)
 	mux.HandleFunc(routeEvents, s.handleEvents)

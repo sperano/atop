@@ -2,6 +2,9 @@ module github.com/sperano/vigie
 
 go 1.27.1
 
+// npm installs packages that may hold Go files.
+ignore ./web/node_modules
+
 require (
 	charm.land/bubbletea/v2 v2.0.10
 	charm.land/lipgloss/v2 v2.0.6
