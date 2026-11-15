@@ -18,6 +18,11 @@ const (
 	// page, which names the hashed assets of the build it belongs to.
 	cacheControlHeader = "Cache-Control"
 	noCache            = "no-cache"
+	// referrerPolicyHeader and sameOrigin keep the page's origin from the
+	// hosts its rows link to, as a link's rel=noreferrer does, for the tabs
+	// enter opens too.
+	referrerPolicyHeader = "Referrer-Policy"
+	sameOrigin           = "same-origin"
 )
 
 // withFrontend routes the API's paths to api and every other path to the
@@ -46,6 +51,7 @@ func withFrontend(api http.Handler, frontend fs.FS) http.Handler {
 func frontendHandler(frontend fs.FS) http.Handler {
 	files := http.FileServerFS(frontend)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(referrerPolicyHeader, sameOrigin)
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set("Allow", "GET, HEAD")
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)

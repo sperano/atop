@@ -53,7 +53,10 @@ function severity(o: Fields, key: string, path: string): Severity {
 	return v as Severity;
 }
 
-const WEB_SCHEMES: readonly string[] = ['http:', 'https:'];
+// An http or https scheme, then // and the first character of a host, in the
+// raw text: the WHATWG parser alone also takes http:///x and https:/x, whose
+// host it finds after the slashes, while Go's url.Parse finds none.
+const WEB_URL_START = /^https?:\/\/[^/?#\\\s]/i;
 
 /**
  * A target the page may link and open: an absolute http or https URL with a
@@ -63,9 +66,7 @@ const WEB_SCHEMES: readonly string[] = ['http:', 'https:'];
  */
 function webTarget(o: Fields, key: string, path: string): string {
 	const v = string(o, key, path);
-	if (!URL.canParse(v)) return '';
-	const url = new URL(v);
-	return WEB_SCHEMES.includes(url.protocol) && url.host !== '' ? v : '';
+	return WEB_URL_START.test(v) && URL.canParse(v) && new URL(v).host !== '' ? v : '';
 }
 
 function decodeRow(value: unknown, path: string): Row {

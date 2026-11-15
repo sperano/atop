@@ -27,19 +27,20 @@ func TestFrontendRoutes(t *testing.T) {
 		status               int
 		body                 string // exact body; empty skips the check
 		cacheControl         string
+		referrerPolicy       string
 	}{
-		{"root is the entry page", http.MethodGet, "/", http.StatusOK, testIndex, noCache},
-		{"a deep link is the entry page", http.MethodGet, "/some/page", http.StatusOK, testIndex, noCache},
-		{"a directory is the entry page", http.MethodGet, "/assets/", http.StatusOK, testIndex, noCache},
-		{"head of the entry page", http.MethodHead, "/", http.StatusOK, "", noCache},
-		{"an asset", http.MethodGet, "/assets/index-abc.js", http.StatusOK, testAsset, ""},
-		{"a missing asset", http.MethodGet, "/assets/index-old.js", http.StatusNotFound, "404 page not found\n", ""},
-		{"index.html redirects to the root", http.MethodGet, "/index.html", http.StatusMovedPermanently, "", noCache},
-		{"an unknown API path is the API's 404", http.MethodGet, "/api/v1/nope", http.StatusNotFound, "404 page not found\n", ""},
-		{"the API still answers", http.MethodGet, readyzPath, http.StatusOK, "", ""},
-		{"healthz is the API's", http.MethodGet, healthzPath, http.StatusOK, "", ""},
-		{"healthz/ is the API's 404", http.MethodGet, healthzPath + "/", http.StatusNotFound, "404 page not found\n", ""},
-		{"readyz/ is the API's 404", http.MethodGet, readyzPath + "/", http.StatusNotFound, "404 page not found\n", ""},
+		{"root is the entry page", http.MethodGet, "/", http.StatusOK, testIndex, noCache, sameOrigin},
+		{"a deep link is the entry page", http.MethodGet, "/some/page", http.StatusOK, testIndex, noCache, sameOrigin},
+		{"a directory is the entry page", http.MethodGet, "/assets/", http.StatusOK, testIndex, noCache, sameOrigin},
+		{"head of the entry page", http.MethodHead, "/", http.StatusOK, "", noCache, sameOrigin},
+		{"an asset", http.MethodGet, "/assets/index-abc.js", http.StatusOK, testAsset, "", sameOrigin},
+		{"a missing asset", http.MethodGet, "/assets/index-old.js", http.StatusNotFound, "404 page not found\n", "", sameOrigin},
+		{"index.html redirects to the root", http.MethodGet, "/index.html", http.StatusMovedPermanently, "", noCache, sameOrigin},
+		{"an unknown API path is the API's 404", http.MethodGet, "/api/v1/nope", http.StatusNotFound, "404 page not found\n", "", ""},
+		{"the API still answers", http.MethodGet, readyzPath, http.StatusOK, "", "", ""},
+		{"healthz is the API's", http.MethodGet, healthzPath, http.StatusOK, "", "", ""},
+		{"healthz/ is the API's 404", http.MethodGet, healthzPath + "/", http.StatusNotFound, "404 page not found\n", "", ""},
+		{"readyz/ is the API's 404", http.MethodGet, readyzPath + "/", http.StatusNotFound, "404 page not found\n", "", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -54,6 +55,9 @@ func TestFrontendRoutes(t *testing.T) {
 			}
 			if cc := resp.Header.Get(cacheControlHeader); cc != tt.cacheControl {
 				t.Errorf("Cache-Control = %q, want %q", cc, tt.cacheControl)
+			}
+			if rp := resp.Header.Get(referrerPolicyHeader); rp != tt.referrerPolicy {
+				t.Errorf("Referrer-Policy = %q, want %q", rp, tt.referrerPolicy)
 			}
 		})
 	}

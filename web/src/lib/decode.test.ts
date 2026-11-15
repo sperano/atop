@@ -61,21 +61,25 @@ describe('decodeSnapshot', () => {
 		['//evil.example/x'],
 		['/api/v1/snapshot'],
 		['https://'],
+		['http:///x'],
+		['https:/x'],
+		['https:x'],
+		['https:\\\\x/y'],
+		[' https://x'],
 		['not a url']
 	])('drops a target that is no http(s) URL: %s', (target) => {
 		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
 		expect(got.rows[0]?.target).toBe('');
 	});
 
-	test.each([['https://github.com/o/vigie/pull/3'], ['http://kelos.example/api/x']])(
-		'keeps an http(s) target: %s',
-		(target) => {
-			const got = decodeSnapshot(
-				snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })]))
-			);
-			expect(got.rows[0]?.target).toBe(target);
-		}
-	);
+	test.each([
+		['https://github.com/o/vigie/pull/3'],
+		['http://kelos.example/api/x'],
+		['HTTPS://github.com/o']
+	])('keeps an http(s) target: %s', (target) => {
+		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
+		expect(got.rows[0]?.target).toBe(target);
+	});
 
 	test('maps null times to undefined', () => {
 		const got = decodeSnapshot(

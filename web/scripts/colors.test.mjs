@@ -1,12 +1,164 @@
 import { describe, expect, test } from 'vitest';
 import { colorViolations, NAMED_COLORS } from './colors.mjs';
 
+// CSS Color 4's named colours, as its table lists them (§6.1).
+const SPEC_NAMED_COLORS = [
+	'aliceblue',
+	'antiquewhite',
+	'aqua',
+	'aquamarine',
+	'azure',
+	'beige',
+	'bisque',
+	'black',
+	'blanchedalmond',
+	'blue',
+	'blueviolet',
+	'brown',
+	'burlywood',
+	'cadetblue',
+	'chartreuse',
+	'chocolate',
+	'coral',
+	'cornflowerblue',
+	'cornsilk',
+	'crimson',
+	'cyan',
+	'darkblue',
+	'darkcyan',
+	'darkgoldenrod',
+	'darkgray',
+	'darkgreen',
+	'darkgrey',
+	'darkkhaki',
+	'darkmagenta',
+	'darkolivegreen',
+	'darkorange',
+	'darkorchid',
+	'darkred',
+	'darksalmon',
+	'darkseagreen',
+	'darkslateblue',
+	'darkslategray',
+	'darkslategrey',
+	'darkturquoise',
+	'darkviolet',
+	'deeppink',
+	'deepskyblue',
+	'dimgray',
+	'dimgrey',
+	'dodgerblue',
+	'firebrick',
+	'floralwhite',
+	'forestgreen',
+	'fuchsia',
+	'gainsboro',
+	'ghostwhite',
+	'gold',
+	'goldenrod',
+	'gray',
+	'green',
+	'greenyellow',
+	'grey',
+	'honeydew',
+	'hotpink',
+	'indianred',
+	'indigo',
+	'ivory',
+	'khaki',
+	'lavender',
+	'lavenderblush',
+	'lawngreen',
+	'lemonchiffon',
+	'lightblue',
+	'lightcoral',
+	'lightcyan',
+	'lightgoldenrodyellow',
+	'lightgray',
+	'lightgreen',
+	'lightgrey',
+	'lightpink',
+	'lightsalmon',
+	'lightseagreen',
+	'lightskyblue',
+	'lightslategray',
+	'lightslategrey',
+	'lightsteelblue',
+	'lightyellow',
+	'lime',
+	'limegreen',
+	'linen',
+	'magenta',
+	'maroon',
+	'mediumaquamarine',
+	'mediumblue',
+	'mediumorchid',
+	'mediumpurple',
+	'mediumseagreen',
+	'mediumslateblue',
+	'mediumspringgreen',
+	'mediumturquoise',
+	'mediumvioletred',
+	'midnightblue',
+	'mintcream',
+	'mistyrose',
+	'moccasin',
+	'navajowhite',
+	'navy',
+	'oldlace',
+	'olive',
+	'olivedrab',
+	'orange',
+	'orangered',
+	'orchid',
+	'palegoldenrod',
+	'palegreen',
+	'paleturquoise',
+	'palevioletred',
+	'papayawhip',
+	'peachpuff',
+	'peru',
+	'pink',
+	'plum',
+	'powderblue',
+	'purple',
+	'rebeccapurple',
+	'red',
+	'rosybrown',
+	'royalblue',
+	'saddlebrown',
+	'salmon',
+	'sandybrown',
+	'seagreen',
+	'seashell',
+	'sienna',
+	'silver',
+	'skyblue',
+	'slateblue',
+	'slategray',
+	'slategrey',
+	'snow',
+	'springgreen',
+	'steelblue',
+	'tan',
+	'teal',
+	'thistle',
+	'tomato',
+	'turquoise',
+	'violet',
+	'wheat',
+	'white',
+	'whitesmoke',
+	'yellow',
+	'yellowgreen'
+];
+
 /** The flagged texts of source. */
 const flagged = (source, extension) => colorViolations(source, extension).map((v) => v.text);
 
 describe('colorViolations', () => {
-	test('lists all 148 named colours of CSS Color 4', () => {
-		expect(NAMED_COLORS.size).toBe(148);
+	test('lists exactly the named colours of CSS Color 4', () => {
+		expect([...NAMED_COLORS].sort()).toEqual(SPEC_NAMED_COLORS);
 	});
 
 	test.each([
@@ -23,6 +175,47 @@ describe('colorViolations', () => {
 		],
 		['a named colour in a style attribute', '<p style="color: teal">x</p>', '.html', ['teal']],
 		['a named colour in a style: directive', '<p style:color="tan">x</p>', '.svelte', ['tan']],
+		[
+			'a named colour in a style attribute spanning lines',
+			'<p style="border: 1px solid\n\tteal">x</p>',
+			'.html',
+			['teal']
+		],
+		[
+			'a named colour in a style: directive spanning lines',
+			'<p style:color="\n\ttan">x</p>',
+			'.svelte',
+			['tan']
+		],
+		['a style attribute expression', '<p style={"color: red"}>x</p>', '.svelte', ['red']],
+		[
+			'a style: directive expression',
+			"<p style:color={on ? 'red' : 'gray'}>x</p>",
+			'.svelte',
+			['red', 'gray']
+		],
+		[
+			'an expression in a style attribute',
+			'<p style="width: 1px; color: {on ? \'red\' : `navy`}">x</p>',
+			'.svelte',
+			['red', 'navy']
+		],
+		[
+			'an expression in a style: directive',
+			'<p style:color="{on ? \'red\' : c}">x</p>',
+			'.svelte',
+			['red']
+		],
+		[
+			'an expression naming no colour',
+			"<p style:display={on ? 'block' : 'none'}>x</p>",
+			'.svelte',
+			[]
+		],
+		['an asset path in url()', 'a { background: url(/icons/gold.svg) no-repeat; }', '.css', []],
+		['a quoted asset path in url()', 'a { background: url("tan.png"), red; }', '.css', ['red']],
+		['a quoted font name', "a { font-family: 'Gold Sans', serif; }", '.css', []],
+		['a url() in a style attribute', '<p style="background: url(gold.svg)">x</p>', '.html', []],
 		['a word of the markup', '<p class="red">red or white</p>', '.svelte', []],
 		['a word of a script', "const state = 'red';", '.ts', []],
 		['a class or id selector', '.red, #white { color: var(--color-red); }', '.css', []],
@@ -32,10 +225,31 @@ describe('colorViolations', () => {
 		expect(flagged(source, extension)).toEqual(want);
 	});
 
-	test('gives each colour its offset in the file', () => {
-		const source = '<p>x</p>\n<style>\n\tp { color: black; }\n</style>';
-		expect(colorViolations(source, '.svelte')).toEqual([
+	test.each([
+		['a style block', '<p>x</p>\n<style>\n\tp { color: black; }\n</style>', '.svelte'],
+		['a style attribute', '<p>x</p>\n<p style="width: 1px; color: black">x</p>', '.html'],
+		['a style: directive', '<p>x</p>\n<p style:color="black">x</p>', '.svelte'],
+		['a style attribute expression', '<p>x</p>\n<p style={"color: black"}>x</p>', '.svelte'],
+		['a style: directive expression', "<p>x</p>\n<p style:color={'black'}>x</p>", '.svelte'],
+		[
+			'an expression in a style attribute',
+			'<p>x</p>\n<p style="color: {\'black\'}">x</p>',
+			'.svelte'
+		]
+	])('gives a colour of %s its offset in the file', (_name, source, extension) => {
+		expect(colorViolations(source, extension)).toEqual([
 			{ index: source.indexOf('black'), text: 'black' }
+		]);
+	});
+
+	test('lists the colours in file order, whatever finds them', () => {
+		const source =
+			'<p style="color: red">x</p>\n<p>#fff rgb(0 0 0)</p>\n<p style:color="navy">x</p>';
+		expect(colorViolations(source, '.svelte')).toEqual([
+			{ index: source.indexOf('red'), text: 'red' },
+			{ index: source.indexOf('#fff'), text: '#fff' },
+			{ index: source.indexOf('rgb('), text: 'rgb(' },
+			{ index: source.indexOf('navy'), text: 'navy' }
 		]);
 	});
 });
