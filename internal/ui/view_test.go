@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/sperano/atop/internal/hidden"
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/hidden"
+	"github.com/sperano/vigie/internal/source"
 )
 
 const (

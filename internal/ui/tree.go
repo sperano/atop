@@ -4,7 +4,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/source"
 )
 
 // Tree guides drawn before a child's name.

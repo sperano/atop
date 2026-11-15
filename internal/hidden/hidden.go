@@ -6,8 +6,9 @@ import (
 	"cmp"
 	"maps"
 	"slices"
+	"strings"
 
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/source"
 )
 
 // Entry names a hidden row as it is stored in the file.
@@ -17,7 +18,16 @@ type Entry struct {
 }
 
 func (e Entry) key() string {
-	return source.Row{Source: e.Source, Name: e.Name}.Key()
+	return entryKey(e.Source, e.Name)
+}
+
+func entryKey(src, name string) string {
+	if src == source.SourcePR {
+		if suffix, ok := strings.CutPrefix(name, legacyAppDir+"#"); ok {
+			name = appDir + "#" + suffix
+		}
+	}
+	return source.Row{Source: src, Name: name}.Key()
 }
 
 // Set is the hidden rows. The zero value is empty; methods that change a
@@ -43,7 +53,7 @@ func Hideable(r source.Row) bool {
 
 // Hides reports whether r is hidden.
 func (s Set) Hides(r source.Row) bool {
-	_, ok := s.byKey[r.Key()]
+	_, ok := s.byKey[entryKey(r.Source, r.Name)]
 	return ok && Hideable(r)
 }
 
@@ -58,14 +68,15 @@ func (s Set) Hide(r source.Row) Set {
 	if byKey == nil {
 		byKey = make(map[string]Entry)
 	}
-	byKey[r.Key()] = Entry{Source: r.Source, Name: r.Name}
+	entry := Entry{Source: r.Source, Name: r.Name}
+	byKey[entry.key()] = entry
 	return Set{byKey: byKey}
 }
 
 // Unhide returns the set with r shown again.
 func (s Set) Unhide(r source.Row) Set {
 	byKey := maps.Clone(s.byKey)
-	delete(byKey, r.Key())
+	delete(byKey, entryKey(r.Source, r.Name))
 	return Set{byKey: byKey}
 }
 
@@ -91,7 +102,7 @@ func (s Set) Prune(rows []source.Row) Set {
 			unsure[r.Source] = true
 		}
 		counts[r.Source]++
-		present[r.Key()] = true
+		present[entryKey(r.Source, r.Name)] = true
 	}
 	for src, limit := range truncatedAt {
 		if counts[src] >= limit {

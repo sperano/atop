@@ -1,4 +1,4 @@
-// Package ui renders atop's table, both as the interactive Bubble Tea
+// Package ui renders vigie's table, both as the interactive Bubble Tea
 // program and as a one-shot plain-text snapshot.
 package ui
 
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/source"
 )
 
 // Column widths; DETAIL takes what is left of the terminal.

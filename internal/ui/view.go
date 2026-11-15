@@ -7,12 +7,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/sperano/atop/internal/hidden"
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/hidden"
+	"github.com/sperano/vigie/internal/source"
 )
 
 const (
-	appName    = "atop"
+	appName    = "vigie"
 	timeLayout = "2006-01-02 15:04:05"
 	titleSep   = " · "
 	keyHelp    = "↑/↓ j/k move · pgup/pgdn home/end · enter open · h hide · H show hidden · r refresh · q quit"

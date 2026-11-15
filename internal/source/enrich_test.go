@@ -10,7 +10,7 @@ var errNoCluster = errors.New("no kubeconfig")
 
 const (
 	enrichTaskRef = "vikunja:840"
-	enrichPRRef   = "pr:https://github.com/sperano/atop/pull/3"
+	enrichPRRef   = "pr:https://github.com/sperano/vigie/pull/3"
 )
 
 func vikunjaRow(state string, needsYou bool) Row {
@@ -18,7 +18,7 @@ func vikunjaRow(state string, needsYou bool) Row {
 }
 
 func prRowFor(state string, needsYou bool) Row {
-	return Row{Source: SourcePR, Name: "atop#3", State: state, NeedsYou: needsYou, Since: testNow.Add(-time.Hour), Ref: enrichPRRef, ParentRefs: []string{enrichTaskRef}}
+	return Row{Source: SourcePR, Name: "vigie#3", State: state, NeedsYou: needsYou, Since: testNow.Add(-time.Hour), Ref: enrichPRRef, ParentRefs: []string{enrichTaskRef}}
 }
 
 func taskRowFor(name, state string, busy bool, since time.Time, parents ...string) Row {
@@ -42,15 +42,15 @@ func TestEnrich(t *testing.T) {
 				prRowFor("conflicts", true),
 				taskRowFor("pr-conflict-1", ActivityConflictFix, true, fresh, enrichPRRef, enrichTaskRef),
 			},
-			wantState: map[string]string{"#840": ActivityConflictFix, "atop#3": ActivityConflictFix, "pr-conflict-1": ActivityConflictFix},
-			wantNeeds: map[string]bool{"#840": false, "atop#3": false},
-			wantBusy:  map[string]bool{"#840": true, "atop#3": true},
+			wantState: map[string]string{"#840": ActivityConflictFix, "vigie#3": ActivityConflictFix, "pr-conflict-1": ActivityConflictFix},
+			wantNeeds: map[string]bool{"#840": false, "vigie#3": false},
+			wantBusy:  map[string]bool{"#840": true, "vigie#3": true},
 		},
 		{
 			name: "a blocked implementation is not busy but still speaks",
 			rows: []Row{
 				vikunjaRow("reply from kelos", true),
-				taskRowFor("vikunja-atop-claude-840", StateBlocked, false, fresh, enrichTaskRef),
+				taskRowFor("vikunja-vigie-claude-840", StateBlocked, false, fresh, enrichTaskRef),
 			},
 			wantState: map[string]string{"#840": StateBlocked},
 			wantNeeds: map[string]bool{"#840": false},

@@ -8,12 +8,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+
+	"github.com/sperano/vigie/internal/source"
 )
 
 // Where the hidden rows live by default, under the user's config directory.
 const (
-	appDir   = "atop"
-	fileName = "hidden.json"
+	appDir       = "vigie"
+	legacyAppDir = "atop"
+	fileName     = "hidden.json"
 )
 
 const (
@@ -22,25 +26,43 @@ const (
 	// tempPattern names the file written before it replaces the real one.
 	tempPattern = ".hidden-*.json"
 	jsonIndent  = "  "
+	lockSuffix  = ".lock"
 )
 
-// DefaultPath is <user config dir>/atop/hidden.json.
+// DefaultPath is <user config dir>/vigie/hidden.json.
 func DefaultPath() (string, error) {
+	f, err := DefaultFile()
+	return f.Path, err
+}
+
+// DefaultFile stores rows under vigie and falls back to atop until the first
+// change writes the rows to the new path.
+func DefaultFile() (File, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		return "", err
+		return File{}, err
 	}
-	return filepath.Join(dir, appDir, fileName), nil
+	return File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}, nil
 }
 
 // File stores a Set as a JSON array of entries.
 type File struct {
-	Path string
+	Path       string
+	LegacyPath string
 }
 
-// Load reads the set; a missing or blank file is an empty set.
+// Load reads the set. When Path is missing, LegacyPath is read instead. A
+// missing or blank file is an empty set.
 func (f File) Load() (Set, error) {
-	data, err := os.ReadFile(f.Path)
+	path := f.Path
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) && f.LegacyPath != "" {
+		path = f.LegacyPath
+		data, err = os.ReadFile(path)
+	}
 	if errors.Is(err, fs.ErrNotExist) {
 		return Set{}, nil
 	}
@@ -52,24 +74,61 @@ func (f File) Load() (Set, error) {
 	}
 	var entries []Entry
 	if err := json.Unmarshal(data, &entries); err != nil {
-		return Set{}, fmt.Errorf("%s: %w", f.Path, err)
+		return Set{}, fmt.Errorf("%s: %w", path, err)
+	}
+	if path == f.LegacyPath {
+		entries = migrateLegacy(entries)
 	}
 	return New(entries...), nil
 }
 
+func migrateLegacy(entries []Entry) []Entry {
+	for i := range entries {
+		if entries[i].Source == source.SourcePR {
+			if suffix, ok := strings.CutPrefix(entries[i].Name, legacyAppDir+"#"); ok {
+				entries[i].Name = appDir + "#" + suffix
+			}
+		}
+	}
+	return entries
+}
+
 // Update applies change to the set as stored now, writes the result when
 // it differs, and returns it. Reading first keeps the changes made since
-// by another atop or by hand; a file that cannot be read is left alone.
-func (f File) Update(change func(Set) Set) (Set, error) {
+// by another vigie or by hand; a file that cannot be read is left alone.
+func (f File) Update(change func(Set) Set) (next Set, err error) {
+	unlock, err := f.lock()
+	if err != nil {
+		return Set{}, err
+	}
+	defer func() { err = errors.Join(err, unlock()) }()
+
 	current, err := f.Load()
 	if err != nil {
 		return Set{}, err
 	}
-	next := change(current)
+	next = change(current)
 	if next.Equal(current) {
 		return next, nil
 	}
 	return next, f.Save(next)
+}
+
+func (f File) lock() (func() error, error) {
+	if err := os.MkdirAll(filepath.Dir(f.Path), dirPerm); err != nil {
+		return nil, err
+	}
+	lock, err := os.OpenFile(f.Path+lockSuffix, os.O_CREATE|os.O_RDWR, filePerm)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		lock.Close()
+		return nil, err
+	}
+	return func() error {
+		return errors.Join(syscall.Flock(int(lock.Fd()), syscall.LOCK_UN), lock.Close())
+	}, nil
 }
 
 // Save writes the set, creating the directory if needed. It syncs a

@@ -35,7 +35,7 @@ func TestCheckURL(t *testing.T) {
 		raw    string
 		wantOK bool
 	}{
-		{"https://github.com/sperano/atop/pull/1", true},
+		{"https://github.com/sperano/vigie/pull/1", true},
 		{"http://localhost:8080/tasks/1", true},
 		{"file:///etc/passwd", false},
 		{"-a Calculator", false},

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/sperano/atop/internal/hidden"
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/hidden"
+	"github.com/sperano/vigie/internal/source"
 )
 
 // Fallback size until the first WindowSizeMsg arrives.

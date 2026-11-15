@@ -1,4 +1,4 @@
-// Command atop is a top for coding agents: which one needs you, who is
+// Command vigie is a top for coding agents: which one needs you, who is
 // running what, who is idle.
 package main
 
@@ -13,14 +13,14 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
-	"github.com/sperano/atop/internal/config"
-	"github.com/sperano/atop/internal/hidden"
-	"github.com/sperano/atop/internal/source"
-	"github.com/sperano/atop/internal/ui"
+	"github.com/sperano/vigie/internal/config"
+	"github.com/sperano/vigie/internal/hidden"
+	"github.com/sperano/vigie/internal/source"
+	"github.com/sperano/vigie/internal/ui"
 )
 
 const (
-	appName = "atop"
+	appName = "vigie"
 	// fallbackWidth is the --once width when stdout is not a terminal.
 	fallbackWidth = 120
 )
@@ -32,12 +32,12 @@ func main() {
 	}
 	if err != nil {
 		if errors.Is(err, config.ErrInvalid) {
-			fmt.Fprintln(os.Stderr, "atop:", err)
+			fmt.Fprintln(os.Stderr, "vigie:", err)
 		}
 		os.Exit(2)
 	}
 	if err := run(cfg); err != nil {
-		fmt.Fprintln(os.Stderr, "atop:", err)
+		fmt.Fprintln(os.Stderr, "vigie:", err)
 		os.Exit(1)
 	}
 }
@@ -72,11 +72,11 @@ func hiddenStore(path string) (hidden.File, error) {
 	if path != "" {
 		return hidden.File{Path: path}, nil
 	}
-	path, err := hidden.DefaultPath()
+	f, err := hidden.DefaultFile()
 	if err != nil {
 		return hidden.File{}, fmt.Errorf("hidden rows: %w (set --hidden-file)", err)
 	}
-	return hidden.File{Path: path}, nil
+	return f, nil
 }
 
 // loadHidden reads the hidden rows for --once. An unreadable file hides
@@ -84,7 +84,7 @@ func hiddenStore(path string) (hidden.File, error) {
 func loadHidden(f hidden.File) hidden.Set {
 	set, err := f.Load()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "atop: hidden rows ignored:", err)
+		fmt.Fprintln(os.Stderr, "vigie: hidden rows ignored:", err)
 	}
 	return set
 }

@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/source"
 )
 
 var (
-	prRow      = source.Row{Source: source.SourcePR, Name: "atop#3", State: "review"}
+	prRow      = source.Row{Source: source.SourcePR, Name: "vigie#3", State: "review"}
 	taskRow    = source.Row{Source: source.SourceVikunja, Name: "#874", State: "idle"}
-	sessionRow = source.Row{Source: source.SourceLocal, Name: "atop", State: source.StateError}
+	sessionRow = source.Row{Source: source.SourceLocal, Name: "vigie", State: source.StateError}
 	errorRow   = source.ErrorRow(source.SourcePR, errors.New("gh logged out"))
 )
 
@@ -29,6 +29,7 @@ func TestHides(t *testing.T) {
 		want bool
 	}{
 		{"hidden row", prRow, true},
+		{"legacy name for renamed PR", source.Row{Source: source.SourcePR, Name: "atop#3"}, true},
 		{"other row", taskRow, false},
 		{"same name, other source", source.Row{Source: source.SourceVikunja, Name: prRow.Name}, false},
 		{"raw error status is an ordinary row", sessionRow, true},
@@ -41,6 +42,15 @@ func TestHides(t *testing.T) {
 				t.Errorf("Hides(%v) = %v, want %v", tt.row.Key(), got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHidesDoesNotRewriteLegacyNameForOtherSources(t *testing.T) {
+	t.Parallel()
+	set := New(Entry{Source: source.SourceVikunja, Name: "vigie#3"})
+	legacyName := source.Row{Source: source.SourceVikunja, Name: "atop#3"}
+	if set.Hides(legacyName) {
+		t.Error("legacy PR name rewrite hid a Vikunja row")
 	}
 }
 
@@ -63,6 +73,14 @@ func TestHideUnhide(t *testing.T) {
 	}
 	if !once.Hides(prRow) {
 		t.Error("Unhide changed its receiver")
+	}
+	legacyPR := prRow
+	legacyPR.Name = "atop#3"
+	if got := once.Unhide(legacyPR); got.Len() != 0 {
+		t.Errorf("unhiding legacy PR name left %v", got.Entries())
+	}
+	if got := empty.Hide(legacyPR); !got.Hides(prRow) {
+		t.Error("legacy PR name did not hide renamed PR")
 	}
 	if got := empty.Unhide(prRow); got.Len() != 0 {
 		t.Error("unhiding on an empty set")
@@ -103,19 +121,20 @@ func fullPRPage() []source.Row {
 func TestPrune(t *testing.T) {
 	t.Parallel()
 	set := New(entryOf(prRow), entryOf(taskRow))
-	otherPR := source.Row{Source: source.SourcePR, Name: "atop#9"}
+	otherPR := source.Row{Source: source.SourcePR, Name: "vigie#9"}
 	tests := []struct {
 		name     string
 		rows     []source.Row
 		wantKept []Entry
 	}{
 		{"both listed", []source.Row{prRow, taskRow}, []Entry{entryOf(prRow), entryOf(taskRow)}},
+		{"listed before repository rename", []source.Row{{Source: source.SourcePR, Name: "atop#3"}, taskRow}, []Entry{entryOf(prRow), entryOf(taskRow)}},
 		{"PR merged", []source.Row{otherPR, taskRow}, []Entry{entryOf(taskRow)}},
 		{"both gone", nil, []Entry{}},
 		{"PR source failed", []source.Row{errorRow, taskRow}, []Entry{entryOf(prRow), entryOf(taskRow)}},
 		{
 			"a raw error row does not keep its source's entries",
-			[]source.Row{{Source: source.SourcePR, Name: "atop#9", State: source.StateError}, taskRow},
+			[]source.Row{{Source: source.SourcePR, Name: "vigie#9", State: source.StateError}, taskRow},
 			[]Entry{entryOf(taskRow)},
 		},
 		{"PR search cut short", append(fullPRPage(), taskRow), []Entry{entryOf(prRow), entryOf(taskRow)}},

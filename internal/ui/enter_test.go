@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/source"
 )
 
 const (

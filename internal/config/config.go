@@ -1,4 +1,4 @@
-// Package config parses atop's flags, each defaulting to an environment
+// Package config parses vigie's flags, each defaulting to an environment
 // variable and then to a built-in value.
 package config
 
@@ -28,9 +28,11 @@ const (
 	DefaultConsoleURL      = "https://kelos.spe.quebec"
 	DefaultStaleDays       = 30
 	DefaultInterval        = 2 * time.Minute
+	currentEnvPrefix       = "VIGIE_"
+	legacyEnvPrefix        = "ATOP_"
 )
 
-// Config holds every setting atop reads at start-up.
+// Config holds every setting vigie reads at start-up.
 type Config struct {
 	Namespace       string
 	GitHubOwner     string
@@ -45,7 +47,7 @@ type Config struct {
 	StaleDays       int
 	Interval        time.Duration
 	// HiddenFile is where hidden rows are kept; empty means
-	// hidden.DefaultPath.
+	// hidden.DefaultFile.
 	HiddenFile string
 	Once       bool
 }
@@ -55,19 +57,19 @@ func Parse(name string, args []string, getenv func(string) string) (Config, erro
 	var c Config
 	env := envDefaults{getenv: getenv}
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.StringVar(&c.Namespace, "namespace", env.str("ATOP_NAMESPACE", DefaultNamespace), "Kelos namespace (ATOP_NAMESPACE)")
-	fs.StringVar(&c.GitHubOwner, "github-owner", env.str("ATOP_GITHUB_OWNER", DefaultGitHubOwner), "GitHub owner whose open PRs are listed (ATOP_GITHUB_OWNER)")
-	fs.StringVar(&c.VikunjaURL, "vikunja-url", env.str("VIKUNJA_URL", DefaultVikunjaURL), "Vikunja API URL (VIKUNJA_URL)")
-	fs.StringVar(&c.TokenNamespace, "token-namespace", env.str("ATOP_TOKEN_NAMESPACE", DefaultTokenNamespace), "namespace of the Vikunja token Secret (ATOP_TOKEN_NAMESPACE)")
-	fs.StringVar(&c.TokenSecret, "token-secret", env.str("ATOP_TOKEN_SECRET", DefaultTokenSecret), "name of the Vikunja token Secret (ATOP_TOKEN_SECRET)")
-	fs.StringVar(&c.TokenKey, "token-key", env.str("ATOP_TOKEN_KEY", DefaultTokenKey), "key of the Vikunja token in the Secret (ATOP_TOKEN_KEY)")
-	fs.StringVar(&c.Operator, "operator", env.str("ATOP_OPERATOR", DefaultOperator), "your Vikunja username (ATOP_OPERATOR)")
-	fs.IntVar(&c.InProgressLabel, "in-progress-label", env.integer("ATOP_IN_PROGRESS_LABEL", DefaultInProgressLabel), "id of the Vikunja \"in progress\" label (ATOP_IN_PROGRESS_LABEL)")
-	fs.StringVar(&c.PROpenLabel, "pr-open-label", env.str("ATOP_PR_OPEN_LABEL", DefaultPROpenLabel), "title of the Vikunja label on tasks whose PR is open (ATOP_PR_OPEN_LABEL)")
-	fs.StringVar(&c.ConsoleURL, "console-url", env.str("ATOP_CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (ATOP_CONSOLE_URL)")
-	fs.IntVar(&c.StaleDays, "stale-days", env.integer("ATOP_STALE_DAYS", DefaultStaleDays), "days after which an untouched PR or reply is stale (ATOP_STALE_DAYS)")
-	fs.DurationVar(&c.Interval, "interval", env.duration("ATOP_INTERVAL", DefaultInterval), "refresh interval (ATOP_INTERVAL)")
-	fs.StringVar(&c.HiddenFile, "hidden-file", env.str("ATOP_HIDDEN_FILE", ""), "file of the rows hidden with h (ATOP_HIDDEN_FILE; default <user config dir>/atop/hidden.json)")
+	fs.StringVar(&c.Namespace, "namespace", env.renamedStr("NAMESPACE", DefaultNamespace), "Kelos namespace (VIGIE_NAMESPACE)")
+	fs.StringVar(&c.GitHubOwner, "github-owner", env.renamedStr("GITHUB_OWNER", DefaultGitHubOwner), "GitHub owner whose open PRs are listed (VIGIE_GITHUB_OWNER)")
+	fs.StringVar(&c.VikunjaURL, "vikunja-url", env.str("VIKUNJA_URL", "", DefaultVikunjaURL), "Vikunja API URL (VIKUNJA_URL)")
+	fs.StringVar(&c.TokenNamespace, "token-namespace", env.renamedStr("TOKEN_NAMESPACE", DefaultTokenNamespace), "namespace of the Vikunja token Secret (VIGIE_TOKEN_NAMESPACE)")
+	fs.StringVar(&c.TokenSecret, "token-secret", env.renamedStr("TOKEN_SECRET", DefaultTokenSecret), "name of the Vikunja token Secret (VIGIE_TOKEN_SECRET)")
+	fs.StringVar(&c.TokenKey, "token-key", env.renamedStr("TOKEN_KEY", DefaultTokenKey), "key of the Vikunja token in the Secret (VIGIE_TOKEN_KEY)")
+	fs.StringVar(&c.Operator, "operator", env.renamedStr("OPERATOR", DefaultOperator), "your Vikunja username (VIGIE_OPERATOR)")
+	fs.IntVar(&c.InProgressLabel, "in-progress-label", env.renamedInteger("IN_PROGRESS_LABEL", DefaultInProgressLabel), "id of the Vikunja \"in progress\" label (VIGIE_IN_PROGRESS_LABEL)")
+	fs.StringVar(&c.PROpenLabel, "pr-open-label", env.renamedStr("PR_OPEN_LABEL", DefaultPROpenLabel), "title of the Vikunja label on tasks whose PR is open (VIGIE_PR_OPEN_LABEL)")
+	fs.StringVar(&c.ConsoleURL, "console-url", env.renamedStr("CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (VIGIE_CONSOLE_URL)")
+	fs.IntVar(&c.StaleDays, "stale-days", env.renamedInteger("STALE_DAYS", DefaultStaleDays), "days after which an untouched PR or reply is stale (VIGIE_STALE_DAYS)")
+	fs.DurationVar(&c.Interval, "interval", env.renamedDuration("INTERVAL", DefaultInterval), "refresh interval (VIGIE_INTERVAL)")
+	fs.StringVar(&c.HiddenFile, "hidden-file", env.renamedStr("HIDDEN_FILE", ""), "file of the rows hidden with h (VIGIE_HIDDEN_FILE; default <user config dir>/vigie/hidden.json)")
 	fs.BoolVar(&c.Once, "once", false, "print one plain-text snapshot and exit")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
@@ -87,15 +89,12 @@ type envDefaults struct {
 	err    error
 }
 
-func (e *envDefaults) str(key, fallback string) string {
-	if v := e.getenv(key); v != "" {
-		return v
-	}
-	return fallback
+func (e *envDefaults) renamedStr(suffix, fallback string) string {
+	return e.str(currentEnvPrefix+suffix, legacyEnvPrefix+suffix, fallback)
 }
 
-func (e *envDefaults) integer(key string, fallback int) int {
-	v := e.getenv(key)
+func (e *envDefaults) renamedInteger(suffix string, fallback int) int {
+	key, v := e.value(currentEnvPrefix+suffix, legacyEnvPrefix+suffix)
 	if v == "" {
 		return fallback
 	}
@@ -107,8 +106,8 @@ func (e *envDefaults) integer(key string, fallback int) int {
 	return n
 }
 
-func (e *envDefaults) duration(key string, fallback time.Duration) time.Duration {
-	v := e.getenv(key)
+func (e *envDefaults) renamedDuration(suffix string, fallback time.Duration) time.Duration {
+	key, v := e.value(currentEnvPrefix+suffix, legacyEnvPrefix+suffix)
 	if v == "" {
 		return fallback
 	}
@@ -118,6 +117,26 @@ func (e *envDefaults) duration(key string, fallback time.Duration) time.Duration
 		return fallback
 	}
 	return d
+}
+
+func (e *envDefaults) str(primary, legacy, fallback string) string {
+	_, v := e.value(primary, legacy)
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
+func (e *envDefaults) value(primary, legacy string) (string, string) {
+	if v := e.getenv(primary); v != "" {
+		return primary, v
+	}
+	if legacy != "" {
+		if v := e.getenv(legacy); v != "" {
+			return legacy, v
+		}
+	}
+	return "", ""
 }
 
 func (e *envDefaults) fail(key string, err error) {

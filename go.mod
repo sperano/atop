@@ -1,4 +1,4 @@
-module github.com/sperano/atop
+module github.com/sperano/vigie
 
 go 1.27.1
 
