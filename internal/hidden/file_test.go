@@ -1,11 +1,15 @@
 package hidden
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+
+	"github.com/sperano/vigie/internal/source"
 )
 
 func TestFileRoundTrip(t *testing.T) {
@@ -142,7 +146,7 @@ func TestFileLoadsLegacyAndMigratesOnChange(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(f.LegacyPath), dirPerm); err != nil {
 		t.Fatal(err)
 	}
-	legacyData := []byte("[{\"source\":\"pr\",\"name\":\"vigie#3\"}]\n")
+	legacyData := []byte("[{\"source\":\"pr\",\"name\":\"atop#3\"}]\n")
 	if err := os.WriteFile(f.LegacyPath, legacyData, filePerm); err != nil {
 		t.Fatal(err)
 	}
@@ -178,6 +182,64 @@ func TestFileLoadsLegacyAndMigratesOnChange(t *testing.T) {
 	}
 }
 
+func TestFileLegacyPRSurvivesPruneAfterRepositoryRename(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}
+	if err := os.MkdirAll(filepath.Dir(f.LegacyPath), dirPerm); err != nil {
+		t.Fatal(err)
+	}
+	legacy := []byte("[{\"source\":\"pr\",\"name\":\"atop#3\"}]\n")
+	if err := os.WriteFile(f.LegacyPath, legacy, filePerm); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.Update(func(s Set) Set { return s.Prune([]source.Row{prRow}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []Entry{entryOf(prRow)}; !slices.Equal(got.Entries(), want) {
+		t.Errorf("updated %v, want %v", got.Entries(), want)
+	}
+}
+
+func TestFileMissingCurrentAndLegacyIsEmpty(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}
+	got, err := f.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Len() != 0 {
+		t.Errorf("loaded %v, want empty set", got.Entries())
+	}
+}
+
+func TestFileMalformedLegacyNamesLegacyPath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}
+	if err := os.MkdirAll(filepath.Dir(f.LegacyPath), dirPerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(f.LegacyPath, []byte("{"), filePerm); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.Load()
+	if err == nil || !strings.Contains(err.Error(), f.LegacyPath) {
+		t.Fatalf("Load error = %v, want it to name %q", err, f.LegacyPath)
+	}
+}
+
 func TestFilePrefersCurrentOverLegacy(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -197,6 +259,28 @@ func TestFilePrefersCurrentOverLegacy(t *testing.T) {
 	}
 	if want := []Entry{entryOf(prRow)}; !slices.Equal(got.Entries(), want) {
 		t.Errorf("loaded %v, want current file %v", got.Entries(), want)
+	}
+}
+
+func TestFilePrefersEmptyCurrentOverLegacy(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}
+	if err := (File{Path: f.Path}).Save(Set{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := (File{Path: f.LegacyPath}).Save(New(entryOf(taskRow))); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Len() != 0 {
+		t.Errorf("loaded %v, want current empty set", got.Entries())
 	}
 }
 
@@ -246,5 +330,62 @@ func TestFileUpdate(t *testing.T) {
 				t.Errorf("file written = %v, want %v (now %q)", written, tt.wantWrite, data)
 			}
 		})
+	}
+}
+
+func TestFileUpdateSerializesWriters(t *testing.T) {
+	t.Parallel()
+	f := File{Path: filepath.Join(t.TempDir(), fileName)}
+	firstEntered := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	updates := make(chan error, 2)
+
+	go func() {
+		_, err := f.Update(func(s Set) Set {
+			close(firstEntered)
+			<-releaseFirst
+			return s.Hide(prRow)
+		})
+		updates <- err
+	}()
+	<-firstEntered
+	assertUpdateLockHeld(t, f.Path+lockSuffix)
+
+	secondStarted := make(chan struct{})
+	go func() {
+		close(secondStarted)
+		_, err := f.Update(func(s Set) Set { return s.Hide(taskRow) })
+		updates <- err
+	}()
+	<-secondStarted
+	close(releaseFirst)
+	for range 2 {
+		if err := <-updates; err != nil {
+			t.Fatalf("Update: %v", err)
+		}
+	}
+	got, err := f.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Entry{entryOf(prRow), entryOf(taskRow)}
+	if !slices.Equal(got.Entries(), want) {
+		t.Errorf("loaded %v, want %v", got.Entries(), want)
+	}
+}
+
+func assertUpdateLockHeld(t *testing.T, path string) {
+	t.Helper()
+	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, filePerm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if !errors.Is(err, syscall.EWOULDBLOCK) {
+		if err == nil {
+			syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		}
+		t.Fatalf("competing lock error = %v, want EWOULDBLOCK", err)
 	}
 }

@@ -13,11 +13,11 @@ vigie · 2026-10-14 21:55:04 · 2 need you · 3 busy · 2 idle
   vikunja       vikunja  #589                               PR open                 2h [claude-fable] improve mcp server, let's …
 ● pr            github   └─ puckdb#14                       awaiting your review    2h [claude-fable] Propose new MCP server tools
   vikunja       vikunja  #840                               conflict fix            5m [claude-fable] we need a refresh
-  pr            github   └─ vigie#3                          conflict fix            5m [claude-fable] Show what each agent is doing
+  pr            github   └─ vigie#3                         conflict fix            5m [claude-fable] Show what each agent is doing
   kelos task    github      └─ pr-conflict-9f3              conflict fix            5m https://github.com/sperano/vigie/pull/3
   vikunja       vikunja  #612                               implementing           12m [gpt-sol] CLI: list VMs
   kelos task    vikunja  └─ vikunja-cocovm-612              implementing           12m vikunja #612
-  local claude  local    vigie-da                            busy                    3m ~/code/vigie tmux main:@5.%6
+  local claude  local    vigie-da                           busy                    3m ~/code/vigie tmux main:@5.%6
   vikunja       vikunja  #701                               idle                    1d [claude-opus] write the docs
   kelos session kelos    eric-hollingsworth                 idle                    3h hollingsworth
 ```
@@ -136,6 +136,8 @@ documented interface, and may change without notice.
 ## Configuration
 
 Every flag defaults to an environment variable, then to a built-in value.
+The former `ATOP_*` name remains a fallback for each renamed `VIGIE_*`
+variable when the new name is unset.
 
 | Flag | Environment | Default |
 | --- | --- | --- |
