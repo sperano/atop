@@ -29,6 +29,7 @@ func TestHides(t *testing.T) {
 		want bool
 	}{
 		{"hidden row", prRow, true},
+		{"legacy name for renamed PR", source.Row{Source: source.SourcePR, Name: "atop#3"}, true},
 		{"other row", taskRow, false},
 		{"same name, other source", source.Row{Source: source.SourceVikunja, Name: prRow.Name}, false},
 		{"raw error status is an ordinary row", sessionRow, true},
@@ -63,6 +64,14 @@ func TestHideUnhide(t *testing.T) {
 	}
 	if !once.Hides(prRow) {
 		t.Error("Unhide changed its receiver")
+	}
+	legacyPR := prRow
+	legacyPR.Name = "atop#3"
+	if got := once.Unhide(legacyPR); got.Len() != 0 {
+		t.Errorf("unhiding legacy PR name left %v", got.Entries())
+	}
+	if got := empty.Hide(legacyPR); !got.Hides(prRow) {
+		t.Error("legacy PR name did not hide renamed PR")
 	}
 	if got := empty.Unhide(prRow); got.Len() != 0 {
 		t.Error("unhiding on an empty set")
@@ -110,6 +119,7 @@ func TestPrune(t *testing.T) {
 		wantKept []Entry
 	}{
 		{"both listed", []source.Row{prRow, taskRow}, []Entry{entryOf(prRow), entryOf(taskRow)}},
+		{"listed before repository rename", []source.Row{{Source: source.SourcePR, Name: "atop#3"}, taskRow}, []Entry{entryOf(prRow), entryOf(taskRow)}},
 		{"PR merged", []source.Row{otherPR, taskRow}, []Entry{entryOf(taskRow)}},
 		{"both gone", nil, []Entry{}},
 		{"PR source failed", []source.Row{errorRow, taskRow}, []Entry{entryOf(prRow), entryOf(taskRow)}},

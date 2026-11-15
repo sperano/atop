@@ -182,6 +182,34 @@ func TestFileLoadsLegacyAndMigratesOnChange(t *testing.T) {
 	}
 }
 
+func TestFileLegacyMigrationOnlyRenamesPR(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}
+	if err := os.MkdirAll(filepath.Dir(f.LegacyPath), dirPerm); err != nil {
+		t.Fatal(err)
+	}
+	legacyData := []byte(`[{"source":"pr","name":"atop#3"},{"source":"vikunja","name":"atop#3"}]`)
+	if err := os.WriteFile(f.LegacyPath, legacyData, filePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := f.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Entry{
+		{Source: source.SourcePR, Name: "vigie#3"},
+		{Source: source.SourceVikunja, Name: "atop#3"},
+	}
+	if !slices.Equal(got.Entries(), want) {
+		t.Errorf("loaded %v, want %v", got.Entries(), want)
+	}
+}
+
 func TestFileLegacyPRSurvivesPruneAfterRepositoryRename(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -197,6 +225,31 @@ func TestFileLegacyPRSurvivesPruneAfterRepositoryRename(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := f.Update(func(s Set) Set { return s.Prune([]source.Row{prRow}) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []Entry{entryOf(prRow)}; !slices.Equal(got.Entries(), want) {
+		t.Errorf("updated %v, want %v", got.Entries(), want)
+	}
+}
+
+func TestFileLegacyPRSurvivesPruneBeforeRepositoryRename(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}
+	if err := os.MkdirAll(filepath.Dir(f.LegacyPath), dirPerm); err != nil {
+		t.Fatal(err)
+	}
+	legacy := []byte("[{\"source\":\"pr\",\"name\":\"atop#3\"}]\n")
+	if err := os.WriteFile(f.LegacyPath, legacy, filePerm); err != nil {
+		t.Fatal(err)
+	}
+	currentPR := prRow
+	currentPR.Name = "atop#3"
+	got, err := f.Update(func(s Set) Set { return s.Prune([]source.Row{currentPR}) })
 	if err != nil {
 		t.Fatal(err)
 	}

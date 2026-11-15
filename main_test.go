@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -13,10 +14,14 @@ func TestHiddenStoreUsesDefaultLegacyFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(configDir, "vigie", "hidden.json"); store.Path != want {
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(userConfigDir, "vigie", "hidden.json"); store.Path != want {
 		t.Errorf("Path = %q, want %q", store.Path, want)
 	}
-	if want := filepath.Join(configDir, "atop", "hidden.json"); store.LegacyPath != want {
+	if want := filepath.Join(userConfigDir, "atop", "hidden.json"); store.LegacyPath != want {
 		t.Errorf("LegacyPath = %q, want %q", store.LegacyPath, want)
 	}
 }

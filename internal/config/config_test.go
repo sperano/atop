@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -135,19 +136,20 @@ func TestParseCurrentEnvPrecedesLegacy(t *testing.T) {
 func TestParseErrors(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		args    []string
-		env     map[string]string
-		invalid bool // reported by vigie rather than by the flag package
+		name     string
+		args     []string
+		env      map[string]string
+		invalid  bool // reported by vigie rather than by the flag package
+		wantText string
 	}{
-		{"bad env int", nil, map[string]string{"VIGIE_STALE_DAYS": "many"}, true},
-		{"bad env label", nil, map[string]string{"VIGIE_IN_PROGRESS_LABEL": "x"}, true},
-		{"bad env duration", nil, map[string]string{"VIGIE_INTERVAL": "soon"}, true},
-		{"bad legacy env int", nil, map[string]string{"ATOP_STALE_DAYS": "many"}, true},
-		{"bad legacy env duration", nil, map[string]string{"ATOP_INTERVAL": "soon"}, true},
-		{"zero interval flag", []string{"-interval", "0s"}, nil, true},
-		{"negative interval env", nil, map[string]string{"VIGIE_INTERVAL": negativeSeconds}, true},
-		{"unknown flag", []string{"-nope"}, nil, false},
+		{"bad env int", nil, map[string]string{"VIGIE_STALE_DAYS": "many"}, true, ""},
+		{"bad env label", nil, map[string]string{"VIGIE_IN_PROGRESS_LABEL": "x"}, true, ""},
+		{"bad env duration", nil, map[string]string{"VIGIE_INTERVAL": "soon"}, true, ""},
+		{"bad legacy env int", nil, map[string]string{"ATOP_STALE_DAYS": "many"}, true, "ATOP_STALE_DAYS"},
+		{"bad legacy env duration", nil, map[string]string{"ATOP_INTERVAL": "soon"}, true, "ATOP_INTERVAL"},
+		{"zero interval flag", []string{"-interval", "0s"}, nil, true, ""},
+		{"negative interval env", nil, map[string]string{"VIGIE_INTERVAL": negativeSeconds}, true, ""},
+		{"unknown flag", []string{"-nope"}, nil, false, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,6 +160,9 @@ func TestParseErrors(t *testing.T) {
 			}
 			if got := errors.Is(err, ErrInvalid); got != tt.invalid {
 				t.Errorf("errors.Is(err, ErrInvalid) = %v, want %v (err: %v)", got, tt.invalid, err)
+			}
+			if tt.wantText != "" && !strings.Contains(err.Error(), tt.wantText) {
+				t.Errorf("error = %q, want it to contain %q", err, tt.wantText)
 			}
 		})
 	}
