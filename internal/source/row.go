@@ -1,4 +1,4 @@
-// Package source fetches the agent signals atop shows, one row per agent,
+// Package source fetches the agent signals vigie shows, one row per agent,
 // PR or task. Parsing is kept apart from fetching so that every state
 // mapping can be tested on plain JSON.
 package source

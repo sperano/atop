@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/source"
 )
 
 func TestFormatAge(t *testing.T) {

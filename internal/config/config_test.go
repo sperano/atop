@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	testName        = "atop"
+	testName        = "vigie"
 	envOwner        = "env-owner"
 	flagOwner       = "flag-owner"
 	envStaleDays    = 7
@@ -44,11 +44,11 @@ func TestParseDefaults(t *testing.T) {
 func TestParseEnvAndFlags(t *testing.T) {
 	t.Parallel()
 	env := map[string]string{
-		"ATOP_GITHUB_OWNER":      envOwner,
-		"ATOP_STALE_DAYS":        "7",
-		"ATOP_IN_PROGRESS_LABEL": "4",
-		"ATOP_INTERVAL":          "5s",
-		"ATOP_HIDDEN_FILE":       envHiddenFile,
+		"VIGIE_GITHUB_OWNER":      envOwner,
+		"VIGIE_STALE_DAYS":        "7",
+		"VIGIE_IN_PROGRESS_LABEL": "4",
+		"VIGIE_INTERVAL":          "5s",
+		"VIGIE_HIDDEN_FILE":       envHiddenFile,
 	}
 	tests := []struct {
 		name  string
@@ -87,13 +87,13 @@ func TestParseErrors(t *testing.T) {
 		name    string
 		args    []string
 		env     map[string]string
-		invalid bool // reported by atop rather than by the flag package
+		invalid bool // reported by vigie rather than by the flag package
 	}{
-		{"bad env int", nil, map[string]string{"ATOP_STALE_DAYS": "many"}, true},
-		{"bad env label", nil, map[string]string{"ATOP_IN_PROGRESS_LABEL": "x"}, true},
-		{"bad env duration", nil, map[string]string{"ATOP_INTERVAL": "soon"}, true},
+		{"bad env int", nil, map[string]string{"VIGIE_STALE_DAYS": "many"}, true},
+		{"bad env label", nil, map[string]string{"VIGIE_IN_PROGRESS_LABEL": "x"}, true},
+		{"bad env duration", nil, map[string]string{"VIGIE_INTERVAL": "soon"}, true},
 		{"zero interval flag", []string{"-interval", "0s"}, nil, true},
-		{"negative interval env", nil, map[string]string{"ATOP_INTERVAL": negativeSeconds}, true},
+		{"negative interval env", nil, map[string]string{"VIGIE_INTERVAL": negativeSeconds}, true},
 		{"unknown flag", []string{"-nope"}, nil, false},
 	}
 	for _, tt := range tests {

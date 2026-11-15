@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sperano/atop/internal/hidden"
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/hidden"
+	"github.com/sperano/vigie/internal/source"
 )
 
 var (
@@ -165,7 +165,7 @@ func TestRefreshSyncsHidden(t *testing.T) {
 	if store.writes != 1 {
 		t.Errorf("%d writes, want 1: nothing changed on the second refresh", store.writes)
 	}
-	store.set = store.set.Hide(named("c")[0]) // another atop hides c
+	store.set = store.set.Hide(named("c")[0]) // another vigie hides c
 	m = send(m, rowsMsg{rows: named("a", "b", "c")})
 	if got := entryNames(m); !slices.Equal(got, []string{"a"}) {
 		t.Errorf("after c was hidden elsewhere, entries = %v, want [a]", got)
@@ -179,10 +179,10 @@ func TestRefreshSyncsHidden(t *testing.T) {
 func TestHiddenParentLeavesChildAtTop(t *testing.T) {
 	t.Parallel()
 	parent := source.Row{Source: "vikunja", Name: "#7", State: "idle", Ref: "vikunja:7"}
-	child := source.Row{Source: "pr", Name: "atop#3", State: "review", ParentRefs: []string{"vikunja:7"}}
+	child := source.Row{Source: "pr", Name: "vigie#3", State: "review", ParentRefs: []string{"vikunja:7"}}
 	set := hidden.New(hidden.Entry{Source: "vikunja", Name: "#7"})
 	entries := arrangeShown([]source.Row{parent, child}, set, false)
-	if len(entries) != 1 || entries[0].Row.Name != "atop#3" || entries[0].Prefix != "" {
+	if len(entries) != 1 || entries[0].Row.Name != "vigie#3" || entries[0].Prefix != "" {
 		t.Errorf("entries = %+v, want the PR alone at the top level", entries)
 	}
 	entries = arrangeShown([]source.Row{parent, child}, set, true)

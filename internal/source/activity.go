@@ -49,7 +49,7 @@ var (
 )
 
 // taskActivity names what a Task does, from its role label, its name and
-// its prompt. It is empty for a Task atop does not know.
+// its prompt. It is empty for a Task vigie does not know.
 func taskActivity(t kelosTask) string {
 	switch role := t.Metadata.Labels[roleLabel]; role {
 	case rolePRConflict:

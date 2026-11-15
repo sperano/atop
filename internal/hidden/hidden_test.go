@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/source"
 )
 
 var (
-	prRow      = source.Row{Source: source.SourcePR, Name: "atop#3", State: "review"}
+	prRow      = source.Row{Source: source.SourcePR, Name: "vigie#3", State: "review"}
 	taskRow    = source.Row{Source: source.SourceVikunja, Name: "#874", State: "idle"}
-	sessionRow = source.Row{Source: source.SourceLocal, Name: "atop", State: source.StateError}
+	sessionRow = source.Row{Source: source.SourceLocal, Name: "vigie", State: source.StateError}
 	errorRow   = source.ErrorRow(source.SourcePR, errors.New("gh logged out"))
 )
 
@@ -103,7 +103,7 @@ func fullPRPage() []source.Row {
 func TestPrune(t *testing.T) {
 	t.Parallel()
 	set := New(entryOf(prRow), entryOf(taskRow))
-	otherPR := source.Row{Source: source.SourcePR, Name: "atop#9"}
+	otherPR := source.Row{Source: source.SourcePR, Name: "vigie#9"}
 	tests := []struct {
 		name     string
 		rows     []source.Row
@@ -115,7 +115,7 @@ func TestPrune(t *testing.T) {
 		{"PR source failed", []source.Row{errorRow, taskRow}, []Entry{entryOf(prRow), entryOf(taskRow)}},
 		{
 			"a raw error row does not keep its source's entries",
-			[]source.Row{{Source: source.SourcePR, Name: "atop#9", State: source.StateError}, taskRow},
+			[]source.Row{{Source: source.SourcePR, Name: "vigie#9", State: source.StateError}, taskRow},
 			[]Entry{entryOf(taskRow)},
 		},
 		{"PR search cut short", append(fullPRPage(), taskRow), []Entry{entryOf(prRow), entryOf(taskRow)}},

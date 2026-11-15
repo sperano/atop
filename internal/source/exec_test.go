@@ -35,7 +35,7 @@ func TestExecRunner(t *testing.T) {
 	})
 	t.Run("missing binary", func(t *testing.T) {
 		t.Parallel()
-		if _, err := ExecRunner(ctx, "atop-no-such-binary"); err == nil {
+		if _, err := ExecRunner(ctx, "vigie-no-such-binary"); err == nil {
 			t.Error("expected an error")
 		}
 	})

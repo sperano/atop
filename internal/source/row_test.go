@@ -132,8 +132,8 @@ func TestIsSourceError(t *testing.T) {
 		want bool
 	}{
 		{"error row", ErrorRow(SourceVikunja, errors.New("down")), true},
-		{"session whose raw status is error", Row{Source: SourceLocal, Name: "atop", State: StateError}, false},
-		{"ordinary row", Row{Source: SourcePR, Name: "atop#3", State: "review"}, false},
+		{"session whose raw status is error", Row{Source: SourceLocal, Name: "vigie", State: StateError}, false},
+		{"ordinary row", Row{Source: SourcePR, Name: "vigie#3", State: "review"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

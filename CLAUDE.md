@@ -1,6 +1,6 @@
-# atop — agent top
+# vigie — agent top
 
-`atop` is a terminal UI that answers "which coding agent needs me, who is
+`vigie` is a terminal UI that answers "which coding agent needs me, who is
 running what, who is idle". It is a Go port of a Python prototype
 (`just agents-top` in sperano/hollingsworth, never merged). Public repo,
 GPL-3.0.
@@ -85,7 +85,7 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
   `N hidden`) and `--once`; `H` lists them dim with mark `-`. Only the row is
   hidden: its children move to the top level. A source's error row cannot be
   hidden. The file is re-read and updated (load, change, save if changed) on
-  every refresh and every `h`, so several atops share it; an unparsable file
+  every refresh and every `h`, so several processes share it; an unparsable file
   is never overwritten. An entry is pruned when its source was read in full
   (no error row, PR search under its limit) and no longer lists it.
 - Ages use the largest unit: `59s`, `1h`, `3d`.
@@ -123,12 +123,15 @@ hard-coded beyond these defaults:
 | Kelos console URL | `https://kelos.spe.quebec` |
 | Stale days | `30` |
 | Refresh interval | `2m` |
-| Hidden-rows file | `<os.UserConfigDir>/atop/hidden.json` |
+| Hidden-rows file | `<os.UserConfigDir>/vigie/hidden.json` |
+
+When the default file is missing, read the former `atop/hidden.json`; write
+the loaded set to the new path on its first change.
 
 ## Layout and rules
 
-- Module `github.com/sperano/atop`, main package at the repo root, so that
-  `go install github.com/sperano/atop@latest` works. Suggested packages:
+- Module `github.com/sperano/vigie`, main package at the repo root, so that
+  `go install github.com/sperano/vigie@latest` works. Suggested packages:
   `internal/source` (row, local, kelos, github, vikunja, an exec helper with
   context timeouts), `internal/ui` (model, view, keys, open), `internal/config`.
 - Inject command runners, HTTP clients, the clock and the opener through small
@@ -153,5 +156,5 @@ hard-coded beyond these defaults:
 - Before a PR: review with the `idiomatic-go` agent, then `pr-challenger`.
 - Work in a git worktree under `.claude/worktrees/<branch>`; never on `main`.
   End every task with a PR.
-- Before calling the work done, run `atop --once` against the live sources and
+- Before calling the work done, run `vigie --once` against the live sources and
   confirm that rows come from all five.

@@ -6,14 +6,14 @@ import (
 )
 
 const (
-	followUpPrompt = `Follow-up request on pull request #3 in sperano/atop: Fix it
+	followUpPrompt = `Follow-up request on pull request #3 in sperano/vigie: Fix it
 
-PR: https://github.com/sperano/atop/pull/3
+PR: https://github.com/sperano/vigie/pull/3
 Branch: kelos/vikunja-840
 Owner: sperano
 Review bot: cubic-dev-ai[bot]
 Event: pull_request_review
-Request: https://github.com/sperano/atop/pull/3#pullrequestreview-9
+Request: https://github.com/sperano/vigie/pull/3#pullrequestreview-9
 
 <request>
 %s
@@ -22,13 +22,13 @@ Request: https://github.com/sperano/atop/pull/3#pullrequestreview-9
 Follow the PR follow-up procedure in your instructions.`
 	cubicReport    = "**2 issues found** across 3 files"
 	ownerRequest   = "/kelos also cover the empty case"
-	conflictPrompt = `Resolve the confirmed merge conflict on pull request #3 in sperano/atop: Fix it
+	conflictPrompt = `Resolve the confirmed merge conflict on pull request #3 in sperano/vigie: Fix it
 
-PR: https://github.com/sperano/atop/pull/3
+PR: https://github.com/sperano/vigie/pull/3
 Branch: kelos/vikunja-840`
-	mergeClosePrompt = `A Kelos pull request in sperano/atop was closed.
+	mergeClosePrompt = `A Kelos pull request in sperano/vigie was closed.
 
-pr: https://github.com/sperano/atop/pull/3
+pr: https://github.com/sperano/vigie/pull/3
 branch: kelos/vikunja-840
 merged: true`
 )
@@ -46,7 +46,7 @@ func TestTaskActivity(t *testing.T) {
 		want   string
 	}{
 		{"implementation task", taskObj("Running", nil, obj{vikunjaTaskLabel: "840"}), "", ActivityImplementing},
-		{"discuss task", obj{"metadata": obj{"name": "vikunja-discuss-atop-claude-fable-840",
+		{"discuss task", obj{"metadata": obj{"name": "vikunja-discuss-vigie-claude-fable-840",
 			"labels": obj{vikunjaTaskLabel: "840"}}}, "", ActivityDiscussing},
 		{"unknown task", taskObj("Running", nil, nil), "", ""},
 		{"conflict fix", taskObj("Running", nil, obj{roleLabel: rolePRConflict}), conflictPrompt, ActivityConflictFix},
@@ -94,10 +94,10 @@ func TestPromptPR(t *testing.T) {
 	tests := []struct {
 		name, prompt, want string
 	}{
-		{"follow-up", promptOf(ownerRequest), "https://github.com/sperano/atop/pull/3"},
-		{"conflict", conflictPrompt, "https://github.com/sperano/atop/pull/3"},
-		{"plumbing lowercase key", mergeClosePrompt, "https://github.com/sperano/atop/pull/3"},
-		{"none", "Vikunja task 840 in project atop: we need a refresh", ""},
+		{"follow-up", promptOf(ownerRequest), "https://github.com/sperano/vigie/pull/3"},
+		{"conflict", conflictPrompt, "https://github.com/sperano/vigie/pull/3"},
+		{"plumbing lowercase key", mergeClosePrompt, "https://github.com/sperano/vigie/pull/3"},
+		{"none", "Vikunja task 840 in project vigie: we need a refresh", ""},
 		{"not at line start", "see PR: https://x/pull/1 now", ""},
 	}
 	for _, tt := range tests {

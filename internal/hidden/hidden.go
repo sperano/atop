@@ -7,7 +7,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/sperano/atop/internal/source"
+	"github.com/sperano/vigie/internal/source"
 )
 
 // Entry names a hidden row as it is stored in the file.

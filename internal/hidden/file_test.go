@@ -52,7 +52,7 @@ func TestFileLoad(t *testing.T) {
 		wantErr bool
 	}{
 		{"missing file is empty", "", nil, false},
-		{"entries", `[{"source":"pr","name":"atop#3"}]`, []Entry{entryOf(prRow)}, false},
+		{"entries", `[{"source":"pr","name":"vigie#3"}]`, []Entry{entryOf(prRow)}, false},
 		{"null", "null", nil, false},
 		{"blank", " \n", nil, false},
 		{"malformed", "{", nil, true},
@@ -117,6 +117,89 @@ func TestDefaultPath(t *testing.T) {
 	}
 }
 
+func TestDefaultFilePaths(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/cfg")
+	t.Setenv("HOME", "/home/someone")
+	f, err := DefaultFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(appDir, fileName); !strings.HasSuffix(f.Path, want) {
+		t.Errorf("Path = %q, want it to end in %q", f.Path, want)
+	}
+	if want := filepath.Join(legacyAppDir, fileName); !strings.HasSuffix(f.LegacyPath, want) {
+		t.Errorf("LegacyPath = %q, want it to end in %q", f.LegacyPath, want)
+	}
+}
+
+func TestFileLoadsLegacyAndMigratesOnChange(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}
+	if err := os.MkdirAll(filepath.Dir(f.LegacyPath), dirPerm); err != nil {
+		t.Fatal(err)
+	}
+	legacyData := []byte("[{\"source\":\"pr\",\"name\":\"vigie#3\"}]\n")
+	if err := os.WriteFile(f.LegacyPath, legacyData, filePerm); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := f.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []Entry{entryOf(prRow)}; !slices.Equal(got.Entries(), want) {
+		t.Errorf("loaded %v, want %v", got.Entries(), want)
+	}
+	if _, err := os.Stat(f.Path); !os.IsNotExist(err) {
+		t.Fatalf("new file exists before a change: %v", err)
+	}
+
+	got, err = f.Update(func(s Set) Set { return s.Hide(taskRow) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Entry{entryOf(prRow), entryOf(taskRow)}
+	if !slices.Equal(got.Entries(), want) {
+		t.Errorf("updated %v, want %v", got.Entries(), want)
+	}
+	if current, err := (File{Path: f.Path}).Load(); err != nil {
+		t.Fatal(err)
+	} else if !slices.Equal(current.Entries(), want) {
+		t.Errorf("migrated %v, want %v", current.Entries(), want)
+	}
+	if data, err := os.ReadFile(f.LegacyPath); err != nil {
+		t.Fatal(err)
+	} else if !slices.Equal(data, legacyData) {
+		t.Errorf("legacy file changed to %q", data)
+	}
+}
+
+func TestFilePrefersCurrentOverLegacy(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f := File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}
+	if err := (File{Path: f.Path}).Save(New(entryOf(prRow))); err != nil {
+		t.Fatal(err)
+	}
+	if err := (File{Path: f.LegacyPath}).Save(New(entryOf(taskRow))); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []Entry{entryOf(prRow)}; !slices.Equal(got.Entries(), want) {
+		t.Errorf("loaded %v, want current file %v", got.Entries(), want)
+	}
+}
+
 func TestFileUpdate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -128,14 +211,14 @@ func TestFileUpdate(t *testing.T) {
 		wantWrite bool
 	}{
 		{
-			"keeps what another atop hid",
+			"keeps what another vigie hid",
 			`[{"source":"vikunja","name":"#874"}]`,
 			func(s Set) Set { return s.Hide(prRow) },
 			[]Entry{entryOf(prRow), entryOf(taskRow)}, false, true,
 		},
 		{
 			"no change, no write",
-			`[{"source":"pr","name":"atop#3"}]`,
+			`[{"source":"pr","name":"vigie#3"}]`,
 			func(s Set) Set { return s.Hide(prRow) },
 			[]Entry{entryOf(prRow)}, false, false,
 		},

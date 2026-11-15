@@ -12,8 +12,9 @@ import (
 
 // Where the hidden rows live by default, under the user's config directory.
 const (
-	appDir   = "atop"
-	fileName = "hidden.json"
+	appDir       = "vigie"
+	legacyAppDir = "atop"
+	fileName     = "hidden.json"
 )
 
 const (
@@ -24,23 +25,40 @@ const (
 	jsonIndent  = "  "
 )
 
-// DefaultPath is <user config dir>/atop/hidden.json.
+// DefaultPath is <user config dir>/vigie/hidden.json.
 func DefaultPath() (string, error) {
+	f, err := DefaultFile()
+	return f.Path, err
+}
+
+// DefaultFile stores rows under vigie and falls back to atop until the first
+// change writes the rows to the new path.
+func DefaultFile() (File, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		return "", err
+		return File{}, err
 	}
-	return filepath.Join(dir, appDir, fileName), nil
+	return File{
+		Path:       filepath.Join(dir, appDir, fileName),
+		LegacyPath: filepath.Join(dir, legacyAppDir, fileName),
+	}, nil
 }
 
 // File stores a Set as a JSON array of entries.
 type File struct {
-	Path string
+	Path       string
+	LegacyPath string
 }
 
-// Load reads the set; a missing or blank file is an empty set.
+// Load reads the set. When Path is missing, LegacyPath is read instead. A
+// missing or blank file is an empty set.
 func (f File) Load() (Set, error) {
-	data, err := os.ReadFile(f.Path)
+	path := f.Path
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) && f.LegacyPath != "" {
+		path = f.LegacyPath
+		data, err = os.ReadFile(path)
+	}
 	if errors.Is(err, fs.ErrNotExist) {
 		return Set{}, nil
 	}
@@ -52,14 +70,14 @@ func (f File) Load() (Set, error) {
 	}
 	var entries []Entry
 	if err := json.Unmarshal(data, &entries); err != nil {
-		return Set{}, fmt.Errorf("%s: %w", f.Path, err)
+		return Set{}, fmt.Errorf("%s: %w", path, err)
 	}
 	return New(entries...), nil
 }
 
 // Update applies change to the set as stored now, writes the result when
 // it differs, and returns it. Reading first keeps the changes made since
-// by another atop or by hand; a file that cannot be read is left alone.
+// by another vigie or by hand; a file that cannot be read is left alone.
 func (f File) Update(change func(Set) Set) (Set, error) {
 	current, err := f.Load()
 	if err != nil {

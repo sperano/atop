@@ -96,7 +96,7 @@ func TestTaskRowLinks(t *testing.T) {
 
 func TestTaskRowLinksFromSpecAndPrompt(t *testing.T) {
 	t.Parallel()
-	promptURL := "https://github.com/sperano/atop/pull/3"
+	promptURL := "https://github.com/sperano/vigie/pull/3"
 	tests := []struct {
 		name   string
 		spec   obj

@@ -1,23 +1,23 @@
-# atop
+# vigie
 
-A `top` for coding agents—hence **agent top**, or `atop`: which agent needs
-you, who is running what, who is idle. One table, refreshed every two minutes,
-over five sources: local Claude Code sessions, Kelos Sessions and Tasks, open
-GitHub PRs, and in-progress Vikunja tasks.
+A `top` for coding agents, originally named `atop` for **agent top**, now called
+`vigie`: which agent needs you, who is running what, who is idle. One table,
+refreshed every two minutes, covers five sources: local Claude Code sessions,
+Kelos Sessions and Tasks, open GitHub PRs, and in-progress Vikunja tasks.
 
 ```
-atop · 2026-10-14 21:55:04 · 2 need you · 3 busy · 2 idle
+vigie · 2026-10-14 21:55:04 · 2 need you · 3 busy · 2 idle
 
   TYPE          ORIGIN   NAME                               STATE                  AGE DETAIL
 ● vikunja       vikunja  #182                               reply from claude      48m [claude-opus] CLI: launch specific VMs …
   vikunja       vikunja  #589                               PR open                 2h [claude-fable] improve mcp server, let's …
 ● pr            github   └─ puckdb#14                       awaiting your review    2h [claude-fable] Propose new MCP server tools
   vikunja       vikunja  #840                               conflict fix            5m [claude-fable] we need a refresh
-  pr            github   └─ atop#3                          conflict fix            5m [claude-fable] Show what each agent is doing
-  kelos task    github      └─ pr-conflict-9f3              conflict fix            5m https://github.com/sperano/atop/pull/3
+  pr            github   └─ vigie#3                          conflict fix            5m [claude-fable] Show what each agent is doing
+  kelos task    github      └─ pr-conflict-9f3              conflict fix            5m https://github.com/sperano/vigie/pull/3
   vikunja       vikunja  #612                               implementing           12m [gpt-sol] CLI: list VMs
   kelos task    vikunja  └─ vikunja-cocovm-612              implementing           12m vikunja #612
-  local claude  local    atop-da                            busy                    3m ~/code/atop tmux main:@5.%6
+  local claude  local    vigie-da                            busy                    3m ~/code/vigie tmux main:@5.%6
   vikunja       vikunja  #701                               idle                    1d [claude-opus] write the docs
   kelos session kelos    eric-hollingsworth                 idle                    3h hollingsworth
 ```
@@ -39,7 +39,7 @@ cannot be read (no kubeconfig, `gh` logged out, Vikunja down) shows as one
 ## Install
 
 ```bash
-go install github.com/sperano/atop@latest
+go install github.com/sperano/vigie@latest
 ```
 
 ## Requirements
@@ -64,7 +64,7 @@ go install github.com/sperano/atop@latest
 
 The table refreshes every `--interval`. While a refresh runs, the status line
 says so and the previous rows stay. The selection follows its row across
-refreshes. `atop --once` prints one plain-text snapshot, without the hidden
+refreshes. `vigie --once` prints one plain-text snapshot, without the hidden
 rows, and exits. Colour is off when `NO_COLOR` is set or stdout is not a
 terminal.
 
@@ -82,16 +82,20 @@ working on it) move to the top level. A source's `error` row cannot be
 hidden, since that would also hide the next failure.
 
 A row is remembered by its source and name in `--hidden-file`, a JSON list
-you may edit by hand. atop re-reads the file on every refresh and every `h`,
-so several atops share it and edits show up at the next refresh. Give an
-atop run with other settings (another `--github-owner`, another kubectl
+you may edit by hand. `vigie` re-reads the file on every refresh and every `h`,
+so several processes share it and edits show up at the next refresh. Give a
+`vigie` run with other settings (another `--github-owner`, another kubectl
 context) its own `--hidden-file`: it would prune the entries it cannot see. An entry is
 forgotten once its source is read in full without it (the PR was merged, the
 task is done), so a later row with the same name is not hidden by mistake; a
 source that failed, or a PR search that hit its 50-PR limit, forgets nothing.
-While the file cannot be parsed, atop leaves it alone, says so in the footer
+While the file cannot be parsed, vigie leaves it alone, says so in the footer
 and keeps hidden rows for the current run only; `--once` warns and hides
 nothing.
+
+The default file is `<user config dir>/vigie/hidden.json`. If it does not yet
+exist, `vigie` reads the former `atop/hidden.json` and writes the migrated set
+to the new path on the first change.
 
 ## Types and origins
 
@@ -106,7 +110,7 @@ than inferred from a Task name or prompt.
 
 | Type | Shows | Needs you when | Enter opens |
 | --- | --- | --- | --- |
-| `local claude` | Claude Code sessions on this machine: `busy`, `idle`, or another raw status | the status is neither busy nor idle | `tmux switch-client` to its pane, when atop runs inside tmux |
+| `local claude` | Claude Code sessions on this machine: `busy`, `idle`, or another raw status | the status is neither busy nor idle | `tmux switch-client` to its pane, when vigie runs inside tmux |
 | `kelos session` | Kelos Sessions: `busy`/`idle` from the `Active` condition, else the lowercased phase | the phase is `Failed` | the Kelos console |
 | `kelos task` | Kelos Tasks. While one runs, its state is what it does: `implementing`, `discussing`, `conflict fix`, `cubic fix` (a review bot's findings; the bot's name comes from the Task), `pr follow-up`, `task follow-up`; a plumbing Task shows its Kelos role (`merge-close`, `pr-open`, `conflict-reconcile`). Otherwise `blocked` (waiting on its blockers), `waiting` (queued behind the branch lock), `pending`, `done` for an hour after completion, then hidden; the activity then starts DETAIL | the Task failed | its PR, else its Vikunja task, else its logs in the console |
 | `pr` | open PRs of the owner's non-archived repos (first 50): `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `awaiting your review`; a `kelos:<variant>` label prefixes the title with `[variant]` | conflicts, failing checks, or awaiting review | the PR |
@@ -135,19 +139,19 @@ Every flag defaults to an environment variable, then to a built-in value.
 
 | Flag | Environment | Default |
 | --- | --- | --- |
-| `--namespace` | `ATOP_NAMESPACE` | `kelos-agents` |
-| `--github-owner` | `ATOP_GITHUB_OWNER` | `sperano` |
+| `--namespace` | `VIGIE_NAMESPACE` | `kelos-agents` |
+| `--github-owner` | `VIGIE_GITHUB_OWNER` | `sperano` |
 | `--vikunja-url` | `VIKUNJA_URL` | `https://vikunja.spe.quebec/api/v1` |
-| `--token-namespace` | `ATOP_TOKEN_NAMESPACE` | `vikunja` |
-| `--token-secret` | `ATOP_TOKEN_SECRET` | `agent-claude` |
-| `--token-key` | `ATOP_TOKEN_KEY` | `token` |
-| `--operator` | `ATOP_OPERATOR` | `eric` |
-| `--in-progress-label` | `ATOP_IN_PROGRESS_LABEL` | `1` |
-| `--pr-open-label` | `ATOP_PR_OPEN_LABEL` | `pr open` |
-| `--console-url` | `ATOP_CONSOLE_URL` | `https://kelos.spe.quebec` |
-| `--stale-days` | `ATOP_STALE_DAYS` | `30` |
-| `--interval` | `ATOP_INTERVAL` | `2m` |
-| `--hidden-file` | `ATOP_HIDDEN_FILE` | `<user config dir>/atop/hidden.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
+| `--token-namespace` | `VIGIE_TOKEN_NAMESPACE` | `vikunja` |
+| `--token-secret` | `VIGIE_TOKEN_SECRET` | `agent-claude` |
+| `--token-key` | `VIGIE_TOKEN_KEY` | `token` |
+| `--operator` | `VIGIE_OPERATOR` | `eric` |
+| `--in-progress-label` | `VIGIE_IN_PROGRESS_LABEL` | `1` |
+| `--pr-open-label` | `VIGIE_PR_OPEN_LABEL` | `pr open` |
+| `--console-url` | `VIGIE_CONSOLE_URL` | `https://kelos.spe.quebec` |
+| `--stale-days` | `VIGIE_STALE_DAYS` | `30` |
+| `--interval` | `VIGIE_INTERVAL` | `2m` |
+| `--hidden-file` | `VIGIE_HIDDEN_FILE` | `<user config dir>/vigie/hidden.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 | `--once` | | off |
 
 The Vikunja token comes from `VIKUNJA_API_TOKEN`, else from the
@@ -160,7 +164,7 @@ Kelos Task activities come from the Task itself: its
 `vikunja.spe.quebec/role` label (`pr-conflict`, `pr-followup`,
 `task-followup`), its name (`vikunja-discuss-*`), and, for a PR follow-up,
 the `Review bot:` line and the `<request>` of its prompt, which also names
-the PR it works on (`PR: <url>`). A Task atop does not know shows `running`.
+the PR it works on (`PR: <url>`). A Task vigie does not know shows `running`.
 
 ## License
 
