@@ -37,10 +37,11 @@ export const NAMED_COLORS = new Set(
 // attributes hold declarations, a style: directive a value, and the string
 // literals of a Svelte expression (style={…}, style:x={…}, or a {…} inside
 // a quoted value) are scanned as values. A .css file is CSS throughout.
-// Expressions holding braces of their own are not read.
+// A quote inside a quoted value's {…} does not end the value. Expressions
+// holding braces of their own are not read.
 const STYLE_BLOCK = /(<style\b[^>]*>)([\s\S]*?)<\/style>/gi;
-const STYLE_ATTRIBUTE = /(\bstyle=(["']))([\s\S]*?)\2/g;
-const STYLE_DIRECTIVE = /(\bstyle:[\w-]+=(["']))([\s\S]*?)\2/g;
+const STYLE_ATTRIBUTE = /(\bstyle=(["']))((?:\{[^{}]*\}|(?!\2)[^{])*)\2/g;
+const STYLE_DIRECTIVE = /(\bstyle:[\w-]+=(["']))((?:\{[^{}]*\}|(?!\2)[^{])*)\2/g;
 const STYLE_ATTRIBUTE_EXPRESSION = /(\bstyle=\{)([^{}]*)\}/g;
 const STYLE_DIRECTIVE_EXPRESSION = /(\bstyle:[\w-]+=\{)([^{}]*)\}/g;
 const INTERPOLATION = /\{([^{}]*)\}/g;

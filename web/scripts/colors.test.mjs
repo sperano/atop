@@ -207,6 +207,18 @@ describe('colorViolations', () => {
 			['red']
 		],
 		[
+			'a same-quote string in a style attribute expression',
+			'<p style="color: {on ? "red" : "blue"}">x</p>',
+			'.svelte',
+			['red', 'blue']
+		],
+		[
+			'a same-quote string in a style: directive expression',
+			"<p style:color='{on ? 'red' : c}'>x</p>",
+			'.svelte',
+			['red']
+		],
+		[
 			'an expression naming no colour',
 			"<p style:display={on ? 'block' : 'none'}>x</p>",
 			'.svelte',
@@ -234,6 +246,11 @@ describe('colorViolations', () => {
 		[
 			'an expression in a style attribute',
 			'<p>x</p>\n<p style="color: {\'black\'}">x</p>',
+			'.svelte'
+		],
+		[
+			'a same-quote string in a style attribute expression',
+			'<p>x</p>\n<p style="width: 1px; color: {"black"}">x</p>',
 			'.svelte'
 		]
 	])('gives a colour of %s its offset in the file', (_name, source, extension) => {

@@ -71,17 +71,20 @@ func TestFrontendKeepsTheAPIsJSONAndMethods(t *testing.T) {
 	if snap := decodeSnapshot(t, resp); len(snap.Rows) != 1 || snap.Rows[0].Name != "vigie#3" {
 		t.Errorf("snapshot rows = %v, want vigie#3", rowNames(snap))
 	}
-	tests := []struct{ method, target, allow string }{
-		{http.MethodPost, snapshotURL, "GET, HEAD"},
-		{http.MethodGet, refreshURL, http.MethodPost},
-		{http.MethodPost, healthzPath, "GET, HEAD"},
-		{http.MethodPost, "/", "GET, HEAD"},
-		{http.MethodDelete, "/some/page", "GET, HEAD"},
+	tests := []struct{ method, target, allow, referrerPolicy string }{
+		{http.MethodPost, snapshotURL, "GET, HEAD", ""},
+		{http.MethodGet, refreshURL, http.MethodPost, ""},
+		{http.MethodPost, healthzPath, "GET, HEAD", ""},
+		{http.MethodPost, "/", "GET, HEAD", sameOrigin},
+		{http.MethodDelete, "/some/page", "GET, HEAD", sameOrigin},
 	}
 	for _, tt := range tests {
 		resp := do(t, h.srv, tt.method, tt.target)
 		if resp.StatusCode != http.StatusMethodNotAllowed || resp.Header.Get("Allow") != tt.allow {
 			t.Errorf("%s %s = %d (Allow %q), want 405 (Allow %q)", tt.method, tt.target, resp.StatusCode, resp.Header.Get("Allow"), tt.allow)
+		}
+		if rp := resp.Header.Get(referrerPolicyHeader); rp != tt.referrerPolicy {
+			t.Errorf("%s %s Referrer-Policy = %q, want %q", tt.method, tt.target, rp, tt.referrerPolicy)
 		}
 	}
 }

@@ -53,20 +53,36 @@ function severity(o: Fields, key: string, path: string): Severity {
 	return v as Severity;
 }
 
-// An http or https scheme, then // and the first character of a host, in the
-// raw text: the WHATWG parser alone also takes http:///x and https:/x, whose
-// host it finds after the slashes, while Go's url.Parse finds none.
-const WEB_URL_START = /^https?:\/\/[^/?#\\\s]/i;
+// An http or https scheme, //, then an authority made only of what Go's
+// url.Parse takes there: userinfo of ASCII letters, digits and
+// -._~!$&'()*+,;=:@, then a host of those (no @) plus [] and non-ASCII. The
+// WHATWG parser alone also takes http:///x, https:/x, a backslash or a %
+// escape in the host, and userinfo Go refuses.
+const WEB_URL =
+	/^https?:\/\/(?:[\w.~!$&'()*+,;=:@-]*@)?[\w.~!$&'()*+,;=:[\]\u{80}-\u{10ffff}-]+(?:[/?#]|$)/iu;
+// A % that starts no escape, which Go's url.Parse refuses in a path or a
+// fragment; the query it leaves unchecked.
+const BAD_ESCAPE = /%(?![\da-f]{2})/i;
+// Go's url.Parse refuses any ASCII control byte: below a space, and DEL.
+const FIRST_PRINTABLE = ' ';
+const DELETE = '\x7f';
+
+function hasControl(s: string): boolean {
+	return [...s].some((c) => c < FIRST_PRINTABLE || c === DELETE);
+}
 
 /**
  * A target the page may link and open: an absolute http or https URL with a
- * host, as the TUI's opener accepts (internal/ui/open.go). Targets come from
- * Kelos Tasks' results and prompts, so anything else (a javascript: URL)
+ * host, kept only when both the browser's parser and Go's url.Parse, which
+ * the TUI's opener checks with (internal/ui/open.go), accept it; the page may
+ * drop a target the TUI opens (a bad % escape in the query). Targets come
+ * from Kelos Tasks' results and prompts, so anything else (a javascript: URL)
  * becomes no target rather than script run on this page's origin.
  */
 function webTarget(o: Fields, key: string, path: string): string {
 	const v = string(o, key, path);
-	return WEB_URL_START.test(v) && URL.canParse(v) && new URL(v).host !== '' ? v : '';
+	const kept = WEB_URL.test(v) && !BAD_ESCAPE.test(v) && !hasControl(v) && URL.canParse(v);
+	return kept ? v : '';
 }
 
 function decodeRow(value: unknown, path: string): Row {

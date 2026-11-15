@@ -66,8 +66,20 @@ describe('decodeSnapshot', () => {
 		['https:x'],
 		['https:\\\\x/y'],
 		[' https://x'],
+		['https://ex\tample.com/'],
+		['https://exam\nple.com/x'],
+		['https://x.example/a\tb'],
+		['https://x.example/\x7f'],
+		['https://evil.example\\@good.example'],
+		['https://x.example:80\\/'],
+		['https://ex ample.com/'],
+		['https://x%41.example/'],
+		['https://x{y}.example/'],
+		['https://a[b@x.example/'],
+		['https://x.example/%zz'],
+		['https://x.example/#%2'],
 		['not a url']
-	])('drops a target that is no http(s) URL: %s', (target) => {
+	])('drops a target that is no http(s) URL both parsers take: %s', (target) => {
 		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
 		expect(got.rows[0]?.target).toBe('');
 	});
@@ -75,7 +87,11 @@ describe('decodeSnapshot', () => {
 	test.each([
 		['https://github.com/o/vigie/pull/3'],
 		['http://kelos.example/api/x'],
-		['HTTPS://github.com/o']
+		['HTTPS://github.com/o'],
+		['https://user:pw@x.example:8080/a b?q=1#f'],
+		['https://[::1]:8080/'],
+		['https://bücher.example/%C3%BC'],
+		['https://x.example/a\\b']
 	])('keeps an http(s) target: %s', (target) => {
 		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
 		expect(got.rows[0]?.target).toBe(target);
