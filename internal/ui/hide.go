@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/sperano/vigie/internal/board"
 	"github.com/sperano/vigie/internal/hidden"
 	"github.com/sperano/vigie/internal/source"
 )
@@ -11,23 +12,9 @@ import (
 const (
 	statusCannotHide = "a source error cannot be hidden"
 	// statusShowsHidden stays in the status line while hidden rows are listed.
-	statusShowsHidden = "showing hidden rows (marked " + hiddenMark + ")"
+	statusShowsHidden = "showing hidden rows (marked " + board.MarkHidden + ")"
 	statusHidesHidden = "hidden rows are hidden again"
 )
-
-// arrangeShown arranges the rows that are not hidden or, with showHidden,
-// every row, the hidden ones marked. A hidden row's children stay shown,
-// at the top level when it is not.
-func arrangeShown(rows []source.Row, set hidden.Set, showHidden bool) []Entry {
-	if !showHidden {
-		rows, _ = set.Split(rows)
-	}
-	entries := Arrange(rows)
-	for i := range entries {
-		entries[i].Hidden = set.Hides(entries[i].Row)
-	}
-	return entries
-}
 
 // toggleHidden hides the selected row, or unhides it when hidden rows are
 // shown. A row that disappears gives its place to the next one.

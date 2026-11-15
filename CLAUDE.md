@@ -139,7 +139,9 @@ the loaded set to the new path on its first change.
 - Module `github.com/sperano/vigie`, main package at the repo root, so that
   `go install github.com/sperano/vigie@latest` works. Suggested packages:
   `internal/source` (row, local, kelos, github, vikunja, an exec helper with
-  context timeouts), `internal/ui` (model, view, keys, open), `internal/config`.
+  context timeouts), `internal/board` (UI-neutral: tree, sort, marks, ages,
+  enter targets and header counts, shared by every front end), `internal/ui`
+  (Bubble Tea model, keys, styling, view, opener), `internal/config`.
 - Inject command runners, HTTP clients, the clock and the opener through small
   interfaces or func fields, so that parsers, fetchers and the model can be
   tested without a cluster.

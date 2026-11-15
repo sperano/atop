@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	taskRef  = "vikunja:1"
 	childURL = "https://example.test/child"
 	otherURL = "https://example.test/other"
 )

@@ -1,4 +1,4 @@
-package ui
+package board
 
 import (
 	"slices"
@@ -16,13 +16,6 @@ const (
 	// noParent marks a root in a parent index.
 	noParent = -1
 )
-
-// Entry is a row placed in the tree, with the guides drawn before its name.
-type Entry struct {
-	Row    source.Row
-	Prefix string
-	Hidden bool // listed only while hidden rows are shown
-}
 
 // rank orders subtrees: by their most urgent row, then most recent first.
 type rank struct {
@@ -43,10 +36,10 @@ type node struct {
 	rank     rank
 }
 
-// Arrange nests each row under the first of its ParentRefs that is shown,
+// arrange nests each row under the first of its ParentRefs that is shown,
 // and orders every level by rank: a tree ranks as its most urgent row, so a
 // failing PR lifts the Vikunja task it belongs to.
-func Arrange(rows []source.Row) []Entry {
+func arrange(rows []source.Row) []Entry {
 	nodes := make([]node, len(rows))
 	for i, r := range rows {
 		nodes[i] = node{row: r}
@@ -66,7 +59,7 @@ func Arrange(rows []source.Row) []Entry {
 	sortByRank(nodes, roots)
 	entries := make([]Entry, 0, len(rows))
 	for _, r := range roots {
-		entries = flatten(nodes, r, "", "", entries)
+		entries = flatten(nodes, r, 0, "", "", entries)
 	}
 	return entries
 }
@@ -124,17 +117,37 @@ func sortByRank(nodes []node, ids []int) {
 	slices.SortStableFunc(ids, func(a, b int) int { return nodes[a].rank.compare(nodes[b].rank) })
 }
 
-// flatten appends i and its descendants in display order. prefix is drawn
-// before i's name; guide is what its ancestors draw before its children's.
-func flatten(nodes []node, i int, prefix, guide string, out []Entry) []Entry {
-	out = append(out, Entry{Row: nodes[i].row, Prefix: prefix})
+// flatten appends i, at depth, and its descendants in display order. prefix
+// is drawn before i's name; guide is what its ancestors draw before its
+// children's.
+func flatten(nodes []node, i, depth int, prefix, guide string, out []Entry) []Entry {
+	out = append(out, Entry{Row: nodes[i].row, Depth: depth, Prefix: prefix})
 	children := nodes[i].children
 	for n, c := range children {
 		connector, continuation := branchMid, guideOpen
 		if n == len(children)-1 {
 			connector, continuation = branchLast, guideBlank
 		}
-		out = flatten(nodes, c, guide+connector, guide+continuation, out)
+		out = flatten(nodes, c, depth+1, guide+connector, guide+continuation, out)
 	}
 	return out
+}
+
+// Rank groups, most urgent first.
+const (
+	groupNeedsYou = iota
+	groupBusy
+	groupRest
+)
+
+// group orders rows: needs you, then busy, then the rest.
+func group(r source.Row) int {
+	switch {
+	case r.NeedsYou:
+		return groupNeedsYou
+	case r.Busy:
+		return groupBusy
+	default:
+		return groupRest
+	}
 }

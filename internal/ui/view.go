@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/sperano/vigie/internal/board"
 	"github.com/sperano/vigie/internal/hidden"
 	"github.com/sperano/vigie/internal/source"
 )
@@ -37,7 +37,7 @@ func newStyles(color bool) styles {
 }
 
 // entry styles severity and activity independently from its attention mark.
-func (s styles) entry(e Entry) lipgloss.Style {
+func (s styles) entry(e board.Entry) lipgloss.Style {
 	r := e.Row
 	switch {
 	case e.Hidden:
@@ -46,7 +46,7 @@ func (s styles) entry(e Entry) lipgloss.Style {
 		return s.failed
 	case blockedState(r):
 		return s.blocked
-	case r.Busy && agentSources[r.Source]:
+	case r.Busy && board.IsAgent(r):
 		return s.busy
 	case r.NeedsYou:
 		return s.attention
@@ -68,27 +68,23 @@ func blockedState(r source.Row) bool {
 	return r.State == source.StateBlocked || r.State == source.StateConflicts
 }
 
-// titleLine counts the rows that are not hidden, then the hidden ones.
-func titleLine(rows []source.Row, set hidden.Set, now time.Time) string {
-	shown, hiddenCount := set.Split(rows)
-	line := appName + titleSep + now.Local().Format(timeLayout) + titleSep + Summary(shown)
-	if hiddenCount > 0 {
-		line += fmt.Sprintf("%s%d hidden", titleSep, hiddenCount)
-	}
-	return line
+// titleLine is the name, the time and the counts.
+func titleLine(counts board.Counts, now time.Time) string {
+	return appName + titleSep + now.Local().Format(timeLayout) + titleSep + counts.String()
 }
 
 // Snapshot renders the table once, for --once, leaving out the hidden rows.
 // rows may be in any order.
 func Snapshot(rows []source.Row, set hidden.Set, now time.Time, width int, color bool) string {
 	st := newStyles(color)
+	b := board.Build(rows, set, false, now)
 	lines := []string{
-		st.bold.Render(titleLine(rows, set, now)),
+		st.bold.Render(titleLine(b.Counts, now)),
 		"",
 		st.bold.Render(trimLine(headerLine(width))),
 	}
-	for _, e := range arrangeShown(rows, set, false) {
-		lines = append(lines, st.entry(e).Render(trimLine(rowLine(e, now, width))))
+	for _, e := range b.Entries {
+		lines = append(lines, st.entry(e).Render(trimLine(rowLine(e, width))))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -102,37 +98,39 @@ const (
 	statusNoRows     = "no rows"
 )
 
-// View renders the full-screen table.
+// View renders the full-screen table, its ages as of now.
 func (m Model) View() tea.View {
 	now := m.opts.Now()
+	b := m.build(now)
 	st := m.styles
 	lines := []string{
-		st.bold.Render(fit(titleLine(m.rows, m.hidden, now), m.width)),
+		st.bold.Render(fit(titleLine(b.Counts, now), m.width)),
 		"",
 		st.bold.Render(fit(headerLine(m.width), m.width)),
 	}
-	lines = append(lines, m.bodyLines(now)...)
+	lines = append(lines, m.bodyLines(b.Entries)...)
 	lines = append(lines, fit(m.statusLine(), m.width), st.rest.Render(fit(keyHelp, m.width)))
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
 	return v
 }
 
-// bodyLines renders the visible rows, padded to the body height.
-func (m Model) bodyLines(now time.Time) []string {
+// bodyLines renders the visible entries, padded to the body height. entries
+// are those of the board View builds for the current time.
+func (m Model) bodyLines(entries []board.Entry) []string {
 	body := m.bodyHeight()
 	lines := make([]string, 0, body)
-	if len(m.entries) == 0 && !m.refreshing {
+	if len(entries) == 0 && !m.refreshing {
 		lines = append(lines, m.styles.rest.Render(statusNoRows))
 	}
-	end := min(len(m.entries), m.offset+body)
+	end := min(len(entries), m.offset+body)
 	for i := m.offset; i < end; i++ {
-		e := m.entries[i]
+		e := entries[i]
 		style := m.styles.entry(e)
 		if i == m.selected {
 			style = style.Inherit(m.styles.selected)
 		}
-		lines = append(lines, style.Render(fit(rowLine(e, now, m.width), m.width)))
+		lines = append(lines, style.Render(fit(rowLine(e, m.width), m.width)))
 	}
 	for len(lines) < body {
 		lines = append(lines, "")
