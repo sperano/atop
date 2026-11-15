@@ -266,6 +266,61 @@ describe('colorViolations', () => {
 			'.svelte',
 			['red', 'white']
 		],
+		[
+			'a backtick string holding a brace in a style attribute expression',
+			'<p style="color: {on ? `}` : \'red\'}">x</p>',
+			'.svelte',
+			['red']
+		],
+		[
+			'an escaped quote in a style attribute expression',
+			"<p style={on ? 'a\\'}' : 'color: red'}>x</p>",
+			'.svelte',
+			['red']
+		],
+		[
+			'a quote in a line comment of a style attribute expression',
+			"<p style={\n\t// don't\n\ton ? 'color: red' : 'color: blue'\n}>x</p>",
+			'.svelte',
+			['red', 'blue']
+		],
+		[
+			'a quote in a block comment of a style: directive expression',
+			"<p style:color={/* don't */ on ? 'red' : 'blue'}>x</p>",
+			'.svelte',
+			['red', 'blue']
+		],
+		[
+			'a brace in a comment of an expression in a style attribute',
+			'<p style="color: {on /* } */ ? \'red\' : c}; background: white">x</p>',
+			'.svelte',
+			['red', 'white']
+		],
+		[
+			'two expressions in a style attribute',
+			"<p style=\"color: {on ? 'red' : c}; background: {off ? 'navy' : d}\">x</p>",
+			'.svelte',
+			['red', 'navy']
+		],
+		[
+			'a style: directive with a modifier',
+			'<p style:color|important="red">x</p>',
+			'.svelte',
+			['red']
+		],
+		[
+			'a style: directive expression with a modifier',
+			"<p style:color|important={on ? 'red' : 'gray'}>x</p>",
+			'.svelte',
+			['red', 'gray']
+		],
+		[
+			'an unterminated style attribute expression',
+			"<p style={on ? 'red' : ''>x</p>\n<p>{'navy'}</p>",
+			'.svelte',
+			[]
+		],
+		['an unterminated style attribute', '<p style="color: tan>x</p>\n<p>red</p>', '.html', []],
 		['a value around a { that closes nowhere', '<p style="color: tan; {">x</p>', '.html', ['tan']],
 		[
 			'an expression naming no colour',
@@ -310,6 +365,16 @@ describe('colorViolations', () => {
 		[
 			'a nested-brace style attribute expression',
 			"<p>x</p>\n<p style={f({a: 1}) ? 'color: black' : ''}>x</p>",
+			'.svelte'
+		],
+		[
+			'the second expression in a style attribute',
+			'<p>x</p>\n<p style="color: {c}; background: {on ? \'black\' : d}">x</p>',
+			'.svelte'
+		],
+		[
+			'a style: directive with a modifier',
+			'<p>x</p>\n<p style:color|important="black">x</p>',
 			'.svelte'
 		]
 	])('gives a colour of %s its offset in the file', (_name, source, extension) => {

@@ -34,19 +34,25 @@ export const NAMED_COLORS = new Set(
 );
 
 // Where CSS sits in a .svelte or .html file: style blocks and style
-// attributes hold declarations, a style: directive a value, and the string
-// literals of a Svelte expression (style={…}, style:x={…}, or a {…} inside
-// a quoted value) are scanned as values. A .css file is CSS throughout.
-// An expression runs to its matching }, nested braces and braces in its
-// string literals included, so a quote inside a quoted value's {…} does not
-// end the value. A { that closes nowhere is text.
+// attributes hold declarations, a style: directive (modifiers such as
+// |important included) a value, and the string literals of a Svelte
+// expression (style={…}, style:x={…}, or a {…} inside a quoted value) are
+// scanned as values. A .css file is CSS throughout. An expression runs to its
+// matching }, nested braces, braces in its string literals and its comments
+// skipped, so a quote inside a quoted value's {…} does not end the value. A {
+// that closes nowhere is text. A quote in a regex literal is read as opening a
+// string: telling a regex from a division takes a JavaScript parser.
 const STYLE_BLOCK = /(<style\b[^>]*>)([\s\S]*?)<\/style>/gi;
-const STYLE_ATTRIBUTE_START = /\bstyle(:[\w-]+)?=(["'{])/g;
+const STYLE_ATTRIBUTE_START = /\bstyle(:[\w-]+(?:\|[\w-]+)*)?=(["'{])/g;
 const OPEN_BRACE = '{';
 const CLOSE_BRACE = '}';
 const ESCAPE = '\\';
 const SCRIPT_QUOTES = new Set(['"', "'", '`']);
-const STRING_LITERAL = /(["'`])((?:\\[\s\S]|(?!\1)[^\\])*)\1/g;
+const LINE_COMMENT = '//';
+const BLOCK_COMMENT = '/*';
+const BLOCK_COMMENT_END = '*/';
+const COMMENT_OPENER_LENGTH = 2;
+const NEWLINE = '\n';
 // What a value names that is no colour: comments, url()s (an asset such as
 // gold.svg) and strings (a font such as 'Gold Sans').
 const CSS_COMMENT = /\/\*[\s\S]*?\*\//g;
@@ -79,10 +85,10 @@ function namedColorsOfDeclarations(css) {
 	);
 }
 
-/** The named colours of the string literals of a script expression. */
-function namedColorsOfScript(expression, offset) {
-	return [...expression.matchAll(STRING_LITERAL)].flatMap((s) =>
-		namedColorsOfValue(blankCss(s[2]), offset + s.index + s[1].length)
+/** The named colours of text's string literals, given as [start, end] of their insides. */
+function namedColorsOfStrings(text, strings) {
+	return strings.flatMap(([start, end]) =>
+		namedColorsOfValue(blankCss(text.slice(start, end)), start)
 	);
 }
 
@@ -95,44 +101,69 @@ function stringEnd(text, open) {
 	return -1;
 }
 
-/** The index of the } closing the expression opening at text[open], or -1. */
-function closingBrace(text, open) {
+/**
+ * The index of the last character of the script comment opening at
+ * text[open] (text.length if it never ends), or null if none opens there.
+ */
+function commentEnd(text, open) {
+	const opener = text.slice(open, open + COMMENT_OPENER_LENGTH);
+	if (opener === LINE_COMMENT) {
+		const end = text.indexOf(NEWLINE, open);
+		return end === -1 ? text.length : end;
+	}
+	if (opener !== BLOCK_COMMENT) return null;
+	const end = text.indexOf(BLOCK_COMMENT_END, open + COMMENT_OPENER_LENGTH);
+	return end === -1 ? text.length : end + BLOCK_COMMENT_END.length - 1;
+}
+
+/**
+ * The script expression opening at text[open]: the index of its closing }
+ * (-1 if none) and its string literals as [start, end] of their insides.
+ */
+function scriptExpression(text, open) {
+	const strings = [];
 	let depth = 0;
 	for (let i = open; i < text.length; i++) {
-		if (SCRIPT_QUOTES.has(text[i])) {
-			i = stringEnd(text, i);
-			if (i === -1) return -1;
+		const comment = commentEnd(text, i);
+		if (comment !== null) i = comment;
+		else if (SCRIPT_QUOTES.has(text[i])) {
+			const end = stringEnd(text, i);
+			if (end === -1) return { close: -1, strings };
+			strings.push([i + 1, end]);
+			i = end;
 		} else if (text[i] === OPEN_BRACE) depth++;
-		else if (text[i] === CLOSE_BRACE && --depth === 0) return i;
+		else if (text[i] === CLOSE_BRACE && --depth === 0) return { close: i, strings };
 	}
-	return -1;
+	return { close: -1, strings };
 }
 
 /**
  * The quoted value opening at source[open]: the index of its closing quote
- * (-1 if none) and its {…} expressions as [start, end] of their insides.
+ * (-1 if none), its {…} expressions as [open, close] of their braces, and
+ * their string literals as [start, end] of their insides.
  */
 function quotedValue(source, open) {
 	const expressions = [];
+	const strings = [];
 	for (let i = open + 1; i < source.length; i++) {
-		if (source[i] === source[open]) return { end: i, expressions };
-		const close = source[i] === OPEN_BRACE ? closingBrace(source, i) : -1;
-		if (close === -1) continue;
-		expressions.push([i + 1, close]);
-		i = close;
+		if (source[i] === source[open]) return { end: i, expressions, strings };
+		if (source[i] !== OPEN_BRACE) continue;
+		const expression = scriptExpression(source, i);
+		if (expression.close === -1) continue;
+		expressions.push([i, expression.close]);
+		strings.push(...expression.strings);
+		i = expression.close;
 	}
-	return { end: -1, expressions };
+	return { end: -1, expressions, strings };
 }
 
 /** The named colours of a quoted style value's {…} expressions, and the value without them. */
-function interpolations({ text, expressions }) {
+function interpolations({ text, expressions, strings }) {
 	let css = text;
-	const colors = [];
-	for (const [start, end] of expressions) {
-		colors.push(...namedColorsOfScript(text.slice(start, end), start));
-		css = css.slice(0, start - 1) + blank(text.slice(start - 1, end + 1)) + css.slice(end + 1);
+	for (const [open, close] of expressions) {
+		css = css.slice(0, open) + blank(text.slice(open, close + 1)) + css.slice(close + 1);
 	}
-	return { css: blankCss(css), colors };
+	return { css: blankCss(css), colors: namedColorsOfStrings(text, strings) };
 }
 
 /** How each kind of CSS part yields its named colours, offsets relative to it. */
@@ -146,31 +177,39 @@ const SCANNERS = {
 		const { css, colors } = interpolations(part);
 		return [...colors, ...namedColorsOfValue(css, 0)];
 	},
-	expression: (part) => namedColorsOfScript(part.text, 0)
+	expression: (part) => namedColorsOfStrings(part.text, part.strings)
 };
+
+/** ranges, each [start, end], made relative to offset. */
+const shift = (ranges, offset) => ranges.map(([start, end]) => [start - offset, end - offset]);
 
 /** The style attribute or directive whose value opens at source[open], or null if it never ends. */
 function styleValuePart(source, open, kind) {
 	const offset = open + 1;
 	if (source[open] === OPEN_BRACE) {
-		const close = closingBrace(source, open);
+		const { close, strings } = scriptExpression(source, open);
 		if (close === -1) return null;
-		return { text: source.slice(offset, close), offset, kind: 'expression', expressions: [] };
+		const text = source.slice(offset, close);
+		return { text, offset, kind: 'expression', strings: shift(strings, offset) };
 	}
-	const { end, expressions } = quotedValue(source, open);
+	const { end, expressions, strings } = quotedValue(source, open);
 	if (end === -1) return null;
-	const relative = expressions.map(([start, close]) => [start - offset, close - offset]);
-	return { text: source.slice(offset, end), offset, kind, expressions: relative };
+	return {
+		text: source.slice(offset, end),
+		offset,
+		kind,
+		expressions: shift(expressions, offset),
+		strings: shift(strings, offset)
+	};
 }
 
-/** The CSS parts of a file: their text, offset, kind (a key of SCANNERS) and {…} expressions. */
+/** The CSS parts of a file: their text, offset, kind (a key of SCANNERS) and script ranges. */
 function cssParts(source, extension) {
-	if (extension === '.css') return [{ text: source, offset: 0, kind: 'block', expressions: [] }];
+	if (extension === '.css') return [{ text: source, offset: 0, kind: 'block' }];
 	const parts = [...source.matchAll(STYLE_BLOCK)].map((m) => ({
 		text: m[2],
 		offset: m.index + m[1].length,
-		kind: 'block',
-		expressions: []
+		kind: 'block'
 	}));
 	for (const m of source.matchAll(STYLE_ATTRIBUTE_START)) {
 		const open = m.index + m[0].length - 1;
