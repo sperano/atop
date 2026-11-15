@@ -36,36 +36,20 @@ func newStyles(color bool) styles {
 	return s
 }
 
-// entry styles severity and activity independently from its attention mark.
+// entry styles an entry by its severity, apart from its attention mark.
 func (s styles) entry(e board.Entry) lipgloss.Style {
-	r := e.Row
-	switch {
-	case e.Hidden:
-		return s.rest
-	case failedState(r):
+	switch e.Severity {
+	case board.SeverityFailed:
 		return s.failed
-	case blockedState(r):
+	case board.SeverityBlocked:
 		return s.blocked
-	case r.Busy && board.IsAgent(r):
+	case board.SeverityBusy:
 		return s.busy
-	case r.NeedsYou:
+	case board.SeverityAttention:
 		return s.attention
 	default:
 		return s.rest
 	}
-}
-
-func failedState(r source.Row) bool {
-	switch r.State {
-	case source.StateFailed, source.StateFailure, source.StateError, source.StateChecksFailing:
-		return true
-	default:
-		return r.IsSourceError()
-	}
-}
-
-func blockedState(r source.Row) bool {
-	return r.State == source.StateBlocked || r.State == source.StateConflicts
 }
 
 // titleLine is the name, the time and the counts.

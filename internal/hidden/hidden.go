@@ -94,6 +94,18 @@ var truncatedAt = map[string]int{source.SourcePR: source.PRSearchLimit}
 // the name is not hidden. An entry whose source failed, or may have been
 // cut short, is kept.
 func (s Set) Prune(rows []source.Row) Set {
+	return s.prune(rows, func(string) bool { return true })
+}
+
+// PruneRead is Prune for a fetch that reads only the read sources: an entry
+// of any other source is kept, since its absence says nothing.
+func (s Set) PruneRead(rows []source.Row, read []string) Set {
+	return s.prune(rows, func(src string) bool { return slices.Contains(read, src) })
+}
+
+// prune forgets the entries absent from rows whose source fetched reports
+// and was read in full (no error row, PR search under its limit).
+func (s Set) prune(rows []source.Row, fetched func(src string) bool) Set {
 	unsure := make(map[string]bool)
 	counts := make(map[string]int)
 	present := make(map[string]bool, len(rows))
@@ -111,7 +123,7 @@ func (s Set) Prune(rows []source.Row) Set {
 	}
 	kept := maps.Clone(s.byKey)
 	maps.DeleteFunc(kept, func(key string, e Entry) bool {
-		return !unsure[e.Source] && !present[key]
+		return fetched(e.Source) && !unsure[e.Source] && !present[key]
 	})
 	return Set{byKey: kept}
 }

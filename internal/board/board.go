@@ -18,14 +18,15 @@ const (
 
 // Entry is a row placed in the tree, with what is drawn for it.
 type Entry struct {
-	Row    source.Row
-	Depth  int    // 0 for a top-level row
-	Prefix string // tree guides drawn before the name
-	Hidden bool   // listed only while hidden rows are shown
-	Mark   string // MarkNeedsYou, MarkHidden or empty
-	Origin string // the row's origin, else source.OriginUnknown
-	Age    string
-	Target Target
+	Row      source.Row
+	Depth    int    // 0 for a top-level row
+	Prefix   string // tree guides drawn before the name
+	Hidden   bool   // listed only while hidden rows are shown
+	Mark     string // MarkNeedsYou, MarkHidden or empty
+	Origin   string // the row's origin, else source.OriginUnknown
+	Age      string
+	Target   Target
+	Severity Severity
 }
 
 // Board is the rows in display order and the header counts.
@@ -69,4 +70,5 @@ func decorate(e *Entry, set hidden.Set, now time.Time) {
 	}
 	e.Age = FormatAge(r.Since, now)
 	e.Target = TargetOf(r.Target)
+	e.Severity = SeverityOf(*e)
 }

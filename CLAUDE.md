@@ -130,6 +130,7 @@ hard-coded beyond these defaults:
 | Stale days | `30` |
 | Refresh interval | `2m` |
 | Hidden-rows file | `<os.UserConfigDir>/vigie/hidden.json` |
+| Server listen address (`vigie serve` only; not empty) | `:8080` |
 
 When the default file is missing, read the former `atop/hidden.json`; write
 the loaded set to the new path on its first change.
@@ -141,7 +142,9 @@ the loaded set to the new path on its first change.
   `internal/source` (row, local, kelos, github, vikunja, an exec helper with
   context timeouts), `internal/board` (UI-neutral: tree, sort, marks, ages,
   enter targets and header counts, shared by every front end), `internal/ui`
-  (Bubble Tea model, keys, styling, view, opener), `internal/config`.
+  (Bubble Tea model, keys, styling, view, opener), `internal/server` (the
+  `vigie serve` HTTP API: snapshot, SSE events, refresh, hidden rows;
+  local sessions are off there), `internal/config`.
 - Inject command runners, HTTP clients, the clock and the opener through small
   interfaces or func fields, so that parsers, fetchers and the model can be
   tested without a cluster.

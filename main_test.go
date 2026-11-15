@@ -3,7 +3,11 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"github.com/sperano/vigie/internal/config"
+	"github.com/sperano/vigie/internal/source"
 )
 
 func TestHiddenStoreUsesDefaultLegacyFallback(t *testing.T) {
@@ -34,5 +38,24 @@ func TestHiddenStoreCustomPathHasNoLegacyFallback(t *testing.T) {
 	}
 	if store.Path != path || store.LegacyPath != "" {
 		t.Errorf("hiddenStore = %+v, want Path %q and no LegacyPath", store, path)
+	}
+}
+
+func TestBuildSources(t *testing.T) {
+	agentAndWork := []string{source.SourceKelosSession, source.SourceKelosTask, source.SourcePR, source.SourceVikunja}
+	tests := []struct {
+		name  string
+		serve bool
+		want  []string
+	}{
+		{"tui reads local sessions", false, append([]string{source.SourceLocal}, agentAndWork...)},
+		{"serve leaves local sessions out", true, agentAndWork},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sourceNames(buildSources(config.Config{Serve: tt.serve})); !slices.Equal(got, tt.want) {
+				t.Errorf("sources = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

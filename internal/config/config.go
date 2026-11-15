@@ -28,9 +28,13 @@ const (
 	DefaultConsoleURL      = "https://kelos.spe.quebec"
 	DefaultStaleDays       = 30
 	DefaultInterval        = 2 * time.Minute
+	DefaultListen          = ":8080"
 	currentEnvPrefix       = "VIGIE_"
 	legacyEnvPrefix        = "ATOP_"
 )
+
+// ServeCommand is the subcommand that starts the HTTP server.
+const ServeCommand = "serve"
 
 // Config holds every setting vigie reads at start-up.
 type Config struct {
@@ -50,13 +54,45 @@ type Config struct {
 	// hidden.DefaultFile.
 	HiddenFile string
 	Once       bool
+	// Serve runs the HTTP server (vigie serve) instead of the TUI.
+	Serve bool
+	// Listen is the server's bind address; set only with Serve.
+	Listen string
 }
 
 // Parse reads flags from args, taking each default from getenv when set.
+// A first argument of ServeCommand selects the server, whose flags are the
+// same plus --listen and minus --once.
 func Parse(name string, args []string, getenv func(string) string) (Config, error) {
 	var c Config
+	if len(args) > 0 && args[0] == ServeCommand {
+		c.Serve = true
+		name += " " + ServeCommand
+		args = args[1:]
+	}
 	env := envDefaults{getenv: getenv}
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	c.register(fs, &env)
+	if err := fs.Parse(args); err != nil {
+		return Config{}, err
+	}
+	if env.err != nil {
+		return Config{}, env.err
+	}
+	if fs.NArg() > 0 {
+		return Config{}, fmt.Errorf("%w: unexpected argument %q", ErrInvalid, fs.Arg(0))
+	}
+	if c.Serve && c.Listen == "" {
+		return Config{}, fmt.Errorf("%w: listen address must not be empty", ErrInvalid)
+	}
+	if c.Interval <= 0 {
+		return Config{}, fmt.Errorf("%w: interval must be positive, got %s", ErrInvalid, c.Interval)
+	}
+	return c, nil
+}
+
+// register defines c's flags on fs, those of the server when c.Serve is set.
+func (c *Config) register(fs *flag.FlagSet, env *envDefaults) {
 	fs.StringVar(&c.Namespace, "namespace", env.renamedStr("NAMESPACE", DefaultNamespace), "Kelos namespace (VIGIE_NAMESPACE)")
 	fs.StringVar(&c.GitHubOwner, "github-owner", env.renamedStr("GITHUB_OWNER", DefaultGitHubOwner), "GitHub owner whose open PRs are listed (VIGIE_GITHUB_OWNER)")
 	fs.StringVar(&c.VikunjaURL, "vikunja-url", env.str("VIKUNJA_URL", "", DefaultVikunjaURL), "Vikunja API URL (VIKUNJA_URL)")
@@ -69,18 +105,12 @@ func Parse(name string, args []string, getenv func(string) string) (Config, erro
 	fs.StringVar(&c.ConsoleURL, "console-url", env.renamedStr("CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (VIGIE_CONSOLE_URL)")
 	fs.IntVar(&c.StaleDays, "stale-days", env.renamedInteger("STALE_DAYS", DefaultStaleDays), "days after which an untouched PR or reply is stale (VIGIE_STALE_DAYS)")
 	fs.DurationVar(&c.Interval, "interval", env.renamedDuration("INTERVAL", DefaultInterval), "refresh interval (VIGIE_INTERVAL)")
-	fs.StringVar(&c.HiddenFile, "hidden-file", env.renamedStr("HIDDEN_FILE", ""), "file of the rows hidden with h (VIGIE_HIDDEN_FILE; default <user config dir>/vigie/hidden.json)")
+	fs.StringVar(&c.HiddenFile, "hidden-file", env.renamedStr("HIDDEN_FILE", ""), "file of the hidden rows (VIGIE_HIDDEN_FILE; default <user config dir>/vigie/hidden.json)")
+	if c.Serve {
+		fs.StringVar(&c.Listen, "listen", env.str(currentEnvPrefix+"LISTEN", "", DefaultListen), "address the server listens on (VIGIE_LISTEN)")
+		return
+	}
 	fs.BoolVar(&c.Once, "once", false, "print one plain-text snapshot and exit")
-	if err := fs.Parse(args); err != nil {
-		return Config{}, err
-	}
-	if env.err != nil {
-		return Config{}, env.err
-	}
-	if c.Interval <= 0 {
-		return Config{}, fmt.Errorf("%w: interval must be positive, got %s", ErrInvalid, c.Interval)
-	}
-	return c, nil
 }
 
 // envDefaults reads defaults from the environment, keeping the first parse error.

@@ -101,6 +101,40 @@ The default file is `<user config dir>/vigie/hidden.json`. If it does not yet
 exist, `vigie` reads the former `atop/hidden.json` and writes the migrated set
 to the new path on the first change.
 
+## Server
+
+`vigie serve` runs an HTTP server instead of the TUI. It refreshes every
+`--interval` in the background, keeps the last snapshot, and serves it as
+JSON, already nested, sorted and counted as the TUI draws it:
+
+| Endpoint | Does |
+| --- | --- |
+| `GET /api/v1/snapshot` | the snapshot: `rows` (source, name, origin, depth, guides, mark, state, since, age, detail, target URL, severity, needs you, busy, hidden), `counts`, `fetched_at` (null before the first refresh), `refreshing`, and `error`, the last hidden-row update's error |
+| `GET /api/v1/events` | Server-Sent Events: a `snapshot` event with the whole snapshot on connection, when a refresh starts or ends, and when a row is hidden or unhidden; a `: keepalive` comment every 15 s. A client that falls behind gets the latest snapshot, not every one |
+| `POST /api/v1/refresh` | starts a refresh, or joins the running one (never two at once); answers `202` with the snapshot at once, and the new one arrives on the event stream. Within 10 s of the last refresh's end it starts none and answers `429` with `Retry-After` |
+| `PUT /api/v1/hidden/{source}/{name}` | hides a row of the last refresh: `204`; `404` for an unknown row, `409` for a source's error row, `500` when the hidden file cannot be read or written |
+| `DELETE /api/v1/hidden/{source}/{name}` | unhides a row: `204` |
+| `GET /healthz` | `200` while the process is up |
+| `GET /readyz` | `200` once the first refresh is done, else `503` |
+
+`show_hidden=true` on the snapshot, events and refresh lists the hidden rows
+too, marked `-` with `hidden` set, as `H` does. Path segments are
+URL-encoded (`/api/v1/hidden/pr/vigie%233`). Each refresh is cut off after a
+minute. SIGTERM or an interrupt ends the event streams and shuts down
+gracefully.
+
+The server leaves out local Claude sessions: a pod has no
+`~/.claude/sessions`, and a browser cannot switch tmux panes. It keeps its
+own `--hidden-file`, with the same rules as the TUI's, except that it never
+forgets hidden local sessions, which it does not read; in a container, point
+it at a writable volume.
+
+**The server has no authentication.** Anyone who reaches it can read every
+row and hide any of them. Bind it with `--listen` (default `:8080`, every
+interface) to an address only an authenticating proxy reaches, such as
+`127.0.0.1:8080` behind a forward-auth proxy; an empty address is refused. Its event streams stay open:
+give the proxy's route no request timeout.
+
 ## Types and origins
 
 TYPE says what a row represents. ORIGIN says where its work began: `local`
@@ -159,6 +193,7 @@ variable when the new name is unset.
 | `--interval` | `VIGIE_INTERVAL` | `2m` |
 | `--hidden-file` | `VIGIE_HIDDEN_FILE` | `<user config dir>/vigie/hidden.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS) |
 | `--once` | | off |
+| `--listen` (`vigie serve` only) | `VIGIE_LISTEN` | `:8080` |
 
 The Vikunja token comes from `VIKUNJA_API_TOKEN`, else from the
 `token-namespace`/`token-secret` Secret's `token-key`, read through the

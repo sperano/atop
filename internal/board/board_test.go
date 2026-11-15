@@ -35,9 +35,10 @@ func TestBuildDecoratesEntries(t *testing.T) {
 	}
 	set := hidden.New(hidden.Entry{Source: "pr", Name: "gone"})
 	want := []Entry{
-		{Row: rows[0], Mark: MarkNeedsYou, Origin: source.OriginGitHub, Age: "1h", Target: Target{Kind: TargetURL, Value: url}},
-		{Row: rows[1], Depth: 1, Prefix: branchLast, Origin: source.OriginUnknown, Age: unknownAge},
-		{Row: rows[2], Hidden: true, Mark: MarkHidden, Origin: source.OriginGitHub, Age: "2h"},
+		{Row: rows[0], Mark: MarkNeedsYou, Origin: source.OriginGitHub, Age: "1h", Target: Target{Kind: TargetURL, Value: url},
+			Severity: SeverityAttention},
+		{Row: rows[1], Depth: 1, Prefix: branchLast, Origin: source.OriginUnknown, Age: unknownAge, Severity: SeverityBusy},
+		{Row: rows[2], Hidden: true, Mark: MarkHidden, Origin: source.OriginGitHub, Age: "2h", Severity: SeverityQuiet},
 	}
 	got := Build(rows, set, true, testNow).Entries
 	if len(got) != len(want) {
@@ -45,7 +46,8 @@ func TestBuildDecoratesEntries(t *testing.T) {
 	}
 	for i := range want {
 		if g, w := got[i], want[i]; g.Row.Name != w.Row.Name || g.Depth != w.Depth || g.Prefix != w.Prefix ||
-			g.Hidden != w.Hidden || g.Mark != w.Mark || g.Origin != w.Origin || g.Age != w.Age || g.Target != w.Target {
+			g.Hidden != w.Hidden || g.Mark != w.Mark || g.Origin != w.Origin || g.Age != w.Age || g.Target != w.Target ||
+			g.Severity != w.Severity {
 			t.Errorf("entry %d = %+v\nwant      %+v", i, g, w)
 		}
 	}

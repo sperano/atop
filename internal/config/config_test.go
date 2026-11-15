@@ -167,3 +167,89 @@ func TestParseErrors(t *testing.T) {
 		})
 	}
 }
+
+const (
+	envListen  = "127.0.0.1:9000"
+	flagListen = ":9090"
+)
+
+func TestParseServe(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		args       []string
+		env        map[string]string
+		wantListen string
+	}{
+		{"default listen", []string{ServeCommand}, nil, DefaultListen},
+		{"env listen", []string{ServeCommand}, map[string]string{"VIGIE_LISTEN": envListen}, envListen},
+		{"flag beats env", []string{ServeCommand, "-listen", flagListen}, map[string]string{"VIGIE_LISTEN": envListen}, flagListen},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := Parse(testName, tt.args, envFrom(tt.env))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !got.Serve || got.Listen != tt.wantListen || got.Once {
+				t.Errorf("Serve, Listen, Once = %v, %q, %v; want true, %q, false", got.Serve, got.Listen, got.Once, tt.wantListen)
+			}
+		})
+	}
+}
+
+func TestParseServeSharesTheOtherFlags(t *testing.T) {
+	t.Parallel()
+	got, err := Parse(testName, []string{ServeCommand, "-hidden-file", flagHiddenFile}, envFrom(renamedEnv(currentEnvPrefix)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := wantEnvConfig()
+	want.HiddenFile, want.Serve, want.Listen = flagHiddenFile, true, DefaultListen
+	if got != want {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
+func TestParseWithoutServeHasNoListen(t *testing.T) {
+	t.Parallel()
+	got, err := Parse(testName, nil, envFrom(map[string]string{"VIGIE_LISTEN": envListen}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Serve || got.Listen != "" {
+		t.Errorf("Serve, Listen = %v, %q; want false, empty", got.Serve, got.Listen)
+	}
+}
+
+func TestParseArgumentErrors(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		args     []string
+		invalid  bool
+		wantText string
+	}{
+		{"once is not a serve flag", []string{ServeCommand, "-once"}, false, ""},
+		{"listen is a serve flag only", []string{"-listen", flagListen}, false, ""},
+		{"unknown subcommand", []string{"serv"}, true, `unexpected argument "serv"`},
+		{"argument after serve", []string{ServeCommand, "now"}, true, `unexpected argument "now"`},
+		{"empty listen", []string{ServeCommand, "-listen", ""}, true, "listen address must not be empty"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := Parse(testName, tt.args, envFrom(nil))
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			if got := errors.Is(err, ErrInvalid); got != tt.invalid {
+				t.Errorf("errors.Is(err, ErrInvalid) = %v, want %v (err: %v)", got, tt.invalid, err)
+			}
+			if tt.wantText != "" && !strings.Contains(err.Error(), tt.wantText) {
+				t.Errorf("error = %q, want it to contain %q", err, tt.wantText)
+			}
+		})
+	}
+}
