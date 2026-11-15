@@ -45,6 +45,15 @@ func TestHides(t *testing.T) {
 	}
 }
 
+func TestHidesDoesNotRewriteLegacyNameForOtherSources(t *testing.T) {
+	t.Parallel()
+	set := New(Entry{Source: source.SourceVikunja, Name: "vigie#3"})
+	legacyName := source.Row{Source: source.SourceVikunja, Name: "atop#3"}
+	if set.Hides(legacyName) {
+		t.Error("legacy PR name rewrite hid a Vikunja row")
+	}
+}
+
 func TestHideUnhide(t *testing.T) {
 	t.Parallel()
 	var empty Set
