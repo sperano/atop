@@ -51,12 +51,35 @@ func TestBuildDecoratesEntries(t *testing.T) {
 	}
 }
 
+func TestBuildDepths(t *testing.T) {
+	t.Parallel()
+	rows := []source.Row{
+		{Source: "vikunja", Name: "#7", State: "idle", Ref: "vikunja:7"},
+		{Source: "pr", Name: "vigie#3", State: "review", Ref: "pr:3", ParentRefs: []string{"vikunja:7"}},
+		{Source: "kelos task", Name: "fix", State: "busy", Busy: true, ParentRefs: []string{"pr:3"}},
+	}
+	got := Build(rows, hidden.Set{}, false, testNow).Entries
+	want := []struct {
+		name  string
+		depth int
+	}{{"#7", 0}, {"vigie#3", 1}, {"fix", 2}}
+	if len(got) != len(want) {
+		t.Fatalf("got %d entries, want %d: %+v", len(got), len(want), got)
+	}
+	for i, w := range want {
+		if got[i].Row.Name != w.name || got[i].Depth != w.depth {
+			t.Errorf("entry %d = %s at depth %d, want %s at depth %d", i, got[i].Row.Name, got[i].Depth, w.name, w.depth)
+		}
+	}
+}
+
 func TestBuildCounts(t *testing.T) {
 	t.Parallel()
 	rows := []source.Row{
 		{Source: "pr", Name: "a", State: "review", NeedsYou: true},
 		{Source: "pr", Name: "b", State: "review", NeedsYou: true},
 		{Source: "local claude", Name: "c", State: "busy", Busy: true},
+		{Source: "local claude", Name: "d", State: "busy", Busy: true},
 		source.ErrorRow("pr", errors.New("down")),
 	}
 	tests := []struct {
@@ -65,11 +88,12 @@ func TestBuildCounts(t *testing.T) {
 		showHidden bool
 		want       Counts
 	}{
-		{"nothing hidden", hidden.Set{}, false, Counts{NeedYou: 3, Busy: 1}},
-		{"one hidden", hidden.New(hidden.Entry{Source: "pr", Name: "b"}), false, Counts{NeedYou: 2, Busy: 1, Hidden: 1}},
-		{"shown hidden rows are still left out", hidden.New(hidden.Entry{Source: "pr", Name: "b"}), true, Counts{NeedYou: 2, Busy: 1, Hidden: 1}},
-		{"hidden entry not listed", hidden.New(hidden.Entry{Source: "pr", Name: "gone"}), false, Counts{NeedYou: 3, Busy: 1}},
-		{"an error row is never hidden", hidden.New(hidden.Entry{Source: "pr", Name: "-"}), false, Counts{NeedYou: 3, Busy: 1}},
+		{"nothing hidden", hidden.Set{}, false, Counts{NeedYou: 3, Busy: 2}},
+		{"one hidden", hidden.New(hidden.Entry{Source: "pr", Name: "b"}), false, Counts{NeedYou: 2, Busy: 2, Hidden: 1}},
+		{"shown hidden rows are still left out", hidden.New(hidden.Entry{Source: "pr", Name: "b"}), true, Counts{NeedYou: 2, Busy: 2, Hidden: 1}},
+		{"hidden busy agent", hidden.New(hidden.Entry{Source: "local claude", Name: "d"}), false, Counts{NeedYou: 3, Busy: 1, Hidden: 1}},
+		{"hidden entry not listed", hidden.New(hidden.Entry{Source: "pr", Name: "gone"}), false, Counts{NeedYou: 3, Busy: 2}},
+		{"an error row is never hidden", hidden.New(hidden.Entry{Source: "pr", Name: "-"}), false, Counts{NeedYou: 3, Busy: 2}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

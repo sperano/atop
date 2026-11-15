@@ -116,7 +116,7 @@ func (m Model) View() tea.View {
 }
 
 // bodyLines renders the visible entries, padded to the body height. entries
-// are m.entries as built for the current time.
+// are those of the board View builds for the current time.
 func (m Model) bodyLines(entries []board.Entry) []string {
 	body := m.bodyHeight()
 	lines := make([]string, 0, body)
