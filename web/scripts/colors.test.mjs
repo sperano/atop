@@ -231,6 +231,43 @@ describe('colorViolations', () => {
 			['tan']
 		],
 		[
+			'the strings of a nested-brace expression in a style attribute',
+			"<p style=\"color: {f({a: 1}) ? 'red' : 'blue'}\">x</p>",
+			'.svelte',
+			['red', 'blue']
+		],
+		[
+			'the strings of a nested-brace expression in a style: directive',
+			'<p style:color="{f({a: 1}) ? \'red\' : c}">x</p>',
+			'.svelte',
+			['red']
+		],
+		[
+			'a nested-brace style attribute expression',
+			"<p style={f({a: 1}) ? 'color: red' : ''}>x</p>",
+			'.svelte',
+			['red']
+		],
+		[
+			'a nested-brace style: directive expression',
+			"<p style:color={f({a: 1}) ? 'red' : 'gray'}>x</p>",
+			'.svelte',
+			['red', 'gray']
+		],
+		[
+			'a string of an inner {…} once',
+			'<p style="color: {f({c: \'red\'})}">x</p>',
+			'.svelte',
+			['red']
+		],
+		[
+			'a value around an expression with a brace in a string',
+			"<p style=\"color: {on ? '}' : 'red'}; background: white\">x</p>",
+			'.svelte',
+			['red', 'white']
+		],
+		['a value around a { that closes nowhere', '<p style="color: tan; {">x</p>', '.html', ['tan']],
+		[
 			'an expression naming no colour',
 			"<p style:display={on ? 'block' : 'none'}>x</p>",
 			'.svelte',
@@ -263,6 +300,16 @@ describe('colorViolations', () => {
 		[
 			'a same-quote string in a style attribute expression',
 			'<p>x</p>\n<p style="width: 1px; color: {"black"}">x</p>',
+			'.svelte'
+		],
+		[
+			'a nested-brace expression in a style attribute',
+			'<p>x</p>\n<p style="color: {f({a: 1}) ? \'black\' : c}">x</p>',
+			'.svelte'
+		],
+		[
+			'a nested-brace style attribute expression',
+			"<p>x</p>\n<p style={f({a: 1}) ? 'color: black' : ''}>x</p>",
 			'.svelte'
 		]
 	])('gives a colour of %s its offset in the file', (_name, source, extension) => {

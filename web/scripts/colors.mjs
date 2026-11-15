@@ -37,15 +37,15 @@ export const NAMED_COLORS = new Set(
 // attributes hold declarations, a style: directive a value, and the string
 // literals of a Svelte expression (style={…}, style:x={…}, or a {…} inside
 // a quoted value) are scanned as values. A .css file is CSS throughout.
-// A quote inside a quoted value's {…} does not end the value. Expressions
-// holding braces of their own are not read, but a { that opens no brace-free
-// {…} is text, so the value's declarations around it still are.
+// An expression runs to its matching }, nested braces and braces in its
+// string literals included, so a quote inside a quoted value's {…} does not
+// end the value. A { that closes nowhere is text.
 const STYLE_BLOCK = /(<style\b[^>]*>)([\s\S]*?)<\/style>/gi;
-const STYLE_ATTRIBUTE = /(\bstyle=(["']))((?:\{[^{}]*\}|\{(?![^{}]*\})|(?!\2)[^{])*)\2/g;
-const STYLE_DIRECTIVE = /(\bstyle:[\w-]+=(["']))((?:\{[^{}]*\}|\{(?![^{}]*\})|(?!\2)[^{])*)\2/g;
-const STYLE_ATTRIBUTE_EXPRESSION = /(\bstyle=\{)([^{}]*)\}/g;
-const STYLE_DIRECTIVE_EXPRESSION = /(\bstyle:[\w-]+=\{)([^{}]*)\}/g;
-const INTERPOLATION = /\{([^{}]*)\}/g;
+const STYLE_ATTRIBUTE_START = /\bstyle(:[\w-]+)?=(["'{])/g;
+const OPEN_BRACE = '{';
+const CLOSE_BRACE = '}';
+const ESCAPE = '\\';
+const SCRIPT_QUOTES = new Set(['"', "'", '`']);
 const STRING_LITERAL = /(["'`])((?:\\[\s\S]|(?!\1)[^\\])*)\1/g;
 // What a value names that is no colour: comments, url()s (an asset such as
 // gold.svg) and strings (a font such as 'Gold Sans').
@@ -86,42 +86,97 @@ function namedColorsOfScript(expression, offset) {
 	);
 }
 
+/** The index of the quote closing the string literal opening at text[open], or -1. */
+function stringEnd(text, open) {
+	for (let i = open + 1; i < text.length; i++) {
+		if (text[i] === ESCAPE) i++;
+		else if (text[i] === text[open]) return i;
+	}
+	return -1;
+}
+
+/** The index of the } closing the expression opening at text[open], or -1. */
+function closingBrace(text, open) {
+	let depth = 0;
+	for (let i = open; i < text.length; i++) {
+		if (SCRIPT_QUOTES.has(text[i])) {
+			i = stringEnd(text, i);
+			if (i === -1) return -1;
+		} else if (text[i] === OPEN_BRACE) depth++;
+		else if (text[i] === CLOSE_BRACE && --depth === 0) return i;
+	}
+	return -1;
+}
+
+/**
+ * The quoted value opening at source[open]: the index of its closing quote
+ * (-1 if none) and its {…} expressions as [start, end] of their insides.
+ */
+function quotedValue(source, open) {
+	const expressions = [];
+	for (let i = open + 1; i < source.length; i++) {
+		if (source[i] === source[open]) return { end: i, expressions };
+		const close = source[i] === OPEN_BRACE ? closingBrace(source, i) : -1;
+		if (close === -1) continue;
+		expressions.push([i + 1, close]);
+		i = close;
+	}
+	return { end: -1, expressions };
+}
+
 /** The named colours of a quoted style value's {…} expressions, and the value without them. */
-function interpolations(text) {
-	const colors = [...text.matchAll(INTERPOLATION)].flatMap((m) =>
-		namedColorsOfScript(m[1], m.index + 1)
-	);
-	return { css: blankCss(text.replace(INTERPOLATION, blank)), colors };
+function interpolations({ text, expressions }) {
+	let css = text;
+	const colors = [];
+	for (const [start, end] of expressions) {
+		colors.push(...namedColorsOfScript(text.slice(start, end), start));
+		css = css.slice(0, start - 1) + blank(text.slice(start - 1, end + 1)) + css.slice(end + 1);
+	}
+	return { css: blankCss(css), colors };
 }
 
 /** How each kind of CSS part yields its named colours, offsets relative to it. */
 const SCANNERS = {
-	block: (text) => namedColorsOfDeclarations(blankCss(text)),
-	attribute: (text) => {
-		const { css, colors } = interpolations(text);
+	block: (part) => namedColorsOfDeclarations(blankCss(part.text)),
+	attribute: (part) => {
+		const { css, colors } = interpolations(part);
 		return [...colors, ...namedColorsOfDeclarations(css)];
 	},
-	directive: (text) => {
-		const { css, colors } = interpolations(text);
+	directive: (part) => {
+		const { css, colors } = interpolations(part);
 		return [...colors, ...namedColorsOfValue(css, 0)];
 	},
-	expression: (text) => namedColorsOfScript(text, 0)
+	expression: (part) => namedColorsOfScript(part.text, 0)
 };
 
-/** The CSS parts of a file: their text, offset and kind (a key of SCANNERS). */
+/** The style attribute or directive whose value opens at source[open], or null if it never ends. */
+function styleValuePart(source, open, kind) {
+	const offset = open + 1;
+	if (source[open] === OPEN_BRACE) {
+		const close = closingBrace(source, open);
+		if (close === -1) return null;
+		return { text: source.slice(offset, close), offset, kind: 'expression', expressions: [] };
+	}
+	const { end, expressions } = quotedValue(source, open);
+	if (end === -1) return null;
+	const relative = expressions.map(([start, close]) => [start - offset, close - offset]);
+	return { text: source.slice(offset, end), offset, kind, expressions: relative };
+}
+
+/** The CSS parts of a file: their text, offset, kind (a key of SCANNERS) and {…} expressions. */
 function cssParts(source, extension) {
-	if (extension === '.css') return [{ text: source, offset: 0, kind: 'block' }];
-	const parts = [];
-	const add = (re, group, kind) => {
-		for (const m of source.matchAll(re)) {
-			parts.push({ text: m[group], offset: m.index + m[1].length, kind });
-		}
-	};
-	add(STYLE_BLOCK, 2, 'block');
-	add(STYLE_ATTRIBUTE, 3, 'attribute');
-	add(STYLE_DIRECTIVE, 3, 'directive');
-	add(STYLE_ATTRIBUTE_EXPRESSION, 2, 'expression');
-	add(STYLE_DIRECTIVE_EXPRESSION, 2, 'expression');
+	if (extension === '.css') return [{ text: source, offset: 0, kind: 'block', expressions: [] }];
+	const parts = [...source.matchAll(STYLE_BLOCK)].map((m) => ({
+		text: m[2],
+		offset: m.index + m[1].length,
+		kind: 'block',
+		expressions: []
+	}));
+	for (const m of source.matchAll(STYLE_ATTRIBUTE_START)) {
+		const open = m.index + m[0].length - 1;
+		const part = styleValuePart(source, open, m[1] ? 'directive' : 'attribute');
+		if (part) parts.push(part);
+	}
 	return parts;
 }
 
@@ -131,7 +186,7 @@ export function colorViolations(source, extension) {
 	if (STYLE_EXTENSIONS.has(extension)) {
 		for (const m of source.matchAll(COLOR_FUNCTION)) found.push({ index: m.index, text: m[0] });
 		for (const part of cssParts(source, extension)) {
-			for (const c of SCANNERS[part.kind](part.text)) {
+			for (const c of SCANNERS[part.kind](part)) {
 				found.push({ index: part.offset + c.index, text: c.text });
 			}
 		}

@@ -78,11 +78,19 @@ describe('decodeSnapshot', () => {
 		['https://a[b@x.example/'],
 		['https://x.example/%zz'],
 		['https://x.example/#%2'],
-		['https://x.example/?q=%zz'],
 		['https://\u017f@x.example/'],
 		['https://\u212a@x.example/'],
 		['not a url']
 	])('drops a target that is no http(s) URL both parsers take: %s', (target) => {
+		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
+		expect(got.rows[0]?.target).toBe('');
+	});
+
+	// Go's url.Parse leaves the query's escapes unchecked and the browser takes
+	// them too; the page is stricter, as a bad % escape anywhere drops a target.
+	test('drops a target with a bad % escape in its query, stricter than both parsers', () => {
+		const target = 'https://x.example/?q=%zz';
+		expect(URL.canParse(target)).toBe(true);
 		const got = decodeSnapshot(snapshotJSON(snapshot([row({ source: 'pr', name: 'x', target })])));
 		expect(got.rows[0]?.target).toBe('');
 	});
