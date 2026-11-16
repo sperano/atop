@@ -25,7 +25,9 @@ jobs:
         run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
 
   web:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is 26.04, where Playwright 1.59 cannot install
+    # chromium's dependencies. Move back when playwright is bumped past it.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: web
