@@ -34,8 +34,13 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # The image distributes the binary, so it carries the licenses of what it
 # links.
 RUN --mount=type=cache,target=/go/pkg/mod GOFLAGS=-tags=webdist sh scripts/collect-licenses.sh /out/licenses
-# The hidden-rows file's directory, for a volume to be mounted on.
-RUN mkdir /out/data
+# The hidden-rows file's directory, for a volume to be mounted on. Sticky
+# and world-writable like /tmp rather than chowned to the runtime user:
+# rootless BuildKit in a pod user namespace maps only build UIDs 0-64535,
+# so `COPY --chown=65532` fails there with `lchown: invalid argument`.
+# Under a parent: COPY of a directory copies its contents and creates the
+# destination with the default mode, so the parent is what gets copied.
+RUN mkdir -p /out/root && mkdir -m 1777 /out/root/data
 
 # scratch: a static binary needs no libc, shell or user database.
 FROM scratch
@@ -48,8 +53,8 @@ COPY --from=web /src/web/dist/.vite/license.md /licenses/web/license.md
 COPY --from=go /out/vigie /vigie
 # The server keeps its hidden rows here (scratch has no home directory for
 # the default path). Mount a writable volume on /data to keep them across
-# restarts; the directory is the runtime user's for a writable root too.
-COPY --from=go --chown=65532:65532 /out/data /data
+# restarts; without one, the directory is writable by the runtime user too.
+COPY --from=go /out/root/ /
 ENV VIGIE_HIDDEN_FILE=/data/hidden.json
 # Numeric, so that Kubernetes' runAsNonRoot can check it without a passwd
 # file.
