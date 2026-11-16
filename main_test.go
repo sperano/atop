@@ -53,9 +53,25 @@ func TestBuildSources(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := sourceNames(buildSources(config.Config{Serve: tt.serve})); !slices.Equal(got, tt.want) {
+			sources, err := buildSources(config.Config{Serve: tt.serve})
+			if err != nil {
+				t.Fatalf("buildSources: %v", err)
+			}
+			if got := sourceNames(sources); !slices.Equal(got, tt.want) {
 				t.Errorf("sources = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestBuildSourcesRefusesAHalfSetGitHubApp(t *testing.T) {
+	t.Setenv(source.GitHubAppIDEnv, "12345")
+	t.Setenv(source.GitHubAppInstallationIDEnv, "")
+	t.Setenv(source.GitHubAppPrivateKeyEnv, "")
+	_, err := buildSources(config.Config{Serve: true})
+	want := "github app: " + source.GitHubAppInstallationIDEnv + ", " + source.GitHubAppPrivateKeyEnv +
+		" not set, but the other GitHub App settings are"
+	if err == nil || err.Error() != want {
+		t.Errorf("err = %v, want %q", err, want)
 	}
 }
