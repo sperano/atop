@@ -47,7 +47,10 @@ func run(cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	sources := buildSources(cfg)
+	sources, err := buildSources(cfg)
+	if err != nil {
+		return err
+	}
 	fetch := func(ctx context.Context) []source.Row { return source.FetchAll(ctx, sources) }
 	if cfg.Serve {
 		return serve(cfg, fetch, sourceNames(sources), hiddenFile)
@@ -106,9 +109,14 @@ func printOnce(fetch func(context.Context) []source.Row, set hidden.Set, tty, co
 
 // buildSources lists the sources to fetch. The server leaves out the local
 // Claude sessions: a pod has none, and a browser cannot switch tmux panes.
-func buildSources(cfg config.Config) []source.Named {
+// A half-set GitHub App configuration is an error.
+func buildSources(cfg config.Config) ([]source.Named, error) {
 	kube := source.NewDynamicClient(os.Getenv)
 	httpClient := &http.Client{}
+	githubToken, err := source.GitHubTokenSource(os.Getenv, source.ExecRunner, httpClient, time.Now)
+	if err != nil {
+		return nil, err
+	}
 	vikunjaWeb := source.VikunjaWebBase(cfg.VikunjaURL)
 	kelos := source.Kelos{
 		Namespace: cfg.Namespace, ConsoleURL: cfg.ConsoleURL, VikunjaWeb: vikunjaWeb,
@@ -116,7 +124,7 @@ func buildSources(cfg config.Config) []source.Named {
 	}
 	github := source.GitHub{
 		Owner: cfg.GitHubOwner, StaleDays: cfg.StaleDays, Client: httpClient,
-		Token: source.GitHubToken(os.Getenv, source.ExecRunner), Now: time.Now,
+		Token: githubToken, Now: time.Now,
 	}
 	vikunja := source.Vikunja{
 		APIURL:          cfg.VikunjaURL,
@@ -137,9 +145,9 @@ func buildSources(cfg config.Config) []source.Named {
 		{Name: source.SourceVikunja, Fetch: vikunja.Fetch},
 	}
 	if cfg.Serve {
-		return sources
+		return sources, nil
 	}
-	return append([]source.Named{{Name: source.SourceLocal, Fetch: fetchLocal}}, sources...)
+	return append([]source.Named{{Name: source.SourceLocal, Fetch: fetchLocal}}, sources...), nil
 }
 
 // sourceNames lists the names of sources, in order.

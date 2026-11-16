@@ -50,8 +50,8 @@ go install github.com/sperano/vigie@latest
   `kubectl` would use it. It needs `get` and `list` on Kelos Sessions, Tasks
   and pods in the Kelos namespace, and `get` on the Vikunja token Secret
   unless `VIKUNJA_API_TOKEN` is set. `kubectl` itself is not needed.
-- A GitHub token (see Configuration). `gh` is needed only to supply it on a
-  laptop.
+- A GitHub token or a GitHub App installation (see Configuration). `gh` is
+  needed only to supply a token on a laptop.
 - `tmux`, to jump to a local Claude Code session with enter.
 
 ## Keys
@@ -179,8 +179,9 @@ reached over HTTPS) and the licenses of everything it ships under
 rows in `/data/hidden.json` (`VIGIE_HIDDEN_FILE`): mount a writable volume on
 `/data` to keep them across restarts. Probe `GET /healthz` and
 `GET /readyz`. In a pod it reads Kelos (and the Vikunja token Secret, unless
-`VIKUNJA_API_TOKEN` is set) with its service account, and takes the GitHub token from `GH_TOKEN` or
-`GITHUB_TOKEN` (there is no `gh` in the image).
+`VIKUNJA_API_TOKEN` is set) with its service account, and mints GitHub
+tokens from the `VIGIE_GITHUB_APP_*` variables, else takes one from `GH_TOKEN`
+or `GITHUB_TOKEN` (there is no `gh` in the image).
 
 ## Types and origins
 
@@ -247,10 +248,28 @@ The Vikunja token comes from `VIKUNJA_API_TOKEN`, else from the
 Kubernetes API. Kelos is reached in-cluster when `KUBERNETES_SERVICE_HOST` is
 set, else through the kubeconfig.
 
-PRs are read from `https://api.github.com/graphql` with the first token
-found: `GH_TOKEN`, else `GITHUB_TOKEN`, else the output of `gh auth token`.
-To read check states on private repositories the token must be a GitHub App
-installation token or a classic PAT: a fine-grained PAT cannot read them.
+PRs are read from `https://api.github.com/graphql`. To read check states on
+private repositories the token must be a GitHub App installation token or a
+classic PAT: a fine-grained PAT cannot read them. An installation token
+expires after an hour, so vigie mints its own when these three are set:
+
+| Environment variable | Value |
+| --- | --- |
+| `VIGIE_GITHUB_APP_ID` | the App's numeric ID |
+| `VIGIE_GITHUB_APP_INSTALLATION_ID` | the numeric ID of its installation on the owner |
+| `VIGIE_GITHUB_APP_PRIVATE_KEY` | the App's private key, the PEM itself (PKCS#1 or PKCS#8; literal `\n` stand for newlines in a one-line value) |
+
+vigie signs an RS256 JWT with the key (`iss` the App ID, `iat` a minute in
+the past, `exp` 9 minutes ahead), exchanges it at
+`POST /app/installations/{id}/access_tokens` for a token limited to
+`checks`, `contents`, `metadata` and `pull_requests` read, even when the App
+can write, refuses a token that grants more, and mints a new one 5 minutes
+before the current one expires. Setting only some of the three stops vigie
+at start-up with an error naming the missing ones; the key and the tokens are
+never printed.
+
+With none of them set, the token is the first found: `GH_TOKEN`, else
+`GITHUB_TOKEN`, else the output of `gh auth token`.
 `--operator` is your Vikunja username: a newest comment by anyone else is a
 reply waiting on you. `--pr-open-label` is the title of the label Kelos adds
 to a task while its PR is open; empty turns `PR open` off.
