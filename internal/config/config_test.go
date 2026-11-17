@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -57,7 +58,7 @@ func wantEnvConfig() Config {
 		TokenNamespace: envTokenNS, TokenSecret: envTokenSecret, TokenKey: envTokenKey,
 		Operator: envOperator, InProgressLabel: envLabel, PROpenLabel: envPROpenLabel,
 		ConsoleURL: envConsoleURL, LucarneURL: DefaultLucarneURL, LucarneCluster: DefaultLucarneCluster,
-		StaleDays: envStaleDays, Interval: envInterval, HiddenFile: envHiddenFile,
+		CappedExits: wantDefaultExits(), StaleDays: envStaleDays, Interval: envInterval, HiddenFile: envHiddenFile,
 	}
 }
 
@@ -72,9 +73,9 @@ func TestParseDefaults(t *testing.T) {
 		TokenNamespace: DefaultTokenNamespace, TokenSecret: DefaultTokenSecret, TokenKey: DefaultTokenKey,
 		Operator: DefaultOperator, InProgressLabel: DefaultInProgressLabel, PROpenLabel: DefaultPROpenLabel,
 		ConsoleURL: DefaultConsoleURL, LucarneURL: DefaultLucarneURL, LucarneCluster: DefaultLucarneCluster,
-		StaleDays: DefaultStaleDays, Interval: DefaultInterval,
+		CappedExits: wantDefaultExits(), StaleDays: DefaultStaleDays, Interval: DefaultInterval,
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 }
@@ -88,7 +89,7 @@ func TestParseEnvAndFlags(t *testing.T) {
 		check func(Config) bool
 	}{
 		{"env overrides default", nil, func(c Config) bool {
-			return c == wantEnvConfig()
+			return reflect.DeepEqual(c, wantEnvConfig())
 		}},
 		{"flag beats env", []string{"-github-owner", flagOwner, "-interval", "2m"}, func(c Config) bool {
 			return c.GitHubOwner == flagOwner && c.Interval == flagInterval && c.StaleDays == envStaleDays
@@ -155,7 +156,7 @@ func TestParseLegacyEnvFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := wantEnvConfig(); got != want {
+	if want := wantEnvConfig(); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 }
@@ -247,7 +248,7 @@ func TestParseServeSharesTheOtherFlags(t *testing.T) {
 	}
 	want := wantEnvConfig()
 	want.HiddenFile, want.Serve, want.Listen = flagHiddenFile, true, DefaultListen
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 }

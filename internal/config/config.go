@@ -28,11 +28,14 @@ const (
 	DefaultConsoleURL      = "https://kelos.spe.quebec"
 	DefaultLucarneURL      = "https://lucarne.spe.quebec"
 	DefaultLucarneCluster  = "hollingsworth"
-	DefaultStaleDays       = 30
-	DefaultInterval        = 2 * time.Minute
-	DefaultListen          = ":8080"
-	currentEnvPrefix       = "VIGIE_"
-	legacyEnvPrefix        = "ATOP_"
+	// DefaultCappedExits is the Kelos chart's review round cap: its
+	// review-round-cap init container exits 4 once a PR used up its rounds.
+	DefaultCappedExits = "review-round-cap:4"
+	DefaultStaleDays   = 30
+	DefaultInterval    = 2 * time.Minute
+	DefaultListen      = ":8080"
+	currentEnvPrefix   = "VIGIE_"
+	legacyEnvPrefix    = "ATOP_"
 )
 
 // ServeCommand is the subcommand that starts the HTTP server.
@@ -52,8 +55,11 @@ type Config struct {
 	ConsoleURL      string
 	LucarneURL      string
 	LucarneCluster  string
-	StaleDays       int
-	Interval        time.Duration
+	// CappedExits are the container exits (init or main) that stop a Kelos
+	// Task on purpose; such a Task shows as capped, not failed.
+	CappedExits ExitList
+	StaleDays   int
+	Interval    time.Duration
 	// HiddenFile is where hidden rows are kept; empty means
 	// hidden.DefaultFile.
 	HiddenFile string
@@ -112,6 +118,8 @@ func (c *Config) register(fs *flag.FlagSet, env *envDefaults) {
 	fs.StringVar(&c.ConsoleURL, "console-url", env.renamedStr("CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (VIGIE_CONSOLE_URL)")
 	fs.StringVar(&c.LucarneURL, "lucarne-url", env.str(currentEnvPrefix+"LUCARNE_URL", "", DefaultLucarneURL), "Lucarne URL, where enter opens a Kelos Task's run; empty opens its PR, Vikunja task or console logs (VIGIE_LUCARNE_URL)")
 	fs.StringVar(&c.LucarneCluster, "lucarne-cluster", env.str(currentEnvPrefix+"LUCARNE_CLUSTER", "", DefaultLucarneCluster), "cluster name in Lucarne run links; not empty while -lucarne-url is set (VIGIE_LUCARNE_CLUSTER)")
+	env.exits(&c.CappedExits, currentEnvPrefix+"CAPPED_EXITS", DefaultCappedExits)
+	fs.Var(&c.CappedExits, "capped-exits", "comma-separated <container>:<exit code> stops of a Kelos Task shown as capped, not failed; empty shows every failure as failed (VIGIE_CAPPED_EXITS)")
 	fs.IntVar(&c.StaleDays, "stale-days", env.renamedInteger("STALE_DAYS", DefaultStaleDays), "days after which an untouched PR or reply is stale (VIGIE_STALE_DAYS)")
 	fs.DurationVar(&c.Interval, "interval", env.renamedDuration("INTERVAL", DefaultInterval), "refresh interval (VIGIE_INTERVAL)")
 	fs.StringVar(&c.HiddenFile, "hidden-file", env.renamedStr("HIDDEN_FILE", ""), "file of the hidden rows (VIGIE_HIDDEN_FILE; default <user config dir>/vigie/hidden.json)")

@@ -121,7 +121,7 @@ func buildSources(cfg config.Config) ([]source.Named, error) {
 	kelos := source.Kelos{
 		Namespace: cfg.Namespace, ConsoleURL: cfg.ConsoleURL, VikunjaWeb: vikunjaWeb,
 		LucarneURL: cfg.LucarneURL, LucarneCluster: cfg.LucarneCluster,
-		Client: kube, Now: time.Now,
+		CappedExits: cfg.CappedExits, Client: kube, Now: time.Now,
 	}
 	github := source.GitHub{
 		Owner: cfg.GitHubOwner, StaleDays: cfg.StaleDays, Client: httpClient,
