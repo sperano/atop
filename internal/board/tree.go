@@ -17,7 +17,7 @@ const (
 	noParent = -1
 )
 
-// rank orders subtrees: by their most urgent row, then most recent first.
+// rank orders rows by their own urgency group, then most recent first.
 type rank struct {
 	group int
 	since time.Time
