@@ -104,7 +104,7 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
 | --- | --- |
 | vikunja | `<vikunja web>/tasks/<id>` (the web base is the API URL without `/api/v1`) |
 | pr | the PR URL |
-| kelos task | its PR (`status.results.pr`); else the Vikunja task in label `vikunja.spe.quebec/task`; else `<console>/api/resources/tasks/<ns>/<name>/logs` (the console has no per-task page) |
+| kelos task | its Lucarne run, `<lucarne>/runs/<cluster>/<ns>/<Task UID>`; with no Lucarne URL (or no UID), its PR (`status.results.pr`); else the Vikunja task in label `vikunja.spe.quebec/task`; else `<console>/api/resources/tasks/<ns>/<name>/logs` (the console has no per-task page) |
 | kelos session | the console base URL |
 | local claude | `tmux switch-client -t <pane>` when `$TMUX` is set (the stored value looks like `hollingsworth:@5.%6`); otherwise footer "not in tmux" |
 | error | nothing |
@@ -127,6 +127,8 @@ hard-coded beyond these defaults:
 | In-progress label id | `1` |
 | PR-open label title | `pr open` |
 | Kelos console URL | `https://kelos.spe.quebec` |
+| Lucarne URL (empty turns run links off) | `https://lucarne.spe.quebec` |
+| Lucarne cluster name | `hollingsworth` |
 | Stale days | `30` |
 | Refresh interval | `2m` |
 | Hidden-rows file | `<os.UserConfigDir>/vigie/hidden.json` |

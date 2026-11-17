@@ -120,6 +120,7 @@ func buildSources(cfg config.Config) ([]source.Named, error) {
 	vikunjaWeb := source.VikunjaWebBase(cfg.VikunjaURL)
 	kelos := source.Kelos{
 		Namespace: cfg.Namespace, ConsoleURL: cfg.ConsoleURL, VikunjaWeb: vikunjaWeb,
+		LucarneURL: cfg.LucarneURL, LucarneCluster: cfg.LucarneCluster,
 		Client: kube, Now: time.Now,
 	}
 	github := source.GitHub{

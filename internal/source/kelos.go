@@ -36,6 +36,7 @@ const (
 
 type objectMeta struct {
 	Name              string            `json:"name"`
+	UID               string            `json:"uid"`
 	Labels            map[string]string `json:"labels"`
 	CreationTimestamp string            `json:"creationTimestamp"`
 }
@@ -90,9 +91,13 @@ type itemList[T any] struct {
 type Kelos struct {
 	Namespace  string
 	ConsoleURL string
-	VikunjaWeb string // Vikunja web base, for a Task's Vikunja link
-	Client     DynamicClient
-	Now        func() time.Time
+	// LucarneURL and LucarneCluster form a Task's run link; an empty
+	// LucarneURL falls back to its PR, Vikunja task or console logs.
+	LucarneURL     string
+	LucarneCluster string
+	VikunjaWeb     string // Vikunja web base, for a Task's Vikunja link
+	Client         DynamicClient
+	Now            func() time.Time
 }
 
 func (k Kelos) items(ctx context.Context, v any, gvr schema.GroupVersionResource, selector string) error {
@@ -271,7 +276,14 @@ func taskDetail(t kelosTask, pr, activity string) string {
 	return strings.Join(parts, detailSep)
 }
 
+// taskTarget opens the Task's run in Lucarne, else its PR, its Vikunja task
+// or its logs in the console.
 func (k Kelos) taskTarget(t kelosTask, pr string) Target {
+	if k.LucarneURL != "" && t.Metadata.UID != "" {
+		run := fmt.Sprintf("%s/runs/%s/%s/%s", strings.TrimSuffix(k.LucarneURL, "/"),
+			url.PathEscape(k.LucarneCluster), url.PathEscape(k.Namespace), url.PathEscape(t.Metadata.UID))
+		return Target{URL: run}
+	}
 	if pr != "" {
 		return Target{URL: pr}
 	}

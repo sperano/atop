@@ -26,6 +26,8 @@ const (
 	DefaultInProgressLabel = 1
 	DefaultPROpenLabel     = "pr open"
 	DefaultConsoleURL      = "https://kelos.spe.quebec"
+	DefaultLucarneURL      = "https://lucarne.spe.quebec"
+	DefaultLucarneCluster  = "hollingsworth"
 	DefaultStaleDays       = 30
 	DefaultInterval        = 2 * time.Minute
 	DefaultListen          = ":8080"
@@ -48,6 +50,8 @@ type Config struct {
 	InProgressLabel int
 	PROpenLabel     string
 	ConsoleURL      string
+	LucarneURL      string
+	LucarneCluster  string
 	StaleDays       int
 	Interval        time.Duration
 	// HiddenFile is where hidden rows are kept; empty means
@@ -103,6 +107,8 @@ func (c *Config) register(fs *flag.FlagSet, env *envDefaults) {
 	fs.IntVar(&c.InProgressLabel, "in-progress-label", env.renamedInteger("IN_PROGRESS_LABEL", DefaultInProgressLabel), "id of the Vikunja \"in progress\" label (VIGIE_IN_PROGRESS_LABEL)")
 	fs.StringVar(&c.PROpenLabel, "pr-open-label", env.renamedStr("PR_OPEN_LABEL", DefaultPROpenLabel), "title of the Vikunja label on tasks whose PR is open (VIGIE_PR_OPEN_LABEL)")
 	fs.StringVar(&c.ConsoleURL, "console-url", env.renamedStr("CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (VIGIE_CONSOLE_URL)")
+	fs.StringVar(&c.LucarneURL, "lucarne-url", env.str(currentEnvPrefix+"LUCARNE_URL", "", DefaultLucarneURL), "Lucarne URL, where enter opens a Kelos Task's run; empty opens its PR, Vikunja task or console logs (VIGIE_LUCARNE_URL)")
+	fs.StringVar(&c.LucarneCluster, "lucarne-cluster", env.str(currentEnvPrefix+"LUCARNE_CLUSTER", "", DefaultLucarneCluster), "cluster name in Lucarne run links (VIGIE_LUCARNE_CLUSTER)")
 	fs.IntVar(&c.StaleDays, "stale-days", env.renamedInteger("STALE_DAYS", DefaultStaleDays), "days after which an untouched PR or reply is stale (VIGIE_STALE_DAYS)")
 	fs.DurationVar(&c.Interval, "interval", env.renamedDuration("INTERVAL", DefaultInterval), "refresh interval (VIGIE_INTERVAL)")
 	fs.StringVar(&c.HiddenFile, "hidden-file", env.renamedStr("HIDDEN_FILE", ""), "file of the hidden rows (VIGIE_HIDDEN_FILE; default <user config dir>/vigie/hidden.json)")
