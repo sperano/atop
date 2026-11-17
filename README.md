@@ -135,9 +135,9 @@ The server also serves a web UI at `/`, live from the event stream: an app
 bar with the counts, when the server last refreshed, and **Show hidden** and
 **Refresh** buttons; the rows on a card, each with a red dot when it needs
 you, its name over its detail (nested rows indented under their parent), its
-type and origin, its state as a coloured pill, its age and a **Hide** (or
-**Unhide**) button; a status line and the key help at the bottom. Light or
-dark, as the system says. The tab's title counts the rows that need you, as
+type and origin, its state as a coloured pill, its age and, except on a
+source's error row, a **Hide** (or **Unhide**) button; a status line and the
+key help at the bottom. Light or dark, as the system says. The tab's title counts the rows that need you, as
 `(2) vigie`. The TUI's keys work too (`↑/↓`, `k/j`, `pgup/pgdn`,
 `home/end`, `enter`, `r`, `h`, `H`; no `q`). Every name with a target is a
 link, so a middle-click opens it in a new tab; enter opens the selected

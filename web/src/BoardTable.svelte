@@ -8,7 +8,7 @@
 		selected: number;
 		/** Milliseconds since the epoch, which the ages are computed against. */
 		now: number;
-		/** Says "no rows" when there are none. */
+		/** Says "Nothing to show." when there are no rows. */
 		empty: boolean;
 		onselect: (index: number) => void;
 		/** Hides the row at index, or unhides it when it is hidden. */

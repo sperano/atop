@@ -1,5 +1,5 @@
 <script module lang="ts">
-	/** How often the header's time and the ages move on. */
+	/** How often the "updated … ago" text and the ages move on. */
 	export const TICK_MS = 1000;
 
 	/**
