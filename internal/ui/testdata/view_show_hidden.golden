@@ -1,8 +1,6 @@
 vigie · <now> · 4 need you · 2 busy · 1 idle · 2 hidden
 
   TYPE          ORIGIN   NAME                               STATE                  AGE DETAIL                           
-- vikunja       vikunja  #13                                idle                    4d [eric] hidden parent             
-● pr            github   └─ vigie#4                         review                  1h child of a hidden task           
 ● vikunja       vikunja  #12                                reply from bob          3h [eric] board package             
 ● pr            github   ├─ vigie#3                         checks failing          2h [claude-opus] Move the board     
   kelos task    kelos    │  └─ vikunja-vigie-12-fix         cubic fix               5m running second line              
@@ -10,6 +8,8 @@ vigie · <now> · 4 need you · 2 busy · 1 idle · 2 hidden
 ● kelos task    unknown  -                                  error                    - tasks.kelos.dev is forbidden     
   local claude  local    laptop                             busy                   30s                                  
 - pr            github   vigie#5                            draft                  59s hidden draft                     
+- vikunja       vikunja  #13                                idle                    4d [eric] hidden parent             
+● pr            github   └─ vigie#4                         review                  1h child of a hidden task           
   pr            unknown  old#1                              stale                  40d 日本語 abandoned                 
 [7m  kelos session kelos    gordon                             idle                     -                                  [m
 

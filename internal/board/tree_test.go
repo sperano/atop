@@ -61,13 +61,23 @@ func TestArrange(t *testing.T) {
 			want: []string{"#1", "└─ via task", "orphan"},
 		},
 		{
-			name: "a tree ranks as its most urgent row",
+			name: "a needs-you child does not promote its parent chain",
 			rows: []source.Row{
 				{Name: "busy", Since: fresh, Busy: true},
 				{Name: "#1", Ref: taskRef, Since: old},
 				{Name: "failing pr", Since: old, NeedsYou: true, ParentRefs: []string{taskRef}},
 			},
-			want: []string{"#1", "└─ failing pr", "busy"},
+			want: []string{"busy", "#1", "└─ failing pr"},
+		},
+		{
+			name: "an urgent grandchild does not promote its parent among siblings",
+			rows: []source.Row{
+				{Name: "parent", Ref: taskRef, Since: old},
+				{Name: "old child", Ref: prRef, Since: old, ParentRefs: []string{taskRef}},
+				{Name: "urgent grandchild", Since: fresh, NeedsYou: true, ParentRefs: []string{prRef}},
+				{Name: "fresh child", Since: fresh, ParentRefs: []string{taskRef}},
+			},
+			want: []string{"parent", "├─ fresh child", "└─ old child", "   └─ urgent grandchild"},
 		},
 		{
 			name: "siblings are ranked and the guide continues past a middle child",

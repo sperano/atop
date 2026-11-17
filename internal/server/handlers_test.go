@@ -71,10 +71,10 @@ func TestSnapshotNestsAndSorts(t *testing.T) {
 	h.refreshWith(testRows())
 	snap := decodeSnapshot(t, do(t, h.srv, http.MethodGet, snapshotURL))
 	want := []Row{
+		{Source: mirrorSource, Name: "-", Depth: 0, Mark: board.MarkNeedsYou, Severity: board.SeverityFailed},
 		{Source: source.SourceVikunja, Name: "#7", Depth: 0, Target: taskURL, Severity: board.SeverityQuiet, Hideable: true},
 		{Source: source.SourcePR, Name: "vigie#3", Depth: 1, Guides: "└─ ", Mark: board.MarkNeedsYou, Target: prURL, Severity: board.SeverityAttention, Hideable: true},
 		{Source: source.SourceKelosTask, Name: "fix", Depth: 2, Guides: "   └─ ", Severity: board.SeverityBusy, Busy: true, Hideable: true},
-		{Source: mirrorSource, Name: "-", Depth: 0, Mark: board.MarkNeedsYou, Severity: board.SeverityFailed},
 		{Source: source.SourceKelosSession, Name: "eric", Depth: 0, Severity: board.SeverityQuiet, Hideable: true},
 	}
 	if len(snap.Rows) != len(want) {
