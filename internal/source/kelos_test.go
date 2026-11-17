@@ -212,6 +212,9 @@ func TestFailedTaskRow(t *testing.T) {
 		extra["message"] = "Task failed"
 		return decode[kelosTask](t, taskObj("Failed", extra, labels))
 	}
+	noMessage := failed(obj{}, obj{vikunjaTaskLabel: "575"})
+	noMessage.Status.Message = ""
+	noMessage.Status.Results = map[string]string{resultPR: testPRURL}
 	tests := []struct {
 		name       string
 		task       kelosTask
@@ -235,6 +238,8 @@ func TestFailedTaskRow(t *testing.T) {
 		{"no failed container keeps the message", failed(obj{}, nil),
 			onPod(exitPod(t, []ContainerExit{ok}, []ContainerExit{{Container: "kelos-agent"}})), StateFailed, true, "Task failed"},
 		{"missing pod keeps the message", failed(obj{}, nil), nil, StateFailed, true, "Task failed"},
+		{"missing pod and message falls back to the links", noMessage, nil,
+			StateFailed, true, "implementing · vikunja #575 · " + testPRURL},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
