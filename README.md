@@ -31,10 +31,10 @@ first.
 Related rows form a tree. An agent PR (branch `kelos/vikunja-<id>`) sits
 under its Vikunja task, and a Kelos Task sits under the PR it produced or
 follows up, else under its Vikunja task. A row whose parent is not shown
-stays at the top level. A tree is ranked by its most urgent row, so a PR
-awaiting review lifts its task with it. A source that
-cannot be read (no kubeconfig, no GitHub token, Vikunja down) shows as one
-`error` row that needs you; the other sources still render.
+stays at the top level. Each level is sorted by each row's own state and
+time; an urgent child does not make its parent rank as needing you. A source
+that cannot be read (no kubeconfig, no GitHub token, Vikunja down) shows as
+one `error` row that needs you; the other sources still render.
 
 ## Install
 

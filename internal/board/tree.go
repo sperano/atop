@@ -37,8 +37,8 @@ type node struct {
 }
 
 // arrange nests each row under the first of its ParentRefs that is shown,
-// and orders every level by rank: a tree ranks as its most urgent row, so a
-// failing PR lifts the Vikunja task it belongs to.
+// and orders every level by each row's own rank. A child's urgency does not
+// make its parent look like it needs attention.
 func arrange(rows []source.Row) []Entry {
 	nodes := make([]node, len(rows))
 	for i, r := range rows {
@@ -54,7 +54,7 @@ func arrange(rows []source.Row) []Entry {
 		}
 	}
 	for _, r := range roots {
-		rankSubtree(nodes, r)
+		rankTree(nodes, r)
 	}
 	sortByRank(nodes, roots)
 	entries := make([]Entry, 0, len(rows))
@@ -99,18 +99,13 @@ func reaches(parents []int, from, to int) bool {
 	return false
 }
 
-// rankSubtree sets the rank of i and its descendants, and sorts each
-// node's children by rank.
-func rankSubtree(nodes []node, i int) rank {
-	best := rank{group: group(nodes[i].row), since: nodes[i].row.Since}
+// rankTree sets each node's own rank and sorts its children by theirs.
+func rankTree(nodes []node, i int) {
+	nodes[i].rank = rank{group: group(nodes[i].row), since: nodes[i].row.Since}
 	for _, c := range nodes[i].children {
-		if r := rankSubtree(nodes, c); r.compare(best) < 0 {
-			best = r
-		}
+		rankTree(nodes, c)
 	}
 	sortByRank(nodes, nodes[i].children)
-	nodes[i].rank = best
-	return best
 }
 
 func sortByRank(nodes []node, ids []int) {
