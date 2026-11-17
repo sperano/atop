@@ -1,5 +1,5 @@
 <script module lang="ts">
-	/** How often the header's time and the ages move on. */
+	/** How often the "updated … ago" text and the ages move on. */
 	export const TICK_MS = 1000;
 
 	/**
@@ -15,9 +15,10 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import AppBar from './AppBar.svelte';
 	import BoardTable from './BoardTable.svelte';
 	import { isRefusal, TooSoonError, type Api } from './lib/api';
-	import { titleLine } from './lib/format';
+	import { documentTitle } from './lib/format';
 	import { actionOf, KEY_HELP, type Action } from './lib/keys';
 	import { LiveBoard, type Connection, type OpenStream, type Timer } from './lib/live';
 	import type { Snapshot } from './lib/model';
@@ -46,6 +47,7 @@
 	let table = $state<ReturnType<typeof BoardTable>>();
 
 	const rows = $derived(snapshot?.rows ?? []);
+	const counts = $derived(snapshot?.counts ?? NO_COUNTS);
 	const statusText = $derived(
 		status.statusLine({
 			connection,
@@ -90,7 +92,7 @@
 		}
 		message = openUrl(row.target)
 			? `opened ${row.target}`
-			: `error: the browser did not open ${row.target}`;
+			: `${status.ERROR_PREFIX}the browser did not open ${row.target}`;
 	}
 
 	async function refresh(): Promise<void> {
@@ -102,7 +104,7 @@
 			message =
 				err instanceof TooSoonError
 					? status.tooSoonMessage(err.retryAfter)
-					: `error: refresh: ${err instanceof Error ? err.message : String(err)}`;
+					: `${status.ERROR_PREFIX}refresh: ${err instanceof Error ? err.message : String(err)}`;
 		}
 	}
 
@@ -115,7 +117,7 @@
 			message = hide ? status.hidMessage(row) : status.unhidMessage(row);
 		} catch (err) {
 			const text = err instanceof Error ? err.message : String(err);
-			message = isRefusal(err) ? text : `error: ${text}`;
+			message = isRefusal(err) ? text : `${status.ERROR_PREFIX}${text}`;
 		}
 	}
 
@@ -143,9 +145,16 @@
 		}
 	}
 
+	function hideRow(index: number): void {
+		selected = index;
+		void toggleHidden();
+	}
+
 	function onkeydown(event: KeyboardEvent): void {
 		const action = actionOf(event);
 		if (!action) return;
+		// Enter on a button presses it, rather than opening the selected row.
+		if (action.kind === 'open' && event.target instanceof HTMLButtonElement) return;
 		event.preventDefault();
 		run(action);
 	}
@@ -153,19 +162,43 @@
 
 <svelte:window {onkeydown} />
 
+<svelte:head>
+	<title>{documentTitle(counts)}</title>
+</svelte:head>
+
 <div class="app">
-	<header>{titleLine(snapshot?.counts ?? NO_COUNTS, time)}</header>
-	<BoardTable
-		bind:this={table}
-		{rows}
-		{selected}
+	<AppBar
+		{counts}
+		fetchedAt={snapshot?.fetchedAt}
 		now={time}
-		empty={snapshot !== undefined && !snapshot.refreshing}
-		onselect={(i) => (selected = i)}
+		refreshing={snapshot?.refreshing ?? false}
+		{showHidden}
+		onrefresh={() => run({ kind: 'refresh' })}
+		ontogglehidden={() => run({ kind: 'showHidden' })}
 	/>
+	<main>
+		<BoardTable
+			bind:this={table}
+			{rows}
+			{selected}
+			now={time}
+			empty={snapshot !== undefined && !snapshot.refreshing}
+			onselect={(i) => (selected = i)}
+			onhide={hideRow}
+		/>
+	</main>
 	<footer>
-		<div class="status" role="status">{statusText}</div>
-		<div class="help">{KEY_HELP}</div>
+		<div class="status" class:error={status.hasError(statusText)} role="status">
+			{statusText}
+		</div>
+		<ul class="help" aria-label="keyboard shortcuts">
+			{#each KEY_HELP as hint (hint.does)}
+				<li>
+					{#each hint.keys as key (key)}<kbd>{key}</kbd>{/each}
+					<span class="does">{hint.does}</span>
+				</li>
+			{/each}
+		</ul>
 	</footer>
 </div>
 
@@ -176,30 +209,66 @@
 		height: 100dvh;
 	}
 
-	header {
-		background: var(--color-header);
-		color: var(--color-on-header);
-		font-weight: bold;
-		padding: var(--space-2) var(--space-3);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+	main {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		padding: var(--space-4) var(--space-6);
 	}
 
 	footer {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-1) var(--space-4);
+		padding: var(--space-2) var(--space-6);
 		border-top: 1px solid var(--color-border);
-		padding: var(--space-1) var(--space-3);
+		background: var(--color-surface);
+		font-size: var(--font-size-xs);
 	}
 
-	.status,
-	.help {
-		white-space: nowrap;
+	.status {
+		min-height: 1.5em;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		min-height: 1.5em;
+		white-space: nowrap;
+	}
+
+	.status.error {
+		color: var(--color-failed);
 	}
 
 	.help {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1) var(--space-3);
+		margin: 0 0 0 auto;
+		padding: 0;
+		list-style: none;
 		color: var(--color-muted);
+	}
+
+	kbd {
+		display: inline-block;
+		min-width: 1.5em;
+		margin-right: var(--space-1);
+		padding: 0 var(--space-1);
+		border: 1px solid var(--color-control-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-page);
+		color: var(--color-fg);
+		font-family: var(--font-mono);
+		text-align: center;
+	}
+
+	@media (width < 40rem) {
+		main {
+			padding: var(--space-2);
+		}
+
+		.help {
+			display: none;
+		}
 	}
 </style>

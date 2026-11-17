@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import type { Connection } from './live';
-import { hidMessage, statusLine, tooSoonMessage, unhidMessage, type StatusInput } from './status';
+import {
+	hasError,
+	hidMessage,
+	statusLine,
+	tooSoonMessage,
+	unhidMessage,
+	type StatusInput
+} from './status';
 
 const LIVE: Connection = { state: 'live' };
 const quiet: StatusInput = {
@@ -22,7 +29,7 @@ describe('statusLine', () => {
 			'error: offline · retrying in 2s'
 		],
 		['refreshing', { refreshing: true }, 'refreshing…'],
-		['showing hidden rows', { showHidden: true }, 'showing hidden rows (marked -)'],
+		['showing hidden rows', { showHidden: true }, 'showing hidden rows'],
 		['server error', { serverError: 'hidden rows: denied' }, 'error: hidden rows: denied'],
 		['message', { message: 'opened https://x' }, 'opened https://x'],
 		[
@@ -34,10 +41,22 @@ describe('statusLine', () => {
 				serverError: 'hidden rows: denied',
 				message: 'hid pr a'
 			},
-			'connection lost, reconnecting… · refreshing… · showing hidden rows (marked -) · error: hidden rows: denied · hid pr a'
+			'connection lost, reconnecting… · refreshing… · showing hidden rows · error: hidden rows: denied · hid pr a'
 		]
 	])('%s', (_name, fields, want) => {
 		expect(statusLine({ ...quiet, ...fields })).toBe(want);
+	});
+});
+
+describe('hasError', () => {
+	test.each([
+		['nothing', '', false],
+		['a message', 'opened https://x.example/', false],
+		['an error alone', 'error: refresh: 502 Bad Gateway', true],
+		['an error after other news', 'refreshing… · error: hidden rows: denied', true],
+		['the word inside a message', 'a source error cannot be hidden', false]
+	])('%s', (_name, line, want) => {
+		expect(hasError(line)).toBe(want);
 	});
 });
 

@@ -32,16 +32,9 @@ function ratio(foreground: string, background: string): number {
 	return contrast(parseColor(computed(token(foreground))), parseColor(computed(token(background))));
 }
 
-/** Each severity's row colour, as the table draws it. */
-const ROW_COLORS: Record<Severity, string> = {
-	failed: 'failed',
-	blocked: 'blocked',
-	busy: 'busy',
-	attention: 'fg',
-	quiet: 'muted'
-};
+const SEVERITIES: readonly Severity[] = ['failed', 'blocked', 'busy', 'attention', 'quiet'];
 
-test.each(SCHEMES)('rows take their severity colour in the %s scheme', async (scheme) => {
+test.each(SCHEMES)('state pills take their severity colours in the %s scheme', async (scheme) => {
 	await commands.emulateColorScheme(scheme);
 	const api = new FakeApi();
 	const page = render(App, {
@@ -50,25 +43,29 @@ test.each(SCHEMES)('rows take their severity colour in the %s scheme', async (sc
 		timer: new FakeTimers().timer,
 		now: () => TEST_NOW
 	});
-	const severities = Object.keys(ROW_COLORS) as Severity[];
 	api.answer(
 		snapshot(
-			severities.map((severity) =>
+			SEVERITIES.map((severity) =>
 				row({ source: 'pr', name: severity, severity, mark: severity === 'attention' ? '●' : '' })
 			)
 		)
 	);
 	await settle();
 	flushSync();
-	const rows = [...page.querySelectorAll('tbody tr')];
-	expect(rows.map((tr) => getComputedStyle(tr).color)).toEqual(
-		severities.map((sev) => computed(token(ROW_COLORS[sev])))
+	const pills = [...page.querySelectorAll('tbody .pill')].map((p) => getComputedStyle(p));
+	expect(pills.map((p) => [p.color, p.backgroundColor])).toEqual(
+		SEVERITIES.map((sev) => [computed(token(sev)), computed(token(`${sev}-bg`))])
 	);
-	const mark = page.querySelector('tbody td.needs-you');
-	expect(mark && getComputedStyle(mark).color).toBe(computed(token('mark')));
+	const dot = page.querySelector('tbody .dot');
+	expect(dot && getComputedStyle(dot).backgroundColor).toBe(computed(token('mark')));
 	expect(getComputedStyle(document.documentElement).colorScheme).toBe('light dark');
 	expect(getComputedStyle(document.body).backgroundColor).toBe(computed(token('page')));
-	expect(rows[0] && getComputedStyle(rows[0]).backgroundColor).toBe(computed(token('selected')));
+	const card = page.querySelector('.viewport');
+	expect(card && getComputedStyle(card).backgroundColor).toBe(computed(token('surface')));
+	const first = page.querySelector('tbody tr');
+	expect(first && getComputedStyle(first).backgroundColor).toBe(computed(token('selected')));
+	const header = page.querySelector('header');
+	expect(header && getComputedStyle(header).backgroundColor).toBe(computed(token('header')));
 });
 
 test.each(SCHEMES)('the %s scheme differs from the other', async (scheme) => {
@@ -78,20 +75,32 @@ test.each(SCHEMES)('the %s scheme differs from the other', async (scheme) => {
 	expect(computed(token('page'))).not.toBe(page);
 });
 
+/** What the board's rows are drawn on: the card, a hovered and the selected row. */
+const ROW_BACKGROUNDS = ['surface', 'hover', 'selected'];
+
 /** Text and what it is read on. */
 const TEXT_PAIRS: [text: string, background: string][] = [
-	...['fg', 'muted', 'failed', 'blocked', 'busy'].flatMap((t): [string, string][] => [
-		[t, 'page'],
-		[t, 'selected']
+	...['fg', 'muted'].flatMap((t): [string, string][] =>
+		[...ROW_BACKGROUNDS, 'page'].map((bg) => [t, bg])
+	),
+	...SEVERITIES.map((sev): [string, string] => [sev, `${sev}-bg`]),
+	['failed', 'surface'],
+	...['header', 'badge', 'badge-need-you', 'badge-busy'].map((bg): [string, string] => [
+		'on-header',
+		bg
 	]),
-	['on-header', 'header']
+	['header-muted', 'header']
 ];
-/** Marks and the focus ring. */
+/** Marks, borders of controls and the focus rings. */
 const GRAPHIC_PAIRS: [graphic: string, background: string][] = [
-	['mark', 'page'],
-	['mark', 'selected'],
+	...['mark', 'focus', 'control-border'].flatMap((g): [string, string][] =>
+		ROW_BACKGROUNDS.map((bg) => [g, bg])
+	),
+	['accent', 'selected'],
 	['focus', 'page'],
-	['focus', 'selected']
+	['focus-on-header', 'header'],
+	['focus-on-header', 'badge'],
+	['header-muted', 'header']
 ];
 
 test.each(SCHEMES)('the %s scheme meets WCAG AA contrast', async (scheme) => {

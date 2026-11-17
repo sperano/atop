@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/sperano/vigie/internal/board"
+	"github.com/sperano/vigie/internal/hidden"
 )
 
 // Snapshot is what GET /api/v1/snapshot returns and every event carries.
@@ -40,6 +41,7 @@ type Row struct {
 	NeedsYou bool           `json:"needs_you"`
 	Busy     bool           `json:"busy"`
 	Hidden   bool           `json:"hidden"`
+	Hideable bool           `json:"hideable"` // false for a source's error row
 }
 
 // snapshot builds the current snapshot, its ages as of now. showHidden lists
@@ -66,6 +68,7 @@ func newRow(e board.Entry) Row {
 		Depth: e.Depth, Guides: e.Prefix, Mark: e.Mark,
 		State: r.State, Since: optionalTime(r.Since), Age: e.Age, Detail: r.Detail,
 		Severity: e.Severity, NeedsYou: r.NeedsYou, Busy: r.Busy, Hidden: e.Hidden,
+		Hideable: hidden.Hideable(r),
 	}
 	if e.Target.Kind == board.TargetURL {
 		row.Target = e.Target.Value

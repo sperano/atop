@@ -27,6 +27,8 @@ export interface Row {
 	readonly needsYou: boolean;
 	readonly busy: boolean;
 	readonly hidden: boolean;
+	/** False for a source's error row, which the server refuses to hide. */
+	readonly hideable: boolean;
 }
 
 export interface Counts {

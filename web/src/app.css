@@ -1,47 +1,109 @@
 /*
  * Every colour of the page: light tokens on :root, redefined for the dark
  * scheme. The system decides; there is no switch. Components use the tokens
- * and never a colour of their own (npm run lint:colors).
+ * and never a colour of their own (npm run lint:colors). Both schemes are
+ * contrast-checked by src/App.theme.svelte.test.ts.
+ *
+ * The shell: a dark app bar holding the counts and the buttons, a light page
+ * with the board on a white card, each state a coloured pill.
  */
 :root {
 	color-scheme: light dark;
 
-	--color-page: #f6f7f9;
-	--color-fg: #18212b;
-	--color-muted: #566170;
-	--color-border: #d3d9e0;
-	--color-header: #1d2b3a;
-	--color-on-header: #f1f4f8;
-	--color-selected: #dce6f2;
-	/* Row severities (internal/board/severity.go) and the needs-you mark. */
-	--color-failed: #b3261e;
-	--color-blocked: #865400;
-	--color-busy: #17743a;
-	--color-mark: #b3261e;
-	--color-focus: #2b67ad;
+	/* Page, card and text. */
+	--color-page: #f3f5f7;
+	--color-surface: #ffffff;
+	--color-fg: #172a3a;
+	--color-muted: #536373;
+	--color-border: #dde3ea;
+	--color-control-border: #7b8794;
+	--color-hover: #f1f4f8;
+	--color-selected: #e2ecf8;
+	--color-accent: #1f5f9e;
+	--color-focus: #0b57d0;
+	--color-shadow: #d5dde5;
 
+	/* The app bar and its count badges. */
+	--color-header: #172a3a;
+	--color-on-header: #ffffff;
+	--color-header-muted: #b9c6d3;
+	--color-badge: #2a4157;
+	--color-badge-need-you: #b3261e;
+	--color-badge-busy: #17743a;
+	--color-focus-on-header: #8ab4f8;
+
+	/* Row severities (internal/board/severity.go): the state pill, its text
+	   and background, and the needs-you dot. */
+	--color-failed: #991b1b;
+	--color-failed-bg: #fde4e2;
+	--color-blocked: #7c4a03;
+	--color-blocked-bg: #fdf0d2;
+	--color-busy: #14632f;
+	--color-busy-bg: #ddf3e4;
+	--color-attention: #9a3412;
+	--color-attention-bg: #ffeddb;
+	--color-quiet: #3b4a59;
+	--color-quiet-bg: #e9edf1;
+	--color-mark: #d02a20;
+
+	/* Typography. */
+	--font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 	--font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-	--font-size: 0.875rem;
+	--font-size-xs: 0.75rem;
+	--font-size-sm: 0.875rem;
+	--font-size-md: 1rem;
+	--font-size-lg: 1.25rem;
+	--line-height: 1.5;
+
+	/* Spacing, radii, the focus ring. */
 	--space-1: 0.25rem;
 	--space-2: 0.5rem;
 	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-6: 1.5rem;
+	--radius-sm: 4px;
+	--radius: 0.5rem;
+	--radius-pill: 999px;
 	--focus-ring: 2px solid var(--color-focus);
+	--focus-offset: 2px;
+
+	/* The board: its widest column, and the indent of a nested row. */
+	--page-wide: 90rem;
+	--tree-indent: 1.25rem;
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--color-page: #11161c;
-		--color-fg: #e3e8ee;
-		--color-muted: #98a3b0;
-		--color-border: #2b3541;
-		--color-header: #1b2632;
-		--color-on-header: #e3e8ee;
-		--color-selected: #263546;
-		--color-failed: #ff8a80;
-		--color-blocked: #e6b450;
-		--color-busy: #5fd07a;
-		--color-mark: #ff8a80;
-		--color-focus: #75aef0;
+		--color-page: #0f161d;
+		--color-surface: #17212b;
+		--color-fg: #e3e9ef;
+		--color-muted: #9fadba;
+		--color-border: #2a3643;
+		--color-control-border: #7d8b99;
+		--color-hover: #1c2834;
+		--color-selected: #22344a;
+		--color-accent: #8cbcf2;
+		--color-focus: #8ab4f8;
+		--color-shadow: #080c10;
+
+		--color-header: #0a1016;
+		--color-on-header: #e3e9ef;
+		--color-header-muted: #9fadba;
+		--color-badge: #1f2c39;
+		--color-badge-need-you: #a3231c;
+		--color-badge-busy: #136332;
+
+		--color-failed: #ffb3ab;
+		--color-failed-bg: #4a1a17;
+		--color-blocked: #f5cd6e;
+		--color-blocked-bg: #3f2e0b;
+		--color-busy: #8fe3aa;
+		--color-busy-bg: #133823;
+		--color-attention: #ffbd88;
+		--color-attention-bg: #45250f;
+		--color-quiet: #c6d1dc;
+		--color-quiet-bg: #2a3643;
+		--color-mark: #ff7b72;
 	}
 }
 
@@ -58,16 +120,30 @@ body {
 body {
 	background: var(--color-page);
 	color: var(--color-fg);
-	font-family: var(--font-mono);
-	font-size: var(--font-size);
-	line-height: 1.5;
+	font-family: var(--font-sans);
+	font-size: var(--font-size-sm);
+	line-height: var(--line-height);
 }
 
 a {
 	color: inherit;
 }
 
+button {
+	font: inherit;
+	color: inherit;
+}
+
 :focus-visible {
 	outline: var(--focus-ring);
-	outline-offset: 1px;
+	outline-offset: var(--focus-offset);
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
 }
