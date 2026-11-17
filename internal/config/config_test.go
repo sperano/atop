@@ -132,6 +132,7 @@ func TestParseLucarne(t *testing.T) {
 		{"env overrides default", nil, env, envLucarneURL, envLucarneClust},
 		{"flag beats env", []string{"-lucarne-url", flagLucarneURL}, env, flagLucarneURL, envLucarneClust},
 		{"empty flag turns run links off", []string{"-lucarne-url="}, env, "", envLucarneClust},
+		{"empty cluster without a URL", []string{"-lucarne-url=", "-lucarne-cluster="}, env, "", ""},
 		{"no legacy fallback", nil, legacy, DefaultLucarneURL, DefaultLucarneCluster},
 	}
 	for _, tt := range tests {
@@ -275,6 +276,7 @@ func TestParseArgumentErrors(t *testing.T) {
 		{"unknown subcommand", []string{"serv"}, true, `unexpected argument "serv"`},
 		{"argument after serve", []string{ServeCommand, "now"}, true, `unexpected argument "now"`},
 		{"empty listen", []string{ServeCommand, "-listen", ""}, true, "listen address must not be empty"},
+		{"empty lucarne cluster", []string{"-lucarne-cluster="}, true, "lucarne cluster must not be empty"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -89,6 +89,9 @@ func Parse(name string, args []string, getenv func(string) string) (Config, erro
 	if c.Serve && c.Listen == "" {
 		return Config{}, fmt.Errorf("%w: listen address must not be empty", ErrInvalid)
 	}
+	if c.LucarneURL != "" && c.LucarneCluster == "" {
+		return Config{}, fmt.Errorf("%w: lucarne cluster must not be empty while the Lucarne URL is set", ErrInvalid)
+	}
 	if c.Interval <= 0 {
 		return Config{}, fmt.Errorf("%w: interval must be positive, got %s", ErrInvalid, c.Interval)
 	}
@@ -108,7 +111,7 @@ func (c *Config) register(fs *flag.FlagSet, env *envDefaults) {
 	fs.StringVar(&c.PROpenLabel, "pr-open-label", env.renamedStr("PR_OPEN_LABEL", DefaultPROpenLabel), "title of the Vikunja label on tasks whose PR is open (VIGIE_PR_OPEN_LABEL)")
 	fs.StringVar(&c.ConsoleURL, "console-url", env.renamedStr("CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (VIGIE_CONSOLE_URL)")
 	fs.StringVar(&c.LucarneURL, "lucarne-url", env.str(currentEnvPrefix+"LUCARNE_URL", "", DefaultLucarneURL), "Lucarne URL, where enter opens a Kelos Task's run; empty opens its PR, Vikunja task or console logs (VIGIE_LUCARNE_URL)")
-	fs.StringVar(&c.LucarneCluster, "lucarne-cluster", env.str(currentEnvPrefix+"LUCARNE_CLUSTER", "", DefaultLucarneCluster), "cluster name in Lucarne run links (VIGIE_LUCARNE_CLUSTER)")
+	fs.StringVar(&c.LucarneCluster, "lucarne-cluster", env.str(currentEnvPrefix+"LUCARNE_CLUSTER", "", DefaultLucarneCluster), "cluster name in Lucarne run links; not empty while -lucarne-url is set (VIGIE_LUCARNE_CLUSTER)")
 	fs.IntVar(&c.StaleDays, "stale-days", env.renamedInteger("STALE_DAYS", DefaultStaleDays), "days after which an untouched PR or reply is stale (VIGIE_STALE_DAYS)")
 	fs.DurationVar(&c.Interval, "interval", env.renamedDuration("INTERVAL", DefaultInterval), "refresh interval (VIGIE_INTERVAL)")
 	fs.StringVar(&c.HiddenFile, "hidden-file", env.renamedStr("HIDDEN_FILE", ""), "file of the hidden rows (VIGIE_HIDDEN_FILE; default <user config dir>/vigie/hidden.json)")

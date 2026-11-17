@@ -203,7 +203,7 @@ than inferred from a Task name or prompt.
 | --- | --- | --- | --- |
 | `local claude` | Claude Code sessions on this machine: `busy`, `idle`, or another raw status | the status is neither busy nor idle | `tmux switch-client` to its pane, when vigie runs inside tmux |
 | `kelos session` | Kelos Sessions: `busy`/`idle` from the `Active` condition, else the lowercased phase | the phase is `Failed` | the Kelos console |
-| `kelos task` | Kelos Tasks. While one runs, its state is what it does: `implementing`, `discussing`, `conflict fix`, `cubic fix` (a review bot's findings; the bot's name comes from the Task), `pr follow-up`, `task follow-up`; a plumbing Task shows its Kelos role (`merge-close`, `pr-open`, `conflict-reconcile`). Otherwise `blocked` (waiting on its blockers), `waiting` (queued behind the branch lock), `pending`, `done` for an hour after completion, then hidden; the activity then starts DETAIL | the Task failed | its run in Lucarne; with `--lucarne-url` empty, its PR, else its Vikunja task, else its logs in the console |
+| `kelos task` | Kelos Tasks. While one runs, its state is what it does: `implementing`, `discussing`, `conflict fix`, `cubic fix` (a review bot's findings; the bot's name comes from the Task), `pr follow-up`, `task follow-up`; a plumbing Task shows its Kelos role (`merge-close`, `pr-open`, `conflict-reconcile`). Otherwise `blocked` (waiting on its blockers), `waiting` (queued behind the branch lock), `pending`, `done` for an hour after completion, then hidden; the activity then starts DETAIL | the Task failed | its run in Lucarne; with `--lucarne-url` empty or no Task UID, its PR, else its Vikunja task, else its logs in the console |
 | `pr` | open PRs of the owner's non-archived repos (first 50): `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `awaiting your review`; a `kelos:<variant>` label prefixes the title with `[variant]` | conflicts, failing checks, or awaiting review | the PR |
 | `vikunja` | tasks labelled in progress and not done, the title prefixed with the agent user they are assigned to: `PR open` (the task carries the `pr open` label Kelos adds while its PR is open), `reply from <user>` (someone else spoke last), `idle` (you spoke last, or nobody did, and no agent is running) | the newest comment is not yours and the PR is not open | the task |
 
@@ -243,7 +243,7 @@ variable when the new name is unset.
 | `--pr-open-label` | `VIGIE_PR_OPEN_LABEL` | `pr open` |
 | `--console-url` | `VIGIE_CONSOLE_URL` | `https://kelos.spe.quebec` |
 | `--lucarne-url` (empty: no run links) | `VIGIE_LUCARNE_URL` | `https://lucarne.spe.quebec` |
-| `--lucarne-cluster` | `VIGIE_LUCARNE_CLUSTER` | `hollingsworth` |
+| `--lucarne-cluster` (not empty while `--lucarne-url` is set) | `VIGIE_LUCARNE_CLUSTER` | `hollingsworth` |
 | `--stale-days` | `VIGIE_STALE_DAYS` | `30` |
 | `--interval` | `VIGIE_INTERVAL` | `2m` |
 | `--hidden-file` | `VIGIE_HIDDEN_FILE` | `<user config dir>/vigie/hidden.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS) |

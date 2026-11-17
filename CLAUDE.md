@@ -128,7 +128,7 @@ hard-coded beyond these defaults:
 | PR-open label title | `pr open` |
 | Kelos console URL | `https://kelos.spe.quebec` |
 | Lucarne URL (empty turns run links off) | `https://lucarne.spe.quebec` |
-| Lucarne cluster name | `hollingsworth` |
+| Lucarne cluster name (not empty while the Lucarne URL is set) | `hollingsworth` |
 | Stale days | `30` |
 | Refresh interval | `2m` |
 | Hidden-rows file | `<os.UserConfigDir>/vigie/hidden.json` |

@@ -20,7 +20,7 @@ const (
 	testTaskName = "t"
 	testPRURL    = "https://x/pull/1"
 	testLucarne  = "https://lucarne.example"
-	testCluster  = "hollingsworth"
+	testCluster  = "test-cluster"
 	testTaskUID  = "b11258c5-9a39-4c9c-9383-a68f47fbd014"
 )
 
