@@ -67,6 +67,15 @@ func TestEnrich(t *testing.T) {
 			wantNeeds: map[string]bool{"#840": true},
 		},
 		{
+			name: "a capped task changes nothing",
+			rows: []Row{
+				prRowFor("review", true),
+				taskRowFor("capped", stateCapped, false, fresh, enrichPRRef),
+			},
+			wantState: map[string]string{"vigie#3": "review"},
+			wantNeeds: map[string]bool{"vigie#3": true},
+		},
+		{
 			name: "a running task beats a newer queued one",
 			rows: []Row{
 				vikunjaRow(StateIdle, false),

@@ -60,8 +60,32 @@ func taskObj(phase string, extra obj, labels obj) obj {
 
 func initPod(name, state string) pod {
 	var p pod
-	p.Status.InitContainerStatuses = []containerStatus{{Name: name, State: map[string]any{state: obj{}}}}
+	s := containerStatus{Name: name}
+	switch state {
+	case "running":
+		s.State.Running = &struct{}{}
+	case "terminated":
+		s.State.Terminated = &terminatedState{}
+	}
+	p.Status.InitContainerStatuses = []containerStatus{s}
 	return p
+}
+
+func onPod(p pod) map[string]pod { return map[string]pod{testPodName: p} }
+
+// exitPod is a pod whose statuses are decoded from Kubernetes JSON: init
+// lists the init containers' {name, exit code} in order, main the others'.
+func exitPod(t *testing.T, init, main []ContainerExit) pod {
+	t.Helper()
+	statuses := func(exits []ContainerExit) []obj {
+		out := make([]obj, 0, len(exits))
+		for _, e := range exits {
+			out = append(out, obj{"name": e.Container, "state": obj{"terminated": obj{"exitCode": e.Code}}})
+		}
+		return out
+	}
+	return decode[pod](t, obj{"metadata": obj{"name": testPodName},
+		"status": obj{"initContainerStatuses": statuses(init), "containerStatuses": statuses(main)}})
 }
 
 func blockedPod() pod { return initPod(waitForBlockers, "running") }
@@ -172,6 +196,58 @@ func TestTaskTargetLucarne(t *testing.T) {
 			row, _ := k.taskRow(decode[kelosTask](t, tt.task), nil, testNow)
 			if row.Target.URL != tt.want {
 				t.Errorf("target = %q, want %q", row.Target.URL, tt.want)
+			}
+		})
+	}
+}
+
+func TestFailedTaskRow(t *testing.T) {
+	t.Parallel()
+	capExit := ContainerExit{Container: "review-round-cap", Code: 4}
+	ok := ContainerExit{Container: waitForBlockers}
+	agent1 := ContainerExit{Container: "kelos-agent", Code: 1}
+	followUp := obj{roleLabel: rolePRFollowUp}
+	failed := func(extra obj, labels obj) kelosTask {
+		extra["completionTime"] = iso(testNow.Add(-RecentDone - time.Hour))
+		extra["message"] = "Task failed"
+		return decode[kelosTask](t, taskObj("Failed", extra, labels))
+	}
+	tests := []struct {
+		name       string
+		task       kelosTask
+		pods       map[string]pod
+		wantState  string
+		wantNeeds  bool
+		wantDetail string
+	}{
+		{"capped exit is capped, not flagged, and stays listed", failed(obj{"prompt": "PR: " + testPRURL}, followUp),
+			onPod(exitPod(t, []ContainerExit{ok, capExit}, nil)), stateCapped, false, ActivityPRFollowUp + " · " + testPRURL},
+		{"another init container's code is failed", failed(obj{}, followUp),
+			onPod(exitPod(t, []ContainerExit{{Container: waitForBlockers, Code: capExit.Code}}, nil)),
+			StateFailed, true, ActivityPRFollowUp + " · wait-for-blockers exit 4"},
+		{"another code of the capped container is failed", failed(obj{}, nil),
+			onPod(exitPod(t, []ContainerExit{{Container: capExit.Container, Code: 1}}, nil)),
+			StateFailed, true, "review-round-cap exit 1"},
+		{"main container exit replaces the message", failed(obj{}, obj{vikunjaTaskLabel: "575"}),
+			onPod(exitPod(t, []ContainerExit{ok}, []ContainerExit{agent1})), StateFailed, true, "implementing · kelos-agent exit 1"},
+		{"failing init container wins over a later one", failed(obj{}, nil),
+			onPod(exitPod(t, []ContainerExit{agent1, capExit}, nil)), StateFailed, true, "kelos-agent exit 1"},
+		{"no failed container keeps the message", failed(obj{}, nil),
+			onPod(exitPod(t, []ContainerExit{ok}, []ContainerExit{{Container: "kelos-agent"}})), StateFailed, true, "Task failed"},
+		{"missing pod keeps the message", failed(obj{}, nil), nil, StateFailed, true, "Task failed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			k := testKelos()
+			k.CappedExits = []ContainerExit{capExit}
+			row, shown := k.taskRow(tt.task, tt.pods, testNow)
+			if !shown {
+				t.Fatal("failed Task hidden")
+			}
+			if row.State != tt.wantState || row.Busy || row.NeedsYou != tt.wantNeeds || row.Detail != tt.wantDetail {
+				t.Errorf("state=%q busy=%v needs=%v detail=%q; want %q, false, %v, %q",
+					row.State, row.Busy, row.NeedsYou, row.Detail, tt.wantState, tt.wantNeeds, tt.wantDetail)
 			}
 		})
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ const (
 	resultBranch        = "branch"
 	// detailSep separates the parts of a Task's DETAIL.
 	detailSep = " · "
-	// RecentDone is how long a finished Task stays listed; its PR then shows
+	// RecentDone is how long a succeeded Task stays listed; its PR then shows
 	// among the PR rows.
 	RecentDone = time.Hour
 )
@@ -73,13 +74,24 @@ type kelosTask struct {
 
 type containerStatus struct {
 	Name  string         `json:"name"`
-	State map[string]any `json:"state"`
+	State containerState `json:"state"`
+}
+
+// containerState holds the one of a container's states that is set.
+type containerState struct {
+	Running    *struct{}        `json:"running"`
+	Terminated *terminatedState `json:"terminated"`
+}
+
+type terminatedState struct {
+	ExitCode int `json:"exitCode"`
 }
 
 type pod struct {
 	Metadata objectMeta `json:"metadata"`
 	Status   struct {
 		InitContainerStatuses []containerStatus `json:"initContainerStatuses"`
+		ContainerStatuses     []containerStatus `json:"containerStatuses"`
 	} `json:"status"`
 }
 
@@ -96,8 +108,11 @@ type Kelos struct {
 	LucarneURL     string
 	LucarneCluster string
 	VikunjaWeb     string // Vikunja web base, for a Task's Vikunja link
-	Client         DynamicClient
-	Now            func() time.Time
+	// CappedExits are the container exits that stop a Task on purpose (a
+	// review round limit): such a failed Task is capped, not failed.
+	CappedExits []ContainerExit
+	Client      DynamicClient
+	Now         func() time.Time
 }
 
 func (k Kelos) items(ctx context.Context, v any, gvr schema.GroupVersionResource, selector string) error {
@@ -155,8 +170,8 @@ func findCondition(conds []kubeCondition, kind string) *kubeCondition {
 	return nil
 }
 
-// Tasks lists the namespace's Kelos Tasks, hiding those finished more than
-// RecentDone ago.
+// Tasks lists the namespace's Kelos Tasks, hiding those that succeeded more
+// than RecentDone ago.
 func (k Kelos) Tasks(ctx context.Context) ([]Row, error) {
 	var pods itemList[pod]
 	if err := k.items(ctx, &pods, podsResource, taskPodSelector); err != nil {
@@ -196,11 +211,8 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 		row.Detail = taskDetail(t, pr, activity)
 		return row, !row.Since.IsZero() && now.Sub(row.Since) <= RecentDone
 	case phaseFailed:
-		row.State, row.Since, row.NeedsYou = StateFailed, parseTime(st.CompletionTime), true
-		row.Detail = taskDetail(t, pr, activity)
-		if st.Message != "" {
-			row.Detail = strings.Join(nonEmpty(activity, st.Message), detailSep)
-		}
+		row.Since = parseTime(st.CompletionTime)
+		k.failedTask(&row, t, pods[st.PodName], pr, activity)
 		return row, true
 	}
 	row.Since = parseTime(cmp.Or(st.StartTime, t.Metadata.CreationTimestamp))
@@ -212,6 +224,27 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 	}
 	row.Detail = taskDetail(t, pr, activity)
 	return row, true
+}
+
+// failedTask sets the state and detail of a failed Task from the container
+// exit that failed its pod: capped (shown, not flagged, until the Task is
+// deleted) for one of CappedExits, else failed, its detail naming that exit,
+// else Kelos's message.
+func (k Kelos) failedTask(row *Row, t kelosTask, p pod, pr, activity string) {
+	exit, exited := failedExit(p)
+	if exited && slices.Contains(k.CappedExits, exit) {
+		row.State, row.Detail = stateCapped, taskDetail(t, pr, activity)
+		return
+	}
+	row.State, row.NeedsYou = StateFailed, true
+	switch {
+	case exited:
+		row.Detail = strings.Join(nonEmpty(activity, exit.String()), detailSep)
+	case t.Status.Message != "":
+		row.Detail = strings.Join(nonEmpty(activity, t.Status.Message), detailSep)
+	default:
+		row.Detail = taskDetail(t, pr, activity)
+	}
 }
 
 func taskOrigin(t kelosTask) string {
@@ -243,7 +276,7 @@ func liveState(t kelosTask, pods map[string]pod) string {
 // init container.
 func waitingOnBlockers(p pod) bool {
 	for _, s := range p.Status.InitContainerStatuses {
-		if _, running := s.State[stateRunning]; s.Name == waitForBlockers && running {
+		if s.Name == waitForBlockers && s.State.Running != nil {
 			return true
 		}
 	}
