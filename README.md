@@ -109,7 +109,7 @@ JSON, already nested, sorted and counted as the TUI draws it:
 
 | Endpoint | Does |
 | --- | --- |
-| `GET /api/v1/snapshot` | the snapshot: `rows` (source, name, origin, depth, guides, mark, state, since, age, detail, target URL, severity, needs you, busy, hidden), `counts`, `fetched_at` (null before the first refresh), `refreshing`, and `error`, the last hidden-row update's error |
+| `GET /api/v1/snapshot` | the snapshot: `rows` (source, name, origin, depth, guides, mark, state, since, age, detail, target URL, severity, needs you, busy, hidden, hideable: false for a source's error row), `counts`, `fetched_at` (null before the first refresh), `refreshing`, and `error`, the last hidden-row update's error |
 | `GET /api/v1/events` | Server-Sent Events: a `snapshot` event with the whole snapshot on connection, when a refresh starts or ends, and when a row is hidden or unhidden; a `: keepalive` comment every 15 s. A client that falls behind gets the latest snapshot, not every one |
 | `POST /api/v1/refresh` | starts a refresh, or joins the running one (never two at once); answers `202` with the snapshot at once, and the new one arrives on the event stream. Within 10 s of the last refresh's end it starts none and answers `429` with `Retry-After` |
 | `PUT /api/v1/hidden/{source}/{name}` | hides a row of the last refresh: `204`; `404` for an unknown row, `409` for a source's error row, `500` when the hidden file cannot be read or written |
@@ -131,9 +131,14 @@ it at a writable volume.
 
 ### Web UI
 
-The server also serves a web UI at `/`: the TUI's table in a browser, live
-from the event stream, with its header, columns, colours (light or dark, as
-the system says), status line and keys (`↑/↓`, `k/j`, `pgup/pgdn`,
+The server also serves a web UI at `/`, live from the event stream: an app
+bar with the counts, when the server last refreshed, and **Show hidden** and
+**Refresh** buttons; the rows on a card, each with a red dot when it needs
+you, its name over its detail (nested rows indented under their parent), its
+type and origin, its state as a coloured pill, its age and a **Hide** (or
+**Unhide**) button; a status line and the key help at the bottom. Light or
+dark, as the system says. The tab's title counts the rows that need you, as
+`(2) vigie`. The TUI's keys work too (`↑/↓`, `k/j`, `pgup/pgdn`,
 `home/end`, `enter`, `r`, `h`, `H`; no `q`). Every name with a target is a
 link, so a middle-click opens it in a new tab; enter opens the selected
 row's target in a new tab too. A lost stream is said in the status line and

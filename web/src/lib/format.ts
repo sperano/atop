@@ -1,5 +1,5 @@
-// The text the header and the AGE column show, as the TUI draws it
-// (internal/ui/view.go, internal/board/age.go and counts.go).
+// The text the header, the tab title and the age column show; ages as the
+// TUI draws them (internal/board/age.go).
 import type { Counts } from './model';
 
 export const APP_NAME = 'vigie';
@@ -29,13 +29,6 @@ export function formatAge(since: number | undefined, now: number): string {
 	return '0s';
 }
 
-/** `N need you · N busy · N idle`, then `· N hidden` when some are. */
-export function formatCounts(c: Counts): string {
-	const parts = [`${c.needYou} need you`, `${c.busy} busy`, `${c.idle} idle`];
-	if (c.hidden > 0) parts.push(`${c.hidden} hidden`);
-	return parts.join(TITLE_SEP);
-}
-
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** Local time as 2006-01-02 15:04:05, the TUI's layout. */
@@ -45,7 +38,12 @@ export function formatTime(ms: number): string {
 	return `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-/** The header line: name, local time and counts. */
-export function titleLine(counts: Counts, now: number): string {
-	return [APP_NAME, formatTime(now), formatCounts(counts)].join(TITLE_SEP);
+/** When the server last finished a refresh, as `updated 2m ago`; empty before. */
+export function updatedText(fetchedAt: number | undefined, now: number): string {
+	return fetchedAt === undefined ? '' : `updated ${formatAge(fetchedAt, now)} ago`;
+}
+
+/** The tab's title: the name, after the needs-you count when some rows need you. */
+export function documentTitle(counts: Counts): string {
+	return counts.needYou > 0 ? `(${counts.needYou}) ${APP_NAME}` : APP_NAME;
 }

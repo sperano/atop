@@ -20,6 +20,7 @@ export function row(fields: Partial<Row> & Pick<Row, 'source' | 'name'>): Row {
 		needsYou: false,
 		busy: false,
 		hidden: false,
+		hideable: true,
 		...fields
 	};
 }
@@ -52,7 +53,8 @@ export function rowJSON(r: Row): Record<string, unknown> {
 		severity: r.severity,
 		needs_you: r.needsYou,
 		busy: r.busy,
-		hidden: r.hidden
+		hidden: r.hidden,
+		hideable: r.hideable
 	};
 }
 

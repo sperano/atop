@@ -5,57 +5,9 @@ import App, { TICK_MS } from './App.svelte';
 import { ApiError, TooSoonError } from './lib/api';
 import type { Row, Snapshot } from './lib/model';
 import { render } from './render';
+import { AGENT, BOARD, ERROR, PR, TASK } from './testing/board';
 import { HOUR_MS, row, snapshot, TEST_NOW } from './testing/builders';
 import { FakeApi, FakeStreams, FakeTimers, settle } from './testing/fakes';
-
-const TASK = row({
-	source: 'vikunja',
-	name: '#7',
-	origin: 'vikunja',
-	state: 'idle',
-	since: TEST_NOW - 2 * HOUR_MS,
-	age: '2h',
-	detail: '[claude] serve',
-	target: 'https://vikunja.example/tasks/7'
-});
-const PR = row({
-	source: 'pr',
-	name: 'vigie#3',
-	depth: 1,
-	guides: '└─ ',
-	mark: '●',
-	state: 'review',
-	since: TEST_NOW - HOUR_MS,
-	age: '1h',
-	detail: 'Serve the board',
-	target: 'https://github.com/o/vigie/pull/3',
-	severity: 'attention',
-	needsYou: true
-});
-const AGENT = row({
-	source: 'kelos task',
-	name: 'fix',
-	origin: 'unknown',
-	depth: 2,
-	guides: '   └─ ',
-	state: 'busy',
-	since: undefined,
-	age: '-',
-	severity: 'busy',
-	busy: true
-});
-const ERROR = row({
-	source: 'mirror',
-	name: '-',
-	state: 'error',
-	detail: 'down',
-	mark: '●',
-	severity: 'failed',
-	needsYou: true
-});
-const BOARD = snapshot([TASK, PR, AGENT, ERROR], {
-	counts: { needYou: 2, busy: 1, idle: 1, hidden: 0 }
-});
 
 let api: FakeApi;
 let streams: FakeStreams;
@@ -96,16 +48,19 @@ async function mountWith(first: Snapshot = BOARD): Promise<void> {
 }
 
 const bodyRows = () => [...page.querySelectorAll<HTMLTableRowElement>('tbody tr')];
-const cells = (tr: HTMLTableRowElement) => [...tr.cells].map((c) => c.textContent ?? '');
+/** A cell's text, its blocks' texts apart. */
+const cellText = (td: HTMLTableCellElement) =>
+	[...td.querySelectorAll(':scope > div')].map((d) => d.textContent).join(' | ') ||
+	(td.textContent ?? '').trim();
+const cells = (tr: HTMLTableRowElement) => [...tr.cells].map(cellText);
 const selectedName = () =>
-	page
-		.querySelector<HTMLTableRowElement>('tbody tr[aria-current="true"]')
-		?.cells[3]?.textContent?.trim();
-const statusText = () => page.querySelector('[role="status"]')?.textContent ?? '';
-const headerText = () => page.querySelector('header')?.textContent ?? '';
+	page.querySelector('tbody tr[aria-current="true"] .name')?.textContent?.trim();
+const statusText = () => page.querySelector('[role="status"]')?.textContent?.trim() ?? '';
+const badges = () => [...page.querySelectorAll('header .badge')].map((b) => b.textContent?.trim());
+const updated = () => page.querySelector('header .updated')?.textContent ?? '';
 /** One CSS pixel, the rounding allowed on measured positions. */
 const PIXEL = 1;
-const ages = () => bodyRows().map((tr) => tr.cells[5]?.textContent);
+const ages = () => bodyRows().map((tr) => tr.cells[4]?.textContent);
 
 /** ms in the browser's zone, in the TUI's layout. */
 function localTime(ms: number): string {
@@ -126,38 +81,64 @@ function send(s: Snapshot): void {
 }
 
 describe('the board', () => {
-	test('draws the header, the columns and the rows as sent', async () => {
+	test('draws the app bar, the columns and the rows as sent', async () => {
 		await mountWith();
-		expect(headerText()).toBe(`vigie · ${localTime(TEST_NOW)} · 2 need you · 1 busy · 1 idle`);
+		expect(page.querySelector('header h1')?.textContent).toBe('vigie');
+		expect(badges()).toEqual(['2 need you', '1 busy', '1 idle']);
+		expect(updated()).toBe('updated 0s ago');
+		expect(page.querySelector('header .updated')?.getAttribute('title')).toBe(localTime(TEST_NOW));
 		expect([...page.querySelectorAll('thead th')].map((th) => th.textContent)).toEqual([
-			'mark',
-			'TYPE',
-			'ORIGIN',
-			'NAME',
-			'STATE',
-			'AGE',
-			'DETAIL'
+			'needs you',
+			'Name',
+			'Type',
+			'State',
+			'Age',
+			'actions'
 		]);
 		expect(bodyRows().map(cells)).toEqual([
-			['', 'vikunja', 'vikunja', '#7', 'idle', '2h', '[claude] serve'],
-			['●', 'pr', 'github', '└─ vigie#3', 'review', '1h', 'Serve the board'],
-			['', 'kelos task', 'unknown', '   └─ fix', 'busy', '-', ''],
-			['●', 'mirror', 'github', '-', 'error', '-', 'down']
+			['', '#7 | [claude] serve', 'vikunja | vikunja', 'idle', '2h', 'Hide'],
+			['needs you', 'vigie#3 | Serve the board', 'pr | github', 'review', '1h', 'Hide'],
+			['', 'fix', 'kelos task | unknown', 'busy', '-', 'Hide'],
+			['needs you', '- | down', 'mirror | github', 'error', '-', '']
 		]);
 	});
 
-	test('classes each row by severity and marks the needs-you mark', async () => {
+	test('counts the hidden rows only when there are some', async () => {
+		await mountWith(snapshot([TASK], { counts: { needYou: 0, busy: 0, idle: 1, hidden: 3 } }));
+		expect(badges()).toEqual(['0 need you', '0 busy', '1 idle', '3 hidden']);
+	});
+
+	test('marks the badges whose count is not zero', async () => {
+		await mountWith(snapshot([TASK], { counts: { needYou: 0, busy: 2, idle: 1, hidden: 0 } }));
+		const active = [...page.querySelectorAll('header .badge')].map((b) =>
+			b.classList.contains('active')
+		);
+		expect(active).toEqual([false, true, true]);
+	});
+
+	test('classes each row by severity and dots the rows that need you', async () => {
 		await mountWith();
 		const severities = ['quiet', 'attention', 'busy', 'failed'];
 		expect(bodyRows().map((tr) => severities.filter((sev) => tr.classList.contains(sev)))).toEqual(
 			severities.map((sev) => [sev])
 		);
-		expect(bodyRows().map((tr) => tr.cells[0]?.classList.contains('needs-you'))).toEqual([
+		expect(bodyRows().map((tr) => tr.cells[0]?.querySelector('.dot') !== null)).toEqual([
 			false,
 			true,
 			false,
 			true
 		]);
+	});
+
+	test('indents each row by its depth in the tree', async () => {
+		await mountWith();
+		const items = bodyRows().map((tr) => tr.querySelector<HTMLElement>('.item')!);
+		expect(items.map((td) => td.style.getPropertyValue('--depth'))).toEqual(['0', '1', '2', '0']);
+		expect(items.map((td) => td.classList.contains('nested'))).toEqual([false, true, true, false]);
+		const left = items.map((td) => parseFloat(getComputedStyle(td).paddingLeft));
+		expect(left[1]).toBeGreaterThan(left[0]!);
+		expect(left[2]).toBeGreaterThan(left[1]!);
+		expect(left[3]).toBe(left[0]);
 	});
 
 	test('computes the ages from the clock, not the snapshot', async () => {
@@ -171,9 +152,11 @@ describe('the board', () => {
 		await settle();
 		flushSync();
 		expect(ages()).toEqual(['5h', '4h', '-', '-']);
+		expect(bodyRows()[0]?.cells[4]?.getAttribute('title')).toBe(localTime(TASK.since!));
+		expect(bodyRows()[2]?.cells[4]?.hasAttribute('title')).toBe(false);
 	});
 
-	test('the header time and the ages move on every tick', async () => {
+	test('"updated … ago" and the ages move on every tick', async () => {
 		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
 		let clock = TEST_NOW;
 		page = render(App, {
@@ -188,11 +171,11 @@ describe('the board', () => {
 		clock = TEST_NOW + HOUR_MS;
 		vi.advanceTimersByTime(TICK_MS - 1);
 		flushSync();
-		expect(headerText()).toContain(localTime(TEST_NOW));
+		expect(updated()).toBe('updated 0s ago');
 		expect(ages()).toEqual(['2h', '1h', '-', '-']);
 		vi.advanceTimersByTime(1);
 		flushSync();
-		expect(headerText()).toContain(localTime(TEST_NOW + HOUR_MS));
+		expect(updated()).toBe('updated 1h ago');
 		expect(ages()).toEqual(['3h', '2h', '-', '-']);
 	});
 
@@ -208,20 +191,31 @@ describe('the board', () => {
 
 	test('says there are no rows once a refresh found none', async () => {
 		await mountWith(snapshot([]));
-		expect(bodyRows().map(cells)).toEqual([['', 'no rows']]);
+		expect(bodyRows().map(cells)).toEqual([['Nothing to show.']]);
 	});
 
 	test('says nothing about rows while the first refresh runs', async () => {
 		await mountWith(snapshot([], { fetchedAt: undefined, refreshing: true }));
 		expect(bodyRows()).toEqual([]);
 		expect(statusText()).toBe('refreshing…');
+		expect(updated()).toBe('');
+		expect(page.querySelector('header .updated')?.hasAttribute('title')).toBe(false);
 	});
 
 	test('shows the key help', async () => {
 		await mountWith();
-		expect(page.querySelector('footer .help')?.textContent).toBe(
-			'↑/↓ j/k move · pgup/pgdn home/end · enter open · h hide · H show hidden · r refresh'
-		);
+		const hints = [...page.querySelectorAll('footer .help li')].map((li) => [
+			[...li.querySelectorAll('kbd')].map((k) => k.textContent),
+			li.querySelector('.does')?.textContent
+		]);
+		expect(hints).toEqual([
+			[['↑', '↓', 'j', 'k'], 'move'],
+			[['PgUp', 'PgDn', 'Home', 'End'], 'jump'],
+			[['Enter'], 'open'],
+			[['h'], 'hide'],
+			[['H'], 'show hidden'],
+			[['r'], 'refresh']
+		]);
 	});
 });
 
@@ -230,13 +224,13 @@ describe('moving', () => {
 		await mountWith();
 		expect(selectedName()).toBe('#7');
 		await press('{ArrowDown}');
-		expect(selectedName()).toBe('└─ vigie#3');
+		expect(selectedName()).toBe('vigie#3');
 		await press('j');
-		expect(selectedName()).toBe('└─ fix');
+		expect(selectedName()).toBe('fix');
 		await press('jjj');
 		expect(selectedName()).toBe('-');
 		await press('k');
-		expect(selectedName()).toBe('└─ fix');
+		expect(selectedName()).toBe('fix');
 		await press('{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}');
 		expect(selectedName()).toBe('#7');
 	});
@@ -279,14 +273,14 @@ describe('moving', () => {
 		await mountWith();
 		bodyRows()[2]?.click();
 		flushSync();
-		expect(selectedName()).toBe('└─ fix');
+		expect(selectedName()).toBe('fix');
 	});
 
 	test('focusing a link selects its row, so enter opens what has focus', async () => {
 		await mountWith();
 		page.querySelectorAll<HTMLAnchorElement>('tbody a')[1]?.focus();
 		flushSync();
-		expect(selectedName()).toBe('└─ vigie#3');
+		expect(selectedName()).toBe('vigie#3');
 		await press('{Enter}');
 		expect(opened).toEqual([PR.target]);
 	});
@@ -295,7 +289,7 @@ describe('moving', () => {
 		await mountWith();
 		await press('j');
 		send(snapshot([AGENT, ERROR, TASK, PR]));
-		expect(selectedName()).toBe('└─ vigie#3');
+		expect(selectedName()).toBe('vigie#3');
 		expect(bodyRows()[3]?.getAttribute('aria-current')).toBe('true');
 	});
 
@@ -303,7 +297,7 @@ describe('moving', () => {
 		await mountWith();
 		await press('j');
 		send(snapshot([TASK, AGENT, ERROR]));
-		expect(selectedName()).toBe('└─ fix');
+		expect(selectedName()).toBe('fix');
 	});
 });
 
@@ -377,7 +371,7 @@ describe('r', () => {
 		api.refreshAnswer = () => Promise.resolve(snapshot([TASK, PR], { refreshing: true }));
 		await press('r');
 		expect(api.calls.at(-1)).toBe('refresh true');
-		expect(statusText()).toBe('refreshing… · showing hidden rows (marked -)');
+		expect(statusText()).toBe('refreshing… · showing hidden rows');
 		expect(bodyRows()).toHaveLength(2);
 	});
 
@@ -429,13 +423,17 @@ describe('hiding', () => {
 		await settle();
 		flushSync();
 		expect(streams.last.url).toBe('/api/v1/events?show_hidden=true');
-		expect(statusText()).toBe('connecting… · showing hidden rows (marked -)');
+		expect(statusText()).toBe('connecting… · showing hidden rows');
 		streams.last.open();
 		flushSync();
-		expect(bodyRows()[1]?.cells[0]?.textContent).toBe('-');
+		expect(bodyRows().map((tr) => tr.querySelector('.name .tag')?.textContent)).toEqual([
+			undefined,
+			'hidden'
+		]);
+		expect(bodyRows()[1]?.querySelector('.actions button')?.textContent).toBe('Unhide');
 		await press('jh');
 		expect(api.calls.at(-1)).toBe('unhide pr vigie#3');
-		expect(statusText()).toBe('showing hidden rows (marked -) · unhid pr vigie#3');
+		expect(statusText()).toBe('showing hidden rows · unhid pr vigie#3');
 		await press('H');
 		expect(api.calls.at(-1)).toBe('snapshot false');
 		api.answer(BOARD);

@@ -9,9 +9,20 @@ export type Action =
 
 export type Move = 'up' | 'down' | 'pageUp' | 'pageDown' | 'home' | 'end';
 
-/** The key help in the footer. */
-export const KEY_HELP =
-	'↑/↓ j/k move · pgup/pgdn home/end · enter open · h hide · H show hidden · r refresh';
+/** A line of the key help in the footer: the keys, then what they do. */
+export interface KeyHint {
+	readonly keys: readonly string[];
+	readonly does: string;
+}
+
+export const KEY_HELP: readonly KeyHint[] = [
+	{ keys: ['↑', '↓', 'j', 'k'], does: 'move' },
+	{ keys: ['PgUp', 'PgDn', 'Home', 'End'], does: 'jump' },
+	{ keys: ['Enter'], does: 'open' },
+	{ keys: ['h'], does: 'hide' },
+	{ keys: ['H'], does: 'show hidden' },
+	{ keys: ['r'], does: 'refresh' }
+];
 
 const MOVES: Readonly<Record<string, Move>> = {
 	ArrowUp: 'up',

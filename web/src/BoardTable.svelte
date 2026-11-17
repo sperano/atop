@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatAge } from './lib/format';
+	import { formatAge, formatTime } from './lib/format';
 	import { MARK_NEEDS_YOU, rowKey, type Row } from './lib/model';
 	import { pageRows } from './lib/selection';
 
@@ -11,9 +11,11 @@
 		/** Says "no rows" when there are none. */
 		empty: boolean;
 		onselect: (index: number) => void;
+		/** Hides the row at index, or unhides it when it is hidden. */
+		onhide: (index: number) => void;
 	}
 
-	let { rows, selected, now, empty, onselect }: Props = $props();
+	let { rows, selected, now, empty, onselect, onhide }: Props = $props();
 
 	let viewport = $state<HTMLElement>();
 	let head = $state<HTMLElement>();
@@ -35,22 +37,20 @@
 	<table>
 		<colgroup>
 			<col class="mark" />
+			<col />
 			<col class="type" />
-			<col class="origin" />
-			<col class="name" />
 			<col class="state" />
 			<col class="age" />
-			<col />
+			<col class="actions" />
 		</colgroup>
 		<thead bind:this={head}>
 			<tr>
-				<th scope="col"><span class="visually-hidden">mark</span></th>
-				<th scope="col">TYPE</th>
-				<th scope="col">ORIGIN</th>
-				<th scope="col">NAME</th>
-				<th scope="col">STATE</th>
-				<th scope="col" class="age">AGE</th>
-				<th scope="col">DETAIL</th>
+				<th scope="col"><span class="visually-hidden">needs you</span></th>
+				<th scope="col">Name</th>
+				<th scope="col" class="type">Type</th>
+				<th scope="col">State</th>
+				<th scope="col" class="age">Age</th>
+				<th scope="col"><span class="visually-hidden">actions</span></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -63,23 +63,40 @@
 					onclick={() => onselect(i)}
 					onfocusin={() => onselect(i)}
 				>
-					<td class="mark" class:needs-you={row.mark === MARK_NEEDS_YOU}>{row.mark}</td>
-					<td>{row.source}</td>
-					<td>{row.origin}</td>
-					<td title={row.name}>
-						<span class="guides">{row.guides}</span>{#if row.target}<a
-								href={row.target}
-								target="_blank"
-								rel="noopener noreferrer">{row.name}</a
-							>{:else}{row.name}{/if}
+					<td class="mark">
+						{#if row.mark === MARK_NEEDS_YOU}<span class="dot" title="needs you"
+								><span class="visually-hidden">needs you</span></span
+							>{/if}
 					</td>
-					<td title={row.state}>{row.state}</td>
-					<td class="age">{row.since === undefined ? row.age : formatAge(row.since, now)}</td>
-					<td title={row.detail}>{row.detail}</td>
+					<td class="item" class:nested={row.depth > 0} style:--depth={row.depth}>
+						<div class="name" title={row.name}>
+							{#if row.target}<a href={row.target} target="_blank" rel="noopener noreferrer"
+									>{row.name}</a
+								>{:else}{row.name}{/if}{#if row.hidden}<span class="tag">hidden</span>{/if}
+						</div>
+						{#if row.detail}<div class="detail" title={row.detail}>{row.detail}</div>{/if}
+					</td>
+					<td class="type">
+						<div class="source">{row.source}</div>
+						<div class="origin">{row.origin}</div>
+					</td>
+					<td><span class="pill" title={row.state}>{row.state}</span></td>
+					<td class="age" title={row.since === undefined ? undefined : formatTime(row.since)}
+						>{row.since === undefined ? row.age : formatAge(row.since, now)}</td
+					>
+					<td class="actions">
+						{#if row.hideable}<button
+								type="button"
+								onclick={(e) => {
+									e.stopPropagation();
+									onhide(i);
+								}}>{row.hidden ? 'Unhide' : 'Hide'}</button
+							>{/if}
+					</td>
 				</tr>
 			{/each}
 			{#if empty && rows.length === 0}
-				<tr class="quiet"><td></td><td colspan="6">no rows</td></tr>
+				<tr class="empty"><td colspan="6">Nothing to show.</td></tr>
 			{/if}
 		</tbody>
 	</table>
@@ -89,98 +106,227 @@
 	.viewport {
 		overflow: auto;
 		min-height: 0;
+		max-width: var(--page-wide);
+		margin: 0 auto;
+		width: 100%;
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		box-shadow: 0 1px 3px var(--color-shadow);
 	}
 
 	table {
 		width: 100%;
-		min-width: 110ch;
 		table-layout: fixed;
 		border-collapse: collapse;
 	}
 
 	col.mark {
-		width: 3ch;
+		width: 2rem;
 	}
 	col.type {
-		width: 15ch;
-	}
-	col.origin {
-		width: 10ch;
-	}
-	col.name {
-		width: 36ch;
+		width: 9rem;
 	}
 	col.state {
-		width: 22ch;
+		width: 10rem;
 	}
 	col.age {
-		width: 6ch;
+		width: 4.5rem;
+	}
+	col.actions {
+		width: 5.5rem;
 	}
 
 	th,
 	td {
-		padding: 0 var(--space-1);
+		padding: var(--space-2) var(--space-2);
 		text-align: left;
-		white-space: nowrap;
+		vertical-align: middle;
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.guides {
-		white-space: pre;
+		white-space: nowrap;
 	}
 
 	th {
 		position: sticky;
 		top: 0;
-		background: var(--color-page);
+		z-index: 1;
+		background: var(--color-surface);
 		border-bottom: 1px solid var(--color-border);
-		font-weight: bold;
+		color: var(--color-muted);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	tbody tr {
+		border-bottom: 1px solid var(--color-border);
+		cursor: default;
+	}
+
+	tbody tr:last-child {
+		border-bottom: none;
+	}
+
+	tbody tr:hover {
+		background: var(--color-hover);
+	}
+
+	tbody tr.selected {
+		background: var(--color-selected);
+	}
+
+	tbody tr.selected td:first-child {
+		box-shadow: inset 3px 0 0 var(--color-accent);
+	}
+
+	.mark {
+		text-align: center;
+	}
+
+	.dot {
+		display: inline-block;
+		width: 0.625rem;
+		height: 0.625rem;
+		border-radius: 50%;
+		background: var(--color-mark);
+		vertical-align: middle;
+	}
+
+	.item {
+		position: relative;
+		padding-left: calc(var(--space-2) + var(--depth) * var(--tree-indent));
+	}
+
+	/* An elbow from the parent row down to this one. */
+	.item.nested::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: calc(var(--space-2) + (var(--depth) - 0.6) * var(--tree-indent));
+		width: calc(var(--tree-indent) * 0.45);
+		height: 50%;
+		border-left: 1px solid var(--color-control-border);
+		border-bottom: 1px solid var(--color-control-border);
+		border-bottom-left-radius: var(--radius-sm);
+	}
+
+	.name,
+	.detail,
+	.source,
+	.origin {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.name {
+		font-weight: 600;
+	}
+
+	.detail,
+	.origin {
+		color: var(--color-muted);
+		font-size: var(--font-size-xs);
+	}
+
+	tr.quiet .name {
+		font-weight: 500;
+	}
+
+	a {
+		text-decoration: none;
+	}
+
+	a:hover {
+		text-decoration: underline;
+	}
+
+	.tag {
+		margin-left: var(--space-2);
+		padding: 0 var(--space-2);
+		border: 1px solid var(--color-control-border);
+		border-radius: var(--radius-pill);
+		color: var(--color-muted);
+		font-size: var(--font-size-xs);
+		font-weight: 400;
+	}
+
+	.pill {
+		display: inline-block;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		vertical-align: middle;
+		padding: 0 var(--space-2);
+		border-radius: var(--radius-pill);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+	}
+
+	tr.failed .pill {
+		color: var(--color-failed);
+		background: var(--color-failed-bg);
+	}
+	tr.blocked .pill {
+		color: var(--color-blocked);
+		background: var(--color-blocked-bg);
+	}
+	tr.busy .pill {
+		color: var(--color-busy);
+		background: var(--color-busy-bg);
+	}
+	tr.attention .pill {
+		color: var(--color-attention);
+		background: var(--color-attention-bg);
+	}
+	tr.quiet .pill {
+		color: var(--color-quiet);
+		background: var(--color-quiet-bg);
 	}
 
 	.age {
 		text-align: right;
-	}
-
-	tr {
-		cursor: default;
-	}
-
-	tr.failed {
-		color: var(--color-failed);
-	}
-	tr.blocked {
-		color: var(--color-blocked);
-	}
-	tr.busy {
-		color: var(--color-busy);
-	}
-	tr.quiet {
+		font-variant-numeric: tabular-nums;
 		color: var(--color-muted);
 	}
 
-	tr.selected {
-		background: var(--color-selected);
+	.actions {
+		text-align: right;
 	}
 
-	.mark.needs-you {
-		color: var(--color-mark);
+	.actions button {
+		padding: 0 var(--space-2);
+		border: 1px solid var(--color-control-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-surface);
+		font-size: var(--font-size-xs);
+		cursor: pointer;
 	}
 
-	a {
-		text-decoration: underline;
-		text-decoration-color: var(--color-border);
+	.actions button:hover {
+		background: var(--color-hover);
 	}
 
-	a:hover {
-		text-decoration-color: currentColor;
+	/* With a pointer, the button shows on the row under it, the selected one
+	   and the one holding focus (so Tab still reaches it); a touch screen
+	   always shows it. */
+	@media (hover: hover) {
+		tbody tr:not(:hover, .selected, :focus-within) .actions button {
+			opacity: 0;
+		}
 	}
 
-	.visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
+	tr.empty td {
+		padding: var(--space-6);
+		text-align: center;
+		color: var(--color-muted);
+	}
+
+	@media (width < 40rem) {
+		col.type,
+		.type {
+			display: none;
+		}
 	}
 </style>

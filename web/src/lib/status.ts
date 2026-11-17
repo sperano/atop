@@ -5,8 +5,10 @@ import type { Connection } from './live';
 
 const MS_PER_SECOND = 1000;
 
+/** What starts an error in the status line. */
+export const ERROR_PREFIX = 'error: ';
 export const STATUS_REFRESHING = 'refreshing…';
-export const STATUS_SHOWS_HIDDEN = 'showing hidden rows (marked -)';
+export const STATUS_SHOWS_HIDDEN = 'showing hidden rows';
 export const STATUS_HIDES_HIDDEN = 'hidden rows are hidden again';
 export const STATUS_NOTHING = 'nothing to open';
 export const STATUS_CONNECTING = 'connecting…';
@@ -29,7 +31,7 @@ function connectionText(c: Connection): string {
 		case 'reconnecting':
 			return STATUS_RECONNECTING;
 		case 'retrying':
-			return `error: ${c.error}${TITLE_SEP}retrying in ${Math.ceil(c.retryInMs / MS_PER_SECOND)}s`;
+			return `${ERROR_PREFIX}${c.error}${TITLE_SEP}retrying in ${Math.ceil(c.retryInMs / MS_PER_SECOND)}s`;
 		case 'live':
 			return '';
 	}
@@ -40,10 +42,15 @@ export function statusLine(s: StatusInput): string {
 		connectionText(s.connection),
 		s.refreshing ? STATUS_REFRESHING : '',
 		s.showHidden ? STATUS_SHOWS_HIDDEN : '',
-		s.serverError ? `error: ${s.serverError}` : '',
+		s.serverError ? `${ERROR_PREFIX}${s.serverError}` : '',
 		s.message
 	];
 	return parts.filter((p) => p !== '').join(TITLE_SEP);
+}
+
+/** Whether the status line reports an error, which the footer shows in red. */
+export function hasError(line: string): boolean {
+	return line.startsWith(ERROR_PREFIX) || line.includes(`${TITLE_SEP}${ERROR_PREFIX}`);
 }
 
 export function describe(row: { readonly source: string; readonly name: string }): string {

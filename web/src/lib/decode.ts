@@ -103,7 +103,8 @@ function decodeRow(value: unknown, path: string): Row {
 		severity: severity(o, 'severity', path),
 		needsYou: boolean(o, 'needs_you', path),
 		busy: boolean(o, 'busy', path),
-		hidden: boolean(o, 'hidden', path)
+		hidden: boolean(o, 'hidden', path),
+		hideable: boolean(o, 'hideable', path)
 	};
 }
 

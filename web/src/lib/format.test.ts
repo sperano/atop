@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { TEST_NOW } from '../testing/builders';
-import { formatAge, formatCounts, formatTime, titleLine } from './format';
+import { documentTitle, formatAge, formatTime, updatedText } from './format';
 
 const NOW = Date.UTC(2026, 9, 5, 12, 0, 0);
 const S = 1000;
@@ -25,20 +25,6 @@ describe('formatAge', () => {
 	});
 });
 
-describe('formatCounts', () => {
-	test('without hidden rows', () => {
-		expect(formatCounts({ needYou: 2, busy: 3, idle: 1, hidden: 0 })).toBe(
-			'2 need you · 3 busy · 1 idle'
-		);
-	});
-
-	test('with hidden rows', () => {
-		expect(formatCounts({ needYou: 0, busy: 0, idle: 0, hidden: 4 })).toBe(
-			'0 need you · 0 busy · 0 idle · 4 hidden'
-		);
-	});
-});
-
 describe('formatTime', () => {
 	test('runs in a zone that is not UTC', () => {
 		// vite.config.ts sets TZ for the node project; in UTC the next tests
@@ -52,10 +38,21 @@ describe('formatTime', () => {
 	});
 });
 
-describe('titleLine', () => {
-	test('is name, local time and counts', () => {
-		expect(titleLine({ needYou: 2, busy: 3, idle: 2, hidden: 0 }, TEST_NOW)).toBe(
-			'vigie · 2026-11-15 07:00:00 · 2 need you · 3 busy · 2 idle'
-		);
+describe('updatedText', () => {
+	test.each([
+		['before the first refresh', undefined, ''],
+		['just now', NOW, 'updated 0s ago'],
+		['two minutes ago', NOW - 2 * M, 'updated 2m ago']
+	])('%s', (_name, fetchedAt, want) => {
+		expect(updatedText(fetchedAt, NOW)).toBe(want);
+	});
+});
+
+describe('documentTitle', () => {
+	test.each([
+		['nobody needs you', { needYou: 0, busy: 3, idle: 2, hidden: 1 }, 'vigie'],
+		['two rows need you', { needYou: 2, busy: 0, idle: 0, hidden: 0 }, '(2) vigie']
+	])('%s', (_name, counts, want) => {
+		expect(documentTitle(counts)).toBe(want);
 	});
 });

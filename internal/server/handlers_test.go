@@ -59,7 +59,7 @@ func TestSnapshotRowJSON(t *testing.T) {
 	const want = `{"fetched_at":"2026-11-15T12:00:00Z","refreshing":false,"error":"",` +
 		`"counts":{"need_you":1,"busy":0,"idle":0,"hidden":0},"rows":[{"source":"pr","name":"vigie#3","origin":"github",` +
 		`"depth":0,"guides":"","mark":"●","state":"review","since":"2026-11-15T11:00:00Z","age":"1h","detail":"Serve the board",` +
-		`"target":"` + prURL + `","severity":"attention","needs_you":true,"busy":false,"hidden":false}]}` + "\n"
+		`"target":"` + prURL + `","severity":"attention","needs_you":true,"busy":false,"hidden":false,"hideable":true}]}` + "\n"
 	if got := body(t, do(t, h.srv, http.MethodGet, snapshotURL)); got != want {
 		t.Errorf("body = %s\nwant   %s", got, want)
 	}
@@ -71,11 +71,11 @@ func TestSnapshotNestsAndSorts(t *testing.T) {
 	h.refreshWith(testRows())
 	snap := decodeSnapshot(t, do(t, h.srv, http.MethodGet, snapshotURL))
 	want := []Row{
-		{Source: source.SourceVikunja, Name: "#7", Depth: 0, Target: taskURL, Severity: board.SeverityQuiet},
-		{Source: source.SourcePR, Name: "vigie#3", Depth: 1, Guides: "└─ ", Mark: board.MarkNeedsYou, Target: prURL, Severity: board.SeverityAttention},
-		{Source: source.SourceKelosTask, Name: "fix", Depth: 2, Guides: "   └─ ", Severity: board.SeverityBusy, Busy: true},
+		{Source: source.SourceVikunja, Name: "#7", Depth: 0, Target: taskURL, Severity: board.SeverityQuiet, Hideable: true},
+		{Source: source.SourcePR, Name: "vigie#3", Depth: 1, Guides: "└─ ", Mark: board.MarkNeedsYou, Target: prURL, Severity: board.SeverityAttention, Hideable: true},
+		{Source: source.SourceKelosTask, Name: "fix", Depth: 2, Guides: "   └─ ", Severity: board.SeverityBusy, Busy: true, Hideable: true},
 		{Source: mirrorSource, Name: "-", Depth: 0, Mark: board.MarkNeedsYou, Severity: board.SeverityFailed},
-		{Source: source.SourceKelosSession, Name: "eric", Depth: 0, Severity: board.SeverityQuiet},
+		{Source: source.SourceKelosSession, Name: "eric", Depth: 0, Severity: board.SeverityQuiet, Hideable: true},
 	}
 	if len(snap.Rows) != len(want) {
 		t.Fatalf("rows = %q, want %d", rowNames(snap), len(want))
@@ -83,7 +83,8 @@ func TestSnapshotNestsAndSorts(t *testing.T) {
 	for i, w := range want {
 		g := snap.Rows[i]
 		if g.Source != w.Source || g.Name != w.Name || g.Depth != w.Depth || g.Guides != w.Guides ||
-			g.Mark != w.Mark || g.Target != w.Target || g.Severity != w.Severity || g.Busy != w.Busy {
+			g.Mark != w.Mark || g.Target != w.Target || g.Severity != w.Severity || g.Busy != w.Busy ||
+			g.Hideable != w.Hideable {
 			t.Errorf("row %d = %+v\nwant   %+v", i, g, w)
 		}
 	}
