@@ -25,6 +25,9 @@ const (
 	negativeSeconds = "-5s"
 	envHiddenFile   = "/env/hidden.json"
 	flagHiddenFile  = "/flag/hidden.json"
+	envLucarneURL   = "https://lucarne.example"
+	envLucarneClust = "env-cluster"
+	flagLucarneURL  = "https://flag-lucarne.example"
 )
 
 func envFrom(m map[string]string) func(string) string {
@@ -53,8 +56,8 @@ func wantEnvConfig() Config {
 		Namespace: envNamespace, GitHubOwner: envOwner, VikunjaURL: DefaultVikunjaURL,
 		TokenNamespace: envTokenNS, TokenSecret: envTokenSecret, TokenKey: envTokenKey,
 		Operator: envOperator, InProgressLabel: envLabel, PROpenLabel: envPROpenLabel,
-		ConsoleURL: envConsoleURL, StaleDays: envStaleDays, Interval: envInterval,
-		HiddenFile: envHiddenFile,
+		ConsoleURL: envConsoleURL, LucarneURL: DefaultLucarneURL, LucarneCluster: DefaultLucarneCluster,
+		StaleDays: envStaleDays, Interval: envInterval, HiddenFile: envHiddenFile,
 	}
 }
 
@@ -68,8 +71,8 @@ func TestParseDefaults(t *testing.T) {
 		Namespace: DefaultNamespace, GitHubOwner: DefaultGitHubOwner, VikunjaURL: DefaultVikunjaURL,
 		TokenNamespace: DefaultTokenNamespace, TokenSecret: DefaultTokenSecret, TokenKey: DefaultTokenKey,
 		Operator: DefaultOperator, InProgressLabel: DefaultInProgressLabel, PROpenLabel: DefaultPROpenLabel,
-		ConsoleURL: DefaultConsoleURL,
-		StaleDays:  DefaultStaleDays, Interval: DefaultInterval,
+		ConsoleURL: DefaultConsoleURL, LucarneURL: DefaultLucarneURL, LucarneCluster: DefaultLucarneCluster,
+		StaleDays: DefaultStaleDays, Interval: DefaultInterval,
 	}
 	if got != want {
 		t.Errorf("got %+v, want %+v", got, want)
@@ -104,6 +107,43 @@ func TestParseEnvAndFlags(t *testing.T) {
 			}
 			if !tt.check(got) {
 				t.Errorf("unexpected config %+v", got)
+			}
+		})
+	}
+}
+
+func TestParseLucarne(t *testing.T) {
+	t.Parallel()
+	env := map[string]string{
+		currentEnvPrefix + "LUCARNE_URL":     envLucarneURL,
+		currentEnvPrefix + "LUCARNE_CLUSTER": envLucarneClust,
+	}
+	legacy := map[string]string{
+		legacyEnvPrefix + "LUCARNE_URL":     envLucarneURL,
+		legacyEnvPrefix + "LUCARNE_CLUSTER": envLucarneClust,
+	}
+	tests := []struct {
+		name        string
+		args        []string
+		env         map[string]string
+		wantURL     string
+		wantCluster string
+	}{
+		{"env overrides default", nil, env, envLucarneURL, envLucarneClust},
+		{"flag beats env", []string{"-lucarne-url", flagLucarneURL}, env, flagLucarneURL, envLucarneClust},
+		{"empty flag turns run links off", []string{"-lucarne-url="}, env, "", envLucarneClust},
+		{"empty cluster without a URL", []string{"-lucarne-url=", "-lucarne-cluster="}, env, "", ""},
+		{"no legacy fallback", nil, legacy, DefaultLucarneURL, DefaultLucarneCluster},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := Parse(testName, tt.args, envFrom(tt.env))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.LucarneURL != tt.wantURL || got.LucarneCluster != tt.wantCluster {
+				t.Errorf("lucarne = %q, %q; want %q, %q", got.LucarneURL, got.LucarneCluster, tt.wantURL, tt.wantCluster)
 			}
 		})
 	}
@@ -236,6 +276,7 @@ func TestParseArgumentErrors(t *testing.T) {
 		{"unknown subcommand", []string{"serv"}, true, `unexpected argument "serv"`},
 		{"argument after serve", []string{ServeCommand, "now"}, true, `unexpected argument "now"`},
 		{"empty listen", []string{ServeCommand, "-listen", ""}, true, "listen address must not be empty"},
+		{"empty lucarne cluster", []string{"-lucarne-cluster="}, true, "lucarne cluster must not be empty"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

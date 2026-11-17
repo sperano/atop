@@ -19,6 +19,9 @@ const (
 	testPodName  = "t-pod"
 	testTaskName = "t"
 	testPRURL    = "https://x/pull/1"
+	testLucarne  = "https://lucarne.example"
+	testCluster  = "test-cluster"
+	testTaskUID  = "b11258c5-9a39-4c9c-9383-a68f47fbd014"
 )
 
 type obj = map[string]any
@@ -136,6 +139,39 @@ func TestTaskRow(t *testing.T) {
 			}
 			if row.Detail != tt.wantDetail || row.Target.URL != tt.wantURL {
 				t.Errorf("detail=%q url=%q", row.Detail, row.Target.URL)
+			}
+		})
+	}
+}
+
+func TestTaskTargetLucarne(t *testing.T) {
+	t.Parallel()
+	runURL := testLucarne + "/runs/" + testCluster + "/" + testNS + "/" + testTaskUID
+	withUID := func(task obj) obj {
+		task["metadata"].(obj)["uid"] = testTaskUID
+		return task
+	}
+	tests := []struct {
+		name       string
+		lucarneURL string
+		task       obj
+		want       string
+	}{
+		{"run link beats the PR", testLucarne, withUID(taskObj("Running", obj{"results": obj{"pr": testPRURL}}, nil)), runURL},
+		{"run link beats the Vikunja task", testLucarne, withUID(taskObj("Running", nil, obj{vikunjaTaskLabel: "575"})), runURL},
+		{"run link beats the console logs", testLucarne, withUID(taskObj("Failed", nil, nil)), runURL},
+		{"trailing slash of the base is dropped", testLucarne + "/", withUID(taskObj("Running", nil, nil)), runURL},
+		{"no Lucarne URL opens the PR", "", withUID(taskObj("Running", obj{"results": obj{"pr": testPRURL}}, nil)), testPRURL},
+		{"no UID opens the PR", testLucarne, taskObj("Running", obj{"results": obj{"pr": testPRURL}}, nil), testPRURL},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			k := testKelos()
+			k.LucarneURL, k.LucarneCluster = tt.lucarneURL, testCluster
+			row, _ := k.taskRow(decode[kelosTask](t, tt.task), nil, testNow)
+			if row.Target.URL != tt.want {
+				t.Errorf("target = %q, want %q", row.Target.URL, tt.want)
 			}
 		})
 	}
