@@ -227,9 +227,9 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 }
 
 // failedTask sets the state and detail of a failed Task from the container
-// exit that failed its pod: capped (shown, not flagged, until the Task is
-// deleted) for one of CappedExits, else failed, its detail naming that exit,
-// else Kelos's message.
+// exit that failed its pod: capped (shown, not flagged) for one of
+// CappedExits, else failed, its detail naming that exit, else Kelos's
+// message. With the pod gone there is no exit, so the Task is failed.
 func (k Kelos) failedTask(row *Row, t kelosTask, p pod, pr, activity string) {
 	exit, exited := failedExit(p)
 	if exited && slices.Contains(k.CappedExits, exit) {

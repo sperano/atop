@@ -55,8 +55,8 @@ type Config struct {
 	ConsoleURL      string
 	LucarneURL      string
 	LucarneCluster  string
-	// CappedExits are the init container exits that stop a Kelos Task on
-	// purpose; such a Task shows as capped, not failed.
+	// CappedExits are the container exits (init or main) that stop a Kelos
+	// Task on purpose; such a Task shows as capped, not failed.
 	CappedExits ExitList
 	StaleDays   int
 	Interval    time.Duration
