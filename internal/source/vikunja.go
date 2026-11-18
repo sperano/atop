@@ -25,14 +25,16 @@ const (
 	VikunjaPageSize = 50
 	// commentFetchWorkers caps concurrent newest-comment lookups.
 	commentFetchWorkers = 8
-	// commentsPerPage is one because only the newest comment is needed.
-	commentsPerPage  = 1
-	firstPage        = 1
-	totalPagesHeader = "X-Pagination-Total-Pages"
-	newestFirst      = "desc"
-	apiSuffix        = "/api/v1"
-	replyFromPrefix  = "reply from "
-	unknownAuthor    = "?"
+	// newestCommentWindow is how many comments the newest-comment lookup
+	// reads: Vikunja orders same-second comments oldest first even when
+	// asked for newest first, so a tie this wide is broken by id.
+	newestCommentWindow = 5
+	firstPage           = 1
+	totalPagesHeader    = "X-Pagination-Total-Pages"
+	newestFirst         = "desc"
+	apiSuffix           = "/api/v1"
+	replyFromPrefix     = "reply from "
+	unknownAuthor       = "?"
 	// StatePROpen marks a task whose PR is open (Kelos labels it so).
 	StatePROpen = "PR open"
 )
@@ -62,6 +64,7 @@ type vikunjaTask struct {
 }
 
 type vikunjaComment struct {
+	ID      int    `json:"id"`
 	Comment string `json:"comment"`
 	Created string `json:"created"`
 	Author  struct {
@@ -88,6 +91,7 @@ type Vikunja struct {
 	Token           string // when empty, read from Secret
 	Secret          TokenSecret
 	Operator        string
+	KelosUser       string // the Vikunja user Kelos posts its notices as
 	InProgressLabel int
 	PROpenLabel     string // title of the label Kelos puts on a task whose PR is open
 	StaleDays       int
@@ -234,7 +238,7 @@ func (v *Vikunja) newestComment(ctx context.Context, token string, taskID int) (
 	path := fmt.Sprintf("/tasks/%d/comments", taskID)
 	params := url.Values{
 		"order_by": {newestFirst},
-		"per_page": {strconv.Itoa(commentsPerPage)},
+		"per_page": {strconv.Itoa(newestCommentWindow)},
 		"page":     {strconv.Itoa(firstPage)},
 	}
 	var page []vikunjaComment
@@ -242,10 +246,7 @@ func (v *Vikunja) newestComment(ctx context.Context, token string, taskID int) (
 	if err != nil {
 		return nil, err
 	}
-	if len(page) == 0 {
-		return nil, nil
-	}
-	return &page[0], nil
+	return newest(page), nil
 }
 
 // embeddedNewest uses expanded comments only when comment_count proves the
@@ -257,10 +258,22 @@ func embeddedNewest(task vikunjaTask) (*vikunjaComment, bool) {
 	if len(task.Comments) != *task.CommentCount {
 		return nil, false
 	}
-	if len(task.Comments) == 0 {
-		return nil, true
+	return newest(task.Comments), true
+}
+
+// newest returns the comment created last, the higher id breaking a
+// same-second tie, or nil when there is none.
+func newest(comments []vikunjaComment) *vikunjaComment {
+	var best *vikunjaComment
+	var bestAt time.Time
+	for i := range comments {
+		c := &comments[i]
+		at := parseTime(c.Created)
+		if best == nil || at.After(bestAt) || (at.Equal(bestAt) && c.ID > best.ID) {
+			best, bestAt = c, at
+		}
 	}
-	return &task.Comments[len(task.Comments)-1], true
+	return best
 }
 
 func (v *Vikunja) cachedComment(task vikunjaTask) (*vikunjaComment, bool) {
@@ -311,9 +324,10 @@ func (v *Vikunja) pruneCommentCache(tasks []vikunjaTask) {
 	}
 }
 
-// row maps a task to its state: PR open while its PR is open, a reply
-// when someone else spoke last (needing you unless stale), else idle. A
-// running Kelos Task later overrides this (Enrich).
+// row maps a task to its state: PR open while its PR is open, idle when
+// the operator spoke last, the notice's state when Kelos posted a notice
+// that needs nothing of you, a reply when someone else spoke last (needing
+// you unless stale). A running Kelos Task later overrides this (Enrich).
 func (v *Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web string) Row {
 	row := Row{
 		Source: SourceVikunja,
@@ -334,6 +348,7 @@ func (v *Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web 
 		row.State = StatePROpen
 	case last == nil || author == v.Operator:
 		row.State = StateIdle
+	case author == v.KelosUser && applyNotice(&row, last.Comment):
 	case stale.IsStale(row.Since):
 		row.State = StateStale
 		row.Detail = replyFromPrefix + author + ": " + row.Detail + " — " + snippet(last.Comment)

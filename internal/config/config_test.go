@@ -29,6 +29,8 @@ const (
 	envLucarneURL   = "https://lucarne.example"
 	envLucarneClust = "env-cluster"
 	flagLucarneURL  = "https://flag-lucarne.example"
+	envKelosUser    = "env-kelos"
+	flagKelosUser   = "flag-kelos"
 )
 
 func envFrom(m map[string]string) func(string) string {
@@ -56,7 +58,7 @@ func wantEnvConfig() Config {
 	return Config{
 		Namespace: envNamespace, GitHubOwner: envOwner, VikunjaURL: DefaultVikunjaURL,
 		TokenNamespace: envTokenNS, TokenSecret: envTokenSecret, TokenKey: envTokenKey,
-		Operator: envOperator, InProgressLabel: envLabel, PROpenLabel: envPROpenLabel,
+		Operator: envOperator, KelosUser: DefaultKelosUser, InProgressLabel: envLabel, PROpenLabel: envPROpenLabel,
 		ConsoleURL: envConsoleURL, LucarneURL: DefaultLucarneURL, LucarneCluster: DefaultLucarneCluster,
 		CappedExits: wantDefaultExits(), StaleDays: envStaleDays, Interval: envInterval, HiddenFile: envHiddenFile,
 	}
@@ -71,7 +73,7 @@ func TestParseDefaults(t *testing.T) {
 	want := Config{
 		Namespace: DefaultNamespace, GitHubOwner: DefaultGitHubOwner, VikunjaURL: DefaultVikunjaURL,
 		TokenNamespace: DefaultTokenNamespace, TokenSecret: DefaultTokenSecret, TokenKey: DefaultTokenKey,
-		Operator: DefaultOperator, InProgressLabel: DefaultInProgressLabel, PROpenLabel: DefaultPROpenLabel,
+		Operator: DefaultOperator, KelosUser: DefaultKelosUser, InProgressLabel: DefaultInProgressLabel, PROpenLabel: DefaultPROpenLabel,
 		ConsoleURL: DefaultConsoleURL, LucarneURL: DefaultLucarneURL, LucarneCluster: DefaultLucarneCluster,
 		CappedExits: wantDefaultExits(), StaleDays: DefaultStaleDays, Interval: DefaultInterval,
 	}
@@ -145,6 +147,36 @@ func TestParseLucarne(t *testing.T) {
 			}
 			if got.LucarneURL != tt.wantURL || got.LucarneCluster != tt.wantCluster {
 				t.Errorf("lucarne = %q, %q; want %q, %q", got.LucarneURL, got.LucarneCluster, tt.wantURL, tt.wantCluster)
+			}
+		})
+	}
+}
+
+func TestParseKelosUser(t *testing.T) {
+	t.Parallel()
+	env := map[string]string{currentEnvPrefix + "KELOS_USER": envKelosUser}
+	legacy := map[string]string{legacyEnvPrefix + "KELOS_USER": envKelosUser}
+	tests := []struct {
+		name string
+		args []string
+		env  map[string]string
+		want string
+	}{
+		{"default", nil, nil, DefaultKelosUser},
+		{"env overrides default", nil, env, envKelosUser},
+		{"flag beats env", []string{"-kelos-user", flagKelosUser}, env, flagKelosUser},
+		{"empty flag turns notices off", []string{"-kelos-user="}, env, ""},
+		{"no legacy fallback", nil, legacy, DefaultKelosUser},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := Parse(testName, tt.args, envFrom(tt.env))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.KelosUser != tt.want {
+				t.Errorf("KelosUser = %q, want %q", got.KelosUser, tt.want)
 			}
 		})
 	}

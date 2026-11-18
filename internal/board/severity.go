@@ -10,7 +10,7 @@ type Severity string
 const (
 	SeverityFailed    Severity = "failed"    // red: a failure or a source error
 	SeverityBlocked   Severity = "blocked"   // yellow: blocked work, conflicts
-	SeverityBusy      Severity = "busy"      // green: an active agent
+	SeverityBusy      Severity = "busy"      // green: an active agent, or a row one speaks for
 	SeverityAttention Severity = "attention" // plain: needs you, nothing worse
 	SeverityQuiet     Severity = "quiet"     // dim: everything else, hidden rows
 )
@@ -25,7 +25,7 @@ func SeverityOf(e Entry) Severity {
 		return SeverityFailed
 	case blockedState(r):
 		return SeverityBlocked
-	case r.Busy && IsAgent(r):
+	case r.Busy:
 		return SeverityBusy
 	case r.NeedsYou:
 		return SeverityAttention

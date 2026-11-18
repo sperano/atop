@@ -74,6 +74,9 @@ type Row struct {
 	// ParentRefs are the refs of rows this one belongs under, most specific
 	// first; the first one shown becomes its parent.
 	ParentRefs []string
+	// AgentTask is the Kelos Task a start notice on this row named, for
+	// Enrich to link them when no ref does; empty otherwise.
+	AgentTask string
 }
 
 // Key identifies a row across refreshes.

@@ -23,6 +23,7 @@ const (
 	DefaultTokenSecret     = "agent-claude"
 	DefaultTokenKey        = "token"
 	DefaultOperator        = "eric"
+	DefaultKelosUser       = "gordon"
 	DefaultInProgressLabel = 1
 	DefaultPROpenLabel     = "pr open"
 	DefaultConsoleURL      = "https://kelos.spe.quebec"
@@ -50,6 +51,7 @@ type Config struct {
 	TokenSecret     string
 	TokenKey        string
 	Operator        string
+	KelosUser       string
 	InProgressLabel int
 	PROpenLabel     string
 	ConsoleURL      string
@@ -113,6 +115,7 @@ func (c *Config) register(fs *flag.FlagSet, env *envDefaults) {
 	fs.StringVar(&c.TokenSecret, "token-secret", env.renamedStr("TOKEN_SECRET", DefaultTokenSecret), "name of the Vikunja token Secret (VIGIE_TOKEN_SECRET)")
 	fs.StringVar(&c.TokenKey, "token-key", env.renamedStr("TOKEN_KEY", DefaultTokenKey), "key of the Vikunja token in the Secret (VIGIE_TOKEN_KEY)")
 	fs.StringVar(&c.Operator, "operator", env.renamedStr("OPERATOR", DefaultOperator), "your Vikunja username (VIGIE_OPERATOR)")
+	fs.StringVar(&c.KelosUser, "kelos-user", env.str(currentEnvPrefix+"KELOS_USER", "", DefaultKelosUser), "Vikunja username Kelos posts its notices as; its start and report notices do not need you (VIGIE_KELOS_USER)")
 	fs.IntVar(&c.InProgressLabel, "in-progress-label", env.renamedInteger("IN_PROGRESS_LABEL", DefaultInProgressLabel), "id of the Vikunja \"in progress\" label (VIGIE_IN_PROGRESS_LABEL)")
 	fs.StringVar(&c.PROpenLabel, "pr-open-label", env.renamedStr("PR_OPEN_LABEL", DefaultPROpenLabel), "title of the Vikunja label on tasks whose PR is open (VIGIE_PR_OPEN_LABEL)")
 	fs.StringVar(&c.ConsoleURL, "console-url", env.renamedStr("CONSOLE_URL", DefaultConsoleURL), "Kelos console URL (VIGIE_CONSOLE_URL)")

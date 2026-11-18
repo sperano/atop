@@ -132,6 +132,7 @@ func buildSources(cfg config.Config) ([]source.Named, error) {
 		Token:           os.Getenv("VIKUNJA_API_TOKEN"),
 		Secret:          source.TokenSecret{Namespace: cfg.TokenNamespace, Name: cfg.TokenSecret, Key: cfg.TokenKey},
 		Operator:        cfg.Operator,
+		KelosUser:       cfg.KelosUser,
 		InProgressLabel: cfg.InProgressLabel,
 		PROpenLabel:     cfg.PROpenLabel,
 		StaleDays:       cfg.StaleDays,

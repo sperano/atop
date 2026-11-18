@@ -8,13 +8,14 @@ import (
 
 const (
 	testOperator    = "eric"
+	testKelosUser   = "gordon"
 	testWeb         = "https://v.example"
 	testPROpenLabel = "pr open"
 	commentHTML     = "<p>PR: <b>#180</b> &amp; more</p>"
 )
 
 func testVikunjaSource() *Vikunja {
-	return &Vikunja{APIURL: testWeb + "/api/v1", Operator: testOperator, PROpenLabel: testPROpenLabel,
+	return &Vikunja{APIURL: testWeb + "/api/v1", Operator: testOperator, KelosUser: testKelosUser, PROpenLabel: testPROpenLabel,
 		StaleDays: testStaleDays, Now: fixedNow}
 }
 
