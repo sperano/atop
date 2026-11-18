@@ -28,18 +28,29 @@ render.
 | Kelos Sessions | client-go REST client, list `sessions.kelos.dev` (`v1alpha2`) in `kelos-agents`; `Active` condition | `busy`, `idle`, lowercased phase if not Ready | phase Failed |
 | Kelos Tasks | list `tasks.kelos.dev` + pods `-l kelos.dev/component=task` whose phase is not `Succeeded` | while Running, its activity: `implementing` (no role label, `vikunja.spe.quebec/task` label), `discussing` (name `vikunja-discuss-*`), `conflict fix` (role `pr-conflict`), `<bot> fix` (role `pr-followup` whose prompt names a `Review bot:` and whose `<request>` is not a `/` command; `cubic-dev-ai[bot]` → `cubic`), `pr follow-up`, `task follow-up`, any other role as is, else `running`; `blocked` (the `wait-for-blockers` init container is running), `waiting`, `pending`, `done` for 1 h after completion, then hidden; `capped` while the Task and its pod exist when the pod failed on one of the capped exits (`review-round-cap:4`, the review round limit); else `failed`, DETAIL naming the first container (init containers first) that exited non-zero and its code (`kelos-agent exit 1`), else Kelos's message, else its Vikunja task and PR; DETAIL starts with the activity when the state is a phase | Failed, unless capped |
 | GitHub PRs | POST to `https://api.github.com/graphql` (token: minted from the `VIGIE_GITHUB_APP_*` App when all three are set, read-only permissions, renewed 5 min before expiry; else `GH_TOKEN`, else `GITHUB_TOKEN`, else `gh auth token`; half set is a start-up error); search `is:pr is:open owner:<owner> archived:false`, first 50 | `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `review`; a `kelos:<variant>` label → detail `[variant] title` | conflicts, checks failing, review |
-| Vikunja | tasks with label id 1 (`in progress`) and `done = false`, paginated; the newest comment per task; DETAIL is `[assignee] title` | `in review` (label titled `pr open`, whatever the comments), `reply from <user>`, `idle` (operator spoke last, or no comments) | the newest comment is not the operator's and the PR is not open |
+| Vikunja | tasks with label id 1 (`in progress`) and `done = false`, paginated; the newest comment per task; DETAIL is `[assignee] title` | `in review` (label titled `pr open`, whatever the comments), `agent started` (busy) / `agent stopped` / `merged` / `ready` / `discuss` / `PR open` (the `--kelos-user`'s newest comment ends with a marker of a kind that needs nothing of you, below), `reply from <user>`, `idle` (operator spoke last, or no comments) | the newest comment is neither the operator's nor such a Kelos notice, and the PR is not open |
 
 - **Newest comment:** expand `comments` and `comment_count` on the task list.
   Vikunja caps expanded comments at 50 globally across the task page, so use
-  the embedded last comment only when its task's count proves the slice is
-  complete. Otherwise fetch one comment with `order_by=desc&per_page=1`.
-  Cache by task `updated` and comment count across refreshes.
+  the newest embedded comment only when its task's count proves the slice is
+  complete. Otherwise fetch the newest `newestCommentWindow` comments with
+  `order_by=desc`.
+  Cache by task `updated` and comment count across refreshes. Newest is by
+  (`created`, `id`): Vikunja lists same-second comments oldest first even
+  with `order_by=desc`, so the fallback reads a few (`newestCommentWindow`).
+- **Kelos notices:** every fixed notice by `--kelos-user` (default `gordon`)
+  ends with `<!-- kelos:<kind>[ task=<Kelos Task>] -->` (hollingsworth
+  `helm/kelos/README.md`, "Gordon Cole's voice"). `start`, `restart`,
+  `queued`, `branch-locked`, `chain-started` → `agent started`, busy, DETAIL
+  ends with the named Task, until stale (below); `stop` → `agent stopped`; `merged`, `ready`,
+  `discuss` → their kind; `pr-open` → `PR open`; any other kind or no marker
+  stays `reply from <user>`, needing you. No text fallback.
 - **An agent speaks for its row** (`source.Enrich`, run by `FetchAll`): a
   Kelos Task that is not done, failed or capped gives the Vikunja task and PR rows
   it links to (ParentRefs) its state, time and busy flag, and clears their
   needs-you; a running Task beats a queued one, then the most recent. Skipped
-  when the Kelos Task source failed.
+  when the Kelos Task source failed. A row no Task links to by ref is spoken
+  for by the in-flight Task its start notice named (`Row.AgentTask`).
 - **Task links:** a Task's PR is `status.results.pr`, else the `PR: <url>`
   line of its prompt when it has a role label (conflict, follow-up and
   plumbing prompts start with one; an implementation prompt is the owner's
@@ -48,6 +59,7 @@ render.
   `status.results.branch`.
 - **Staleness:** a needs-you PR or agent reply untouched for 30 days shows as
   `stale` and is not flagged (abandoned experiment PRs would stay red forever).
+  So does a Kelos start notice that old, rather than `agent started` forever.
 - **No `kubectl`, and `gh` only for `gh auth token`** (the server image is
   `scratch`): Kelos and the token Secret through client-go
   (`source.NewKubeClient`: in-cluster when `KUBERNETES_SERVICE_HOST` is
@@ -77,7 +89,7 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
   PR and Vikunja task is one busy agent); columns mark,
   TYPE, ORIGIN, NAME, STATE, AGE, DETAIL (DETAIL takes the remaining width, truncated
   with `…`); footer with key help and the last action or error. Needs-you rows
-  are red with `●`, busy green, the rest dim. Sort: needs you, then busy, then
+  are red with `●`, busy green (any busy row, not only agents), the rest dim. Sort: needs you, then busy, then
   the rest, each most recent first.
 - Tree: a row that obviously belongs to another shown row is nested under it,
   with `├─`/`└─`/`│` guides before its NAME. Links, most specific first:
@@ -127,6 +139,7 @@ hard-coded beyond these defaults:
 | Vikunja API URL | `https://vikunja.spe.quebec/api/v1` |
 | Vikunja token Secret (namespace/name/key) | `vikunja` / `agent-claude` / `token` |
 | Operator Vikunja username | `eric` |
+| Kelos notice Vikunja username (an empty flag makes notices replies; an empty env var keeps the default) | `gordon` |
 | In-progress label id | `1` |
 | PR-open label title | `pr open` |
 | Kelos console URL | `https://kelos.spe.quebec` |

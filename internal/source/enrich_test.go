@@ -25,6 +25,12 @@ func taskRowFor(name, state string, busy bool, since time.Time, parents ...strin
 	return Row{Source: SourceKelosTask, Name: name, State: state, Busy: busy, Since: since, ParentRefs: parents}
 }
 
+func startedRow(task string) Row {
+	r := vikunjaRow(StateAgentStarted, false)
+	r.Busy, r.AgentTask = true, task
+	return r
+}
+
 func TestEnrich(t *testing.T) {
 	t.Parallel()
 	fresh, old := testNow, testNow.Add(-time.Minute)
@@ -103,6 +109,33 @@ func TestEnrich(t *testing.T) {
 			},
 			wantState: map[string]string{"#840": "reply from claude"},
 			wantNeeds: map[string]bool{"#840": true},
+		},
+		{
+			name: "the task a start notice names speaks when no ref links one",
+			rows: []Row{
+				startedRow("fu-1"),
+				taskRowFor("fu-1", StateBlocked, false, fresh),
+			},
+			wantState: map[string]string{"#840": StateBlocked},
+			wantBusy:  map[string]bool{"#840": false},
+		},
+		{
+			name: "a task linked by ref beats the named one",
+			rows: []Row{
+				startedRow("fu-1"),
+				taskRowFor("fu-1", ActivityImplementing, true, fresh),
+				taskRowFor("by-ref", "waiting", false, old, enrichTaskRef),
+			},
+			wantState: map[string]string{"#840": "waiting"},
+		},
+		{
+			name: "a finished named task changes nothing",
+			rows: []Row{
+				startedRow("fu-1"),
+				taskRowFor("fu-1", stateDone, false, fresh),
+			},
+			wantState: map[string]string{"#840": StateAgentStarted},
+			wantBusy:  map[string]bool{"#840": true},
 		},
 		{
 			name: "a task never speaks for another task",

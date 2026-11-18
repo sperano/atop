@@ -23,7 +23,8 @@ vigie · 2026-10-14 21:55:04 · 2 need you · 3 busy · 2 idle
 ```
 
 Rows that need you come first and are marked `●`; failures and errors are
-red, blocked work and conflicts are yellow, active agents are green, and
+red, blocked work and conflicts are yellow, active agents and the rows they
+work on (and PRs whose checks are running) are green, and
 inactive informational rows are dim. Attention-only rows with no failure,
 block, or active agent state use normal text. Each group is ordered most recent
 first.
@@ -205,20 +206,22 @@ than inferred from a Task name or prompt.
 | `kelos session` | Kelos Sessions: `busy`/`idle` from the `Active` condition, else the lowercased phase | the phase is `Failed` | the Kelos console |
 | `kelos task` | Kelos Tasks. While one runs, its state is what it does: `implementing`, `discussing`, `conflict fix`, `cubic fix` (a review bot's findings; the bot's name comes from the Task), `pr follow-up`, `task follow-up`; a plumbing Task shows its Kelos role (`merge-close`, `pr-open`, `conflict-reconcile`). Otherwise `blocked` (waiting on its blockers), `waiting` (queued behind the branch lock), `pending`, `done` for an hour after completion, then hidden; `capped` (stopped on purpose by one of `--capped-exits`, such as the review round limit) while its pod still exists; else `failed`, DETAIL naming the container that failed and its exit code (`kelos-agent exit 1`), or Kelos's message when no container exited non-zero (the pod gone, or none failed), or its Vikunja task and PR when that message is empty too; the activity then starts DETAIL | the Task failed, unless capped | its run in Lucarne; with `--lucarne-url` empty or no Task UID, its PR, else its Vikunja task, else its logs in the console |
 | `pr` | open PRs of the owner's non-archived repos (first 50): `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `awaiting your review`; a `kelos:<variant>` label prefixes the title with `[variant]` | conflicts, failing checks, or awaiting review | the PR |
-| `vikunja` | tasks labelled in progress and not done, the title prefixed with the agent user they are assigned to: `PR open` (the task carries the `pr open` label Kelos adds while its PR is open), `reply from <user>` (someone else spoke last), `idle` (you spoke last, or nobody did, and no agent is running) | the newest comment is not yours and the PR is not open | the task |
+| `vikunja` | tasks labelled in progress and not done, the title prefixed with the agent user they are assigned to: `PR open` (the task carries the `pr open` label Kelos adds while its PR is open), `agent started` (Kelos's newest notice says an agent was started or queued for it; DETAIL ends with the Kelos Task it names), `agent stopped`, `merged`, `ready`, `discuss` (Kelos's newest notice reports one of these), `reply from <user>` (someone else spoke last, Kelos included for any other notice), `idle` (you spoke last, or nobody did, and no agent is running) | the newest comment is neither yours nor a Kelos notice that needs nothing of you, and the PR is not open | the task |
 
 An agent working on a row speaks for it: while a Kelos Task runs on a Vikunja
 task or on a PR, that row takes the Task's state (`conflict fix`, `cubic fix`,
 `implementing`, ...) and is not flagged, since nothing is waiting on you. A
 Task that is `blocked`, `waiting` or `pending` does the same without being
-busy. Enter still opens the row's own target. When the Kelos Task source
+busy. A row no Task links to is spoken for by the Task its `agent started`
+notice names. Enter still opens the row's own target. When the Kelos Task source
 fails, rows keep their own state. The header's busy count is agents only
 (local sessions, Kelos Sessions and Tasks), so a Task speaking for its PR
 and its Vikunja task counts once.
 
 A PR or agent reply that would need you but has been untouched for
 `--stale-days` shows as `stale` and is not flagged, so abandoned experiments do
-not stay at the top forever.
+not stay at the top forever. So does a Kelos start notice that old: its agent
+failed or vanished without a word.
 
 Local sessions are read from `~/.claude/sessions/<pid>.json`, skipping those
 whose process has exited. That directory is a Claude Code internal, not a
@@ -239,6 +242,7 @@ variable when the new name is unset.
 | `--token-secret` | `VIGIE_TOKEN_SECRET` | `agent-claude` |
 | `--token-key` | `VIGIE_TOKEN_KEY` | `token` |
 | `--operator` | `VIGIE_OPERATOR` | `eric` |
+| `--kelos-user` (`--kelos-user=` makes Kelos notices replies; an empty `VIGIE_KELOS_USER` keeps the default) | `VIGIE_KELOS_USER` | `gordon` |
 | `--in-progress-label` | `VIGIE_IN_PROGRESS_LABEL` | `1` |
 | `--pr-open-label` | `VIGIE_PR_OPEN_LABEL` | `pr open` |
 | `--console-url` | `VIGIE_CONSOLE_URL` | `https://kelos.spe.quebec` |
@@ -279,7 +283,15 @@ never printed.
 With none of them set, the token is the first found: `GH_TOKEN`, else
 `GITHUB_TOKEN`, else the output of `gh auth token`.
 `--operator` is your Vikunja username: a newest comment by anyone else is a
-reply waiting on you. `--pr-open-label` is the title of the label Kelos adds
+reply waiting on you. `--kelos-user` is the Vikunja user Kelos posts its
+notices as. Each notice ends with a hidden `<!-- kelos:<kind> -->` marker
+(Hollingsworth's `helm/kelos/README.md`, "Gordon Cole's voice"), and vigie
+reads the kind: `start`, `restart`, `queued`, `branch-locked` and
+`chain-started` show `agent started`; `stop` shows `agent stopped`;
+`merged`, `ready`, `discuss` and `pr-open` show their kind (`pr-open` as
+`PR open`); any other kind, or a comment without a marker, is a reply that
+needs you. Comments are ordered by creation time, the higher id breaking a
+same-second tie. `--pr-open-label` is the title of the label Kelos adds
 to a task while its PR is open; empty turns `PR open` off.
 
 Kelos Task activities come from the Task itself: its

@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -27,6 +29,7 @@ type vikunjaServer struct {
 	auths    []string
 	pages    []string // "<taskID>:<page>" for each comment request
 	orders   []string
+	perPages []string
 	filters  []string
 	expands  []string
 	status   int
@@ -58,7 +61,8 @@ func (s *vikunjaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s.pages = append(s.pages, fmt.Sprintf("%d:%s", id, q.Get("page")))
 	s.orders = append(s.orders, q.Get("order_by"))
-	s.serveComment(w, id, q.Get("page"), q.Get("order_by"))
+	s.perPages = append(s.perPages, q.Get("per_page"))
+	s.serveComment(w, id, q.Get("page"), q.Get("per_page"), q.Get("order_by"))
 }
 
 func (s *vikunjaServer) serveTasks(w http.ResponseWriter, page, perPage string) {
@@ -73,19 +77,26 @@ func (s *vikunjaServer) serveTasks(w http.ResponseWriter, page, perPage string) 
 	_ = json.NewEncoder(w).Encode(s.tasks[lo:hi])
 }
 
-func (s *vikunjaServer) serveComment(w http.ResponseWriter, id int, page, order string) {
+// serveComment orders newest first like Vikunja: by created, to the
+// second, leaving same-second comments oldest first.
+func (s *vikunjaServer) serveComment(w http.ResponseWriter, id int, page, perPage, order string) {
 	all := s.comments[id]
+	if order == newestFirst {
+		all = slices.Clone(all)
+		slices.SortStableFunc(all, func(a, b vikunjaComment) int {
+			return parseTime(b.Created).Compare(parseTime(a.Created))
+		})
+	}
 	p, _ := strconv.Atoi(page)
+	n, _ := strconv.Atoi(perPage)
+	n = max(n, 1)
 	out := []vikunjaComment{}
-	if order == newestFirst && p >= 1 && p <= len(all) {
-		index := len(all) - p
-		out = all[index : index+1]
-	} else if p >= 1 && p <= len(all) {
-		out = all[p-1 : p]
+	if p >= 1 {
+		out = append(out, all[min((p-1)*n, len(all)):min(p*n, len(all))]...)
 	}
 	if len(all) > 0 {
 		// Written straight into the map: Go's Header.Set would canonicalise it.
-		w.Header()[pagesHeader] = []string{strconv.Itoa(len(all))}
+		w.Header()[pagesHeader] = []string{strconv.Itoa((len(all) + n - 1) / n)}
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }
@@ -102,9 +113,13 @@ func newVikunja(t *testing.T, s *vikunjaServer) *Vikunja {
 	return v
 }
 
+// lastCommentID numbers test comments in creation order, as Vikunja does.
+var lastCommentID atomic.Int64
+
 func commentsOf(n int, authors ...string) []vikunjaComment {
 	out := make([]vikunjaComment, n)
 	for i := range out {
+		out[i].ID = int(lastCommentID.Add(1))
 		out[i].Comment = "comment " + strconv.Itoa(i+1)
 		out[i].Created = iso(testNow)
 		out[i].Author.Username = authors[min(i, len(authors)-1)]
@@ -143,6 +158,9 @@ func TestNewestComment(t *testing.T) {
 			}
 			if len(s.orders) != 1 || s.orders[0] != newestFirst {
 				t.Errorf("order_by = %v, want [%s]", s.orders, newestFirst)
+			}
+			if want := strconv.Itoa(newestCommentWindow); len(s.perPages) != 1 || s.perPages[0] != want {
+				t.Errorf("per_page = %v, want [%s]", s.perPages, want)
 			}
 		})
 	}
