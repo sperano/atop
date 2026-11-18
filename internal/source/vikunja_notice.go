@@ -66,13 +66,17 @@ func parseNotice(comment string) (notice, bool) {
 // applyNotice gives row the state of a Kelos notice that needs nothing of
 // you: busy for an agent started, quiet for a report. It returns false,
 // leaving row alone, for any other notice or a comment without a marker,
-// which stay replies that need you.
-func applyNotice(row *Row, comment string) bool {
+// which stay replies that need you, and for a stale start notice: no agent
+// works that long, so it failed or vanished without a word.
+func applyNotice(row *Row, comment string, stale bool) bool {
 	n, ok := parseNotice(comment)
 	if !ok {
 		return false
 	}
 	if startedKinds[n.kind] {
+		if stale {
+			return false
+		}
 		row.State, row.Busy, row.AgentTask = StateAgentStarted, true, n.task
 		if n.task != "" {
 			row.Detail += " — " + n.task

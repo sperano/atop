@@ -32,8 +32,9 @@ render.
 
 - **Newest comment:** expand `comments` and `comment_count` on the task list.
   Vikunja caps expanded comments at 50 globally across the task page, so use
-  the embedded last comment only when its task's count proves the slice is
-  complete. Otherwise fetch one comment with `order_by=desc&per_page=1`.
+  the newest embedded comment only when its task's count proves the slice is
+  complete. Otherwise fetch the newest `newestCommentWindow` comments with
+  `order_by=desc`.
   Cache by task `updated` and comment count across refreshes. Newest is by
   (`created`, `id`): Vikunja lists same-second comments oldest first even
   with `order_by=desc`, so the fallback reads a few (`newestCommentWindow`).
@@ -41,7 +42,7 @@ render.
   ends with `<!-- kelos:<kind>[ task=<Kelos Task>] -->` (hollingsworth
   `helm/kelos/README.md`, "Gordon Cole's voice"). `start`, `restart`,
   `queued`, `branch-locked`, `chain-started` → `agent started`, busy, DETAIL
-  ends with the named Task; `stop` → `agent stopped`; `merged`, `ready`,
+  ends with the named Task, until stale (below); `stop` → `agent stopped`; `merged`, `ready`,
   `discuss` → their kind; `pr-open` → `PR open`; any other kind or no marker
   stays `reply from <user>`, needing you. No text fallback.
 - **An agent speaks for its row** (`source.Enrich`, run by `FetchAll`): a
@@ -58,6 +59,7 @@ render.
   `status.results.branch`.
 - **Staleness:** a needs-you PR or agent reply untouched for 30 days shows as
   `stale` and is not flagged (abandoned experiment PRs would stay red forever).
+  So does a Kelos start notice that old, rather than `agent started` forever.
 - **No `kubectl`, and `gh` only for `gh auth token`** (the server image is
   `scratch`): Kelos and the token Secret through client-go
   (`source.NewKubeClient`: in-cluster when `KUBERNETES_SERVICE_HOST` is
@@ -137,7 +139,7 @@ hard-coded beyond these defaults:
 | Vikunja API URL | `https://vikunja.spe.quebec/api/v1` |
 | Vikunja token Secret (namespace/name/key) | `vikunja` / `agent-claude` / `token` |
 | Operator Vikunja username | `eric` |
-| Kelos notice Vikunja username (empty: notices are replies) | `gordon` |
+| Kelos notice Vikunja username (an empty flag makes notices replies; an empty env var keeps the default) | `gordon` |
 | In-progress label id | `1` |
 | PR-open label title | `pr open` |
 | Kelos console URL | `https://kelos.spe.quebec` |

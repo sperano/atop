@@ -326,7 +326,7 @@ func (v *Vikunja) pruneCommentCache(tasks []vikunjaTask) {
 
 // row maps a task to its state: PR open while its PR is open, idle when
 // the operator spoke last, the notice's state when Kelos posted a notice
-// that needs nothing of you, a reply when someone else spoke last (needing
+// that needs nothing of you (a start notice only until it is stale), a reply when someone else spoke last (needing
 // you unless stale). A running Kelos Task later overrides this (Enrich).
 func (v *Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web string) Row {
 	row := Row{
@@ -348,7 +348,7 @@ func (v *Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web 
 		row.State = StatePROpen
 	case last == nil || author == v.Operator:
 		row.State = StateIdle
-	case author == v.KelosUser && applyNotice(&row, last.Comment):
+	case author == v.KelosUser && applyNotice(&row, last.Comment, stale.IsStale(row.Since)):
 	case stale.IsStale(row.Since):
 		row.State = StateStale
 		row.Detail = replyFromPrefix + author + ": " + row.Detail + " — " + snippet(last.Comment)

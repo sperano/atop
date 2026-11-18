@@ -220,7 +220,8 @@ and its Vikunja task counts once.
 
 A PR or agent reply that would need you but has been untouched for
 `--stale-days` shows as `stale` and is not flagged, so abandoned experiments do
-not stay at the top forever.
+not stay at the top forever. So does a Kelos start notice that old: its agent
+failed or vanished without a word.
 
 Local sessions are read from `~/.claude/sessions/<pid>.json`, skipping those
 whose process has exited. That directory is a Claude Code internal, not a
@@ -241,7 +242,7 @@ variable when the new name is unset.
 | `--token-secret` | `VIGIE_TOKEN_SECRET` | `agent-claude` |
 | `--token-key` | `VIGIE_TOKEN_KEY` | `token` |
 | `--operator` | `VIGIE_OPERATOR` | `eric` |
-| `--kelos-user` (empty: Kelos notices are replies) | `VIGIE_KELOS_USER` | `gordon` |
+| `--kelos-user` (`--kelos-user=` makes Kelos notices replies; an empty `VIGIE_KELOS_USER` keeps the default) | `VIGIE_KELOS_USER` | `gordon` |
 | `--in-progress-label` | `VIGIE_IN_PROGRESS_LABEL` | `1` |
 | `--pr-open-label` | `VIGIE_PR_OPEN_LABEL` | `pr open` |
 | `--console-url` | `VIGIE_CONSOLE_URL` | `https://kelos.spe.quebec` |

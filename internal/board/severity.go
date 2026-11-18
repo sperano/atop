@@ -10,7 +10,7 @@ type Severity string
 const (
 	SeverityFailed    Severity = "failed"    // red: a failure or a source error
 	SeverityBlocked   Severity = "blocked"   // yellow: blocked work, conflicts
-	SeverityBusy      Severity = "busy"      // green: an active agent, or a row one speaks for
+	SeverityBusy      Severity = "busy"      // green: any busy row (an agent, a row one speaks for, running checks, an agent started)
 	SeverityAttention Severity = "attention" // plain: needs you, nothing worse
 	SeverityQuiet     Severity = "quiet"     // dim: everything else, hidden rows
 )

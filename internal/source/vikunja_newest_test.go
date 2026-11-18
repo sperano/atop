@@ -44,8 +44,8 @@ func TestNewest(t *testing.T) {
 	}
 }
 
-// TestVikunjaFetchBreaksASameSecondTie reproduces a stop notice and a start
-// posted in the same second: Vikunja lists the older one first.
+// TestVikunjaFetchBreaksASameSecondTie reproduces two comments created in
+// the same second: Vikunja lists the older one first.
 func TestVikunjaFetchBreaksASameSecondTie(t *testing.T) {
 	t.Parallel()
 	count := 3

@@ -26,8 +26,9 @@ func (c Counts) String() string {
 	return s
 }
 
-// agentSources are the sources whose rows are agents; a Vikunja task or PR
-// is busy only because an agent speaks for it, and is not counted again.
+// agentSources are the sources whose rows are agents; a busy Vikunja task
+// or PR (an agent speaks for it, its checks run, its agent started) is not
+// an agent, and is not counted.
 var agentSources = map[string]bool{
 	source.SourceLocal:        true,
 	source.SourceKelosSession: true,
