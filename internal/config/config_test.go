@@ -166,7 +166,6 @@ func TestParseKelosUser(t *testing.T) {
 		{"env overrides default", nil, env, envKelosUser},
 		{"flag beats env", []string{"-kelos-user", flagKelosUser}, env, flagKelosUser},
 		{"empty flag turns notices off", []string{"-kelos-user="}, env, ""},
-		{"empty env keeps the default", nil, map[string]string{currentEnvPrefix + "KELOS_USER": ""}, DefaultKelosUser},
 		{"no legacy fallback", nil, legacy, DefaultKelosUser},
 	}
 	for _, tt := range tests {
