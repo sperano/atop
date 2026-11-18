@@ -3,6 +3,7 @@ package source
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -61,7 +62,7 @@ func fakeKube(t *testing.T, objs ...kubeObject) *fakeAPI {
 	f := &fakeAPI{objs: map[string][]obj{}, failing: map[string]bool{}}
 	for _, o := range objs {
 		path := fakeCollectionPath(o.gvr, o.namespace)
-		f.objs[path] = append(f.objs[path], o.content)
+		f.objs[path] = append(f.objs[path], withNamespace(o.content, o.namespace))
 	}
 	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(f.srv.Close)
@@ -241,10 +242,27 @@ func objLabels(o obj) labels.Set {
 	return set
 }
 
+// withNamespace is a copy of content whose metadata names its namespace, as
+// the API server returns it.
+func withNamespace(content obj, namespace string) obj {
+	meta := maps.Clone(objMeta(content))
+	if meta == nil {
+		meta = obj{}
+	}
+	meta["namespace"] = namespace
+	out := maps.Clone(content)
+	if out == nil {
+		out = obj{}
+	}
+	out["metadata"] = meta
+	return out
+}
+
 func objFields(o obj) fields.Set {
 	status, _ := o["status"].(obj)
 	phase, _ := status["phase"].(string)
-	return fields.Set{"metadata.name": objName(o), "status.phase": phase}
+	namespace, _ := objMeta(o)["namespace"].(string)
+	return fields.Set{"metadata.name": objName(o), "metadata.namespace": namespace, "status.phase": phase}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

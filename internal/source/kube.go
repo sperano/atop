@@ -114,6 +114,7 @@ func listItems[T any](ctx context.Context, client KubeClient, gvr schema.GroupVe
 	defer cancel()
 	var items []T
 	next := ""
+	seen := map[string]bool{}
 	for {
 		var page listPage[T]
 		if err := getJSON(ctx, listRequest(c, gvr, namespace, opts, next), &page); err != nil {
@@ -123,10 +124,11 @@ func listItems[T any](ctx context.Context, client KubeClient, gvr schema.GroupVe
 		if page.Metadata.Continue == "" {
 			return items, nil
 		}
-		if page.Metadata.Continue == next {
+		next = page.Metadata.Continue
+		if seen[next] {
 			return nil, fmt.Errorf("listing %s: the API server repeated continue token %q", gvr.GroupResource(), next)
 		}
-		next = page.Metadata.Continue
+		seen[next] = true
 	}
 }
 

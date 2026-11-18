@@ -144,18 +144,54 @@ func TestListItemsPaths(t *testing.T) {
 
 func TestListItemsRepeatedContinue(t *testing.T) {
 	t.Parallel()
-	const token = "same"
-	var calls atomic.Int32
-	client := serverClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		calls.Add(1)
-		writeJSON(w, obj{"metadata": obj{"continue": token}, "items": []obj{}})
-	})
-	_, err := listItems[pod](context.Background(), client, podsResource, testNS, listOptions{})
-	if want := `listing pods: the API server repeated continue token "same"`; errText(err) != want {
-		t.Errorf("err = %v, want %s", err, want)
+	tests := []struct {
+		name     string
+		tokens   []string // the continue token of each page, the last one served again and again
+		want     string
+		requests int32
+	}{
+		{"consecutive", []string{"same"}, `listing pods: the API server repeated continue token "same"`, 2},
+		{"cycle", []string{"a", "b", "a"}, `listing pods: the API server repeated continue token "a"`, 3},
 	}
-	if n := calls.Load(); n != 2 {
-		t.Errorf("requests = %d, want 2", n)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			client := serverClient(t, func(w http.ResponseWriter, _ *http.Request) {
+				n := int(calls.Add(1))
+				token := tt.tokens[min(n, len(tt.tokens))-1]
+				writeJSON(w, obj{"metadata": obj{"continue": token}, "items": []obj{}})
+			})
+			_, err := listItems[pod](context.Background(), client, podsResource, testNS, listOptions{})
+			if errText(err) != tt.want {
+				t.Errorf("err = %v, want %s", err, tt.want)
+			}
+			if n := calls.Load(); n != tt.requests {
+				t.Errorf("requests = %d, want %d", n, tt.requests)
+			}
+		})
+	}
+}
+
+func TestListItemsNamespaceSelector(t *testing.T) {
+	t.Parallel()
+	kube := fakeKube(t, kubeObj(podsResource, testNS, obj{"metadata": obj{"name": "a"}}))
+	tests := []struct {
+		selector string
+		want     []string
+	}{
+		{"metadata.namespace=" + testNS, []string{"a"}},
+		{"metadata.namespace=other", nil},
+	}
+	for _, tt := range tests {
+		pods, err := listItems[pod](context.Background(), kube.client(t), podsResource, testNS,
+			listOptions{FieldSelector: tt.selector})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := names(pods); !slices.Equal(got, tt.want) {
+			t.Errorf("%s: pods = %v, want %v", tt.selector, got, tt.want)
+		}
 	}
 }
 
