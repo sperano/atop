@@ -92,7 +92,7 @@ type Vikunja struct {
 	PROpenLabel     string // title of the label Kelos puts on a task whose PR is open
 	StaleDays       int
 	Client          *http.Client
-	Kube            DynamicClient // reads Secret when Token is empty
+	Kube            KubeClient // reads Secret when Token is empty
 	Now             func() time.Time
 	commentCache    vikunjaCommentCache
 	fetching        atomic.Bool

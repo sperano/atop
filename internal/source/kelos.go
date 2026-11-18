@@ -8,12 +8,14 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
-	taskPodSelector     = "kelos.dev/component=task"
+	taskPodSelector = "kelos.dev/component=task"
+	// taskPodFields leaves out the pods that succeeded: a failed Task's pod
+	// failed, an unfinished one's is pending or running, and a succeeded
+	// Task's pod is never read.
+	taskPodFields       = "status.phase!=" + phaseSucceeded
 	taskOriginLabel     = "kelos.dev/origin"
 	waitForBlockers     = "wait-for-blockers"
 	vikunjaTaskLabel    = "vikunja.spe.quebec/task"
@@ -95,10 +97,6 @@ type pod struct {
 	} `json:"status"`
 }
 
-type itemList[T any] struct {
-	Items []T `json:"items"`
-}
-
 // Kelos reads Kelos Sessions and Tasks from the Kubernetes API.
 type Kelos struct {
 	Namespace  string
@@ -111,22 +109,18 @@ type Kelos struct {
 	// CappedExits are the container exits that stop a Task on purpose (a
 	// review round limit): such a failed Task is capped, not failed.
 	CappedExits []ContainerExit
-	Client      DynamicClient
+	Client      KubeClient
 	Now         func() time.Time
-}
-
-func (k Kelos) items(ctx context.Context, v any, gvr schema.GroupVersionResource, selector string) error {
-	return listJSON(ctx, k.Client, gvr, k.Namespace, selector, v)
 }
 
 // Sessions lists the namespace's Kelos Sessions.
 func (k Kelos) Sessions(ctx context.Context) ([]Row, error) {
-	var list itemList[kelosSession]
-	if err := k.items(ctx, &list, sessionsResource, ""); err != nil {
+	sessions, err := listItems[kelosSession](ctx, k.Client, sessionsResource, k.Namespace, listOptions{})
+	if err != nil {
 		return nil, err
 	}
-	rows := make([]Row, 0, len(list.Items))
-	for _, s := range list.Items {
+	rows := make([]Row, 0, len(sessions))
+	for _, s := range sessions {
 		rows = append(rows, k.sessionRow(s))
 	}
 	return rows, nil
@@ -171,23 +165,27 @@ func findCondition(conds []kubeCondition, kind string) *kubeCondition {
 }
 
 // Tasks lists the namespace's Kelos Tasks, hiding those that succeeded more
-// than RecentDone ago.
+// than RecentDone ago. Only the pods of failed and unfinished Tasks are read:
+// the pods that succeeded, most of those Kelos keeps, are not listed.
 func (k Kelos) Tasks(ctx context.Context) ([]Row, error) {
-	var pods itemList[pod]
-	if err := k.items(ctx, &pods, podsResource, taskPodSelector); err != nil {
+	pods, err := listItems[pod](ctx, k.Client, podsResource, k.Namespace, listOptions{
+		LabelSelector: taskPodSelector,
+		FieldSelector: taskPodFields,
+	})
+	if err != nil {
 		return nil, err
 	}
-	var tasks itemList[kelosTask]
-	if err := k.items(ctx, &tasks, tasksResource, ""); err != nil {
+	tasks, err := listItems[kelosTask](ctx, k.Client, tasksResource, k.Namespace, listOptions{})
+	if err != nil {
 		return nil, err
 	}
-	byName := make(map[string]pod, len(pods.Items))
-	for _, p := range pods.Items {
+	byName := make(map[string]pod, len(pods))
+	for _, p := range pods {
 		byName[p.Metadata.Name] = p
 	}
 	now := k.Now()
 	var rows []Row
-	for _, t := range tasks.Items {
+	for _, t := range tasks {
 		if row, ok := k.taskRow(t, byName, now); ok {
 			rows = append(rows, row)
 		}

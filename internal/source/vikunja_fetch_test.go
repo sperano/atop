@@ -390,25 +390,25 @@ func TestVikunjaToken(t *testing.T) {
 	tests := []struct {
 		name    string
 		token   string
-		kube    func(t *testing.T) DynamicClient
+		kube    func(t *testing.T) KubeClient
 		want    string
 		wantErr string
 	}{
-		{"explicit token wins", testToken, func(*testing.T) DynamicClient { return noCluster }, testToken, ""},
-		{"explicit token trimmed", testToken + "\n", func(*testing.T) DynamicClient { return noCluster }, testToken, ""},
-		{"blank explicit token reads the secret", " ", func(t *testing.T) DynamicClient {
-			return clientOf(fakeKube(secretObj(t, obj{"token": b64(testToken)})))
+		{"explicit token wins", testToken, func(*testing.T) KubeClient { return noCluster }, testToken, ""},
+		{"explicit token trimmed", testToken + "\n", func(*testing.T) KubeClient { return noCluster }, testToken, ""},
+		{"blank explicit token reads the secret", " ", func(t *testing.T) KubeClient {
+			return fakeKube(t, secretObj(obj{"token": b64(testToken)})).client(t)
 		}, testToken, ""},
-		{"secret token trimmed", "", func(t *testing.T) DynamicClient {
-			return clientOf(fakeKube(secretObj(t, obj{"token": b64(testToken + "\n")})))
+		{"secret token trimmed", "", func(t *testing.T) KubeClient {
+			return fakeKube(t, secretObj(obj{"token": b64(testToken + "\n")})).client(t)
 		}, testToken, ""},
-		{"empty secret value", "", func(t *testing.T) DynamicClient {
-			return clientOf(fakeKube(secretObj(t, obj{"token": b64("\n")})))
+		{"empty secret value", "", func(t *testing.T) KubeClient {
+			return fakeKube(t, secretObj(obj{"token": b64("\n")})).client(t)
 		}, "", `vikunja token: secret vikunja/agent-claude key "token" is empty`},
-		{"bad base64", "", func(t *testing.T) DynamicClient {
-			return clientOf(fakeKube(secretObj(t, obj{"token": "!!!"})))
+		{"bad base64", "", func(t *testing.T) KubeClient {
+			return fakeKube(t, secretObj(obj{"token": "!!!"})).client(t)
 		}, "", `vikunja token: decoding secret vikunja/agent-claude key "token": illegal base64 data at input byte 0`},
-		{"no cluster", "", func(*testing.T) DynamicClient { return failingClient(errBoom) }, "", "vikunja token: boom"},
+		{"no cluster", "", func(*testing.T) KubeClient { return failingClient(errBoom) }, "", "vikunja token: boom"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

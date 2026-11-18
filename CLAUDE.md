@@ -25,8 +25,8 @@ render.
 | Source | How | States | Needs you when |
 | --- | --- | --- | --- |
 | Local Claude Code sessions | `~/.claude/sessions/<pid>.json` (`pid`, `name`, `cwd`, `tmux`, `status` idle/busy, `statusUpdatedAt` ms); skip files whose pid is missing, ≤0 or dead (`kill(pid,0)`, EPERM = alive) | `busy`, `idle`, other raw status | status is neither busy nor idle |
-| Kelos Sessions | client-go dynamic client, list `sessions.kelos.dev` (`v1alpha2`) in `kelos-agents`; `Active` condition | `busy`, `idle`, lowercased phase if not Ready | phase Failed |
-| Kelos Tasks | list `tasks.kelos.dev` + pods `-l kelos.dev/component=task` | while Running, its activity: `implementing` (no role label, `vikunja.spe.quebec/task` label), `discussing` (name `vikunja-discuss-*`), `conflict fix` (role `pr-conflict`), `<bot> fix` (role `pr-followup` whose prompt names a `Review bot:` and whose `<request>` is not a `/` command; `cubic-dev-ai[bot]` → `cubic`), `pr follow-up`, `task follow-up`, any other role as is, else `running`; `blocked` (the `wait-for-blockers` init container is running), `waiting`, `pending`, `done` for 1 h after completion, then hidden; `capped` while the Task and its pod exist when the pod failed on one of the capped exits (`review-round-cap:4`, the review round limit); else `failed`, DETAIL naming the first container (init containers first) that exited non-zero and its code (`kelos-agent exit 1`), else Kelos's message, else its Vikunja task and PR; DETAIL starts with the activity when the state is a phase | Failed, unless capped |
+| Kelos Sessions | client-go REST client, list `sessions.kelos.dev` (`v1alpha2`) in `kelos-agents`; `Active` condition | `busy`, `idle`, lowercased phase if not Ready | phase Failed |
+| Kelos Tasks | list `tasks.kelos.dev` + pods `-l kelos.dev/component=task` whose phase is not `Succeeded` | while Running, its activity: `implementing` (no role label, `vikunja.spe.quebec/task` label), `discussing` (name `vikunja-discuss-*`), `conflict fix` (role `pr-conflict`), `<bot> fix` (role `pr-followup` whose prompt names a `Review bot:` and whose `<request>` is not a `/` command; `cubic-dev-ai[bot]` → `cubic`), `pr follow-up`, `task follow-up`, any other role as is, else `running`; `blocked` (the `wait-for-blockers` init container is running), `waiting`, `pending`, `done` for 1 h after completion, then hidden; `capped` while the Task and its pod exist when the pod failed on one of the capped exits (`review-round-cap:4`, the review round limit); else `failed`, DETAIL naming the first container (init containers first) that exited non-zero and its code (`kelos-agent exit 1`), else Kelos's message, else its Vikunja task and PR; DETAIL starts with the activity when the state is a phase | Failed, unless capped |
 | GitHub PRs | POST to `https://api.github.com/graphql` (token: minted from the `VIGIE_GITHUB_APP_*` App when all three are set, read-only permissions, renewed 5 min before expiry; else `GH_TOKEN`, else `GITHUB_TOKEN`, else `gh auth token`; half set is a start-up error); search `is:pr is:open owner:<owner> archived:false`, first 50 | `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `review`; a `kelos:<variant>` label → detail `[variant] title` | conflicts, checks failing, review |
 | Vikunja | tasks with label id 1 (`in progress`) and `done = false`, paginated; the newest comment per task; DETAIL is `[assignee] title` | `in review` (label titled `pr open`, whatever the comments), `reply from <user>`, `idle` (operator spoke last, or no comments) | the newest comment is not the operator's and the PR is not open |
 
@@ -50,8 +50,11 @@ render.
   `stale` and is not flagged (abandoned experiment PRs would stay red forever).
 - **No `kubectl`, and `gh` only for `gh auth token`** (the server image is
   `scratch`): Kelos and the token Secret through client-go
-  (`source.NewDynamicClient`: in-cluster when `KUBERNETES_SERVICE_HOST` is
-  set, else the kubeconfig loading rules), get/list only, no watch; GitHub
+  (`source.NewKubeClient`: in-cluster when `KUBERNETES_SERVICE_HOST` is
+  set, else the kubeconfig loading rules), get/list only, no watch; lists are
+  raw GETs paged 50 at a time (`continue`), each page streamed into typed
+  structs holding only the fields vigie reads (no `unstructured`: a full
+  pod list once took 40–65 MiB per refresh and OOMKilled the server); GitHub
   over `net/http`. `gh auth token` is the only command left, the laptop's
   last GitHub token fallback.
 - **Vikunja token:** `VIKUNJA_API_TOKEN`, else key `token` of Secret
