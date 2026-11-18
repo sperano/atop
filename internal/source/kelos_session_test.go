@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 func sessionObj(phase string, conds []obj, created time.Time) obj {
@@ -68,10 +70,10 @@ func TestKelosSessionsFetch(t *testing.T) {
 	mine := sessionObj("Ready", activeCond("True", testNow), testNow)
 	other := sessionObj("Failed", nil, testNow)
 	k := testKelos()
-	k.Client = clientOf(fakeKube(
-		kubeObj(t, kelosAPIVersion, "Session", testNS, mine),
-		kubeObj(t, kelosAPIVersion, "Session", "other-ns", other),
-	))
+	k.Client = fakeKube(t,
+		kubeObj(sessionsResource, testNS, mine),
+		kubeObj(sessionsResource, "other-ns", other),
+	).client(t)
 	rows, err := k.Sessions(context.Background())
 	if err != nil || len(rows) != 1 || rows[0].Name != "s" || rows[0].State != StateBusy {
 		t.Fatalf("rows=%+v err=%v", rows, err)
@@ -80,11 +82,11 @@ func TestKelosSessionsFetch(t *testing.T) {
 
 func TestKelosSessionsFetchErrors(t *testing.T) {
 	t.Parallel()
-	kube := fakeKube()
-	failList(kube, "sessions", errBoom)
+	kube := fakeKube(t)
+	kube.failList("sessions")
 	k := testKelos()
-	k.Client = clientOf(kube)
-	if _, err := k.Sessions(context.Background()); !errors.Is(err, errBoom) || err.Error() != "listing sessions.kelos.dev: boom" {
+	k.Client = kube.client(t)
+	if _, err := k.Sessions(context.Background()); !apierrors.IsInternalError(err) || err.Error() != "listing sessions.kelos.dev: boom" {
 		t.Errorf("list error = %v", err)
 	}
 	k.Client = failingClient(errBoom)

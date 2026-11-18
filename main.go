@@ -111,7 +111,7 @@ func printOnce(fetch func(context.Context) []source.Row, set hidden.Set, tty, co
 // Claude sessions: a pod has none, and a browser cannot switch tmux panes.
 // A half-set GitHub App configuration is an error.
 func buildSources(cfg config.Config) ([]source.Named, error) {
-	kube := source.NewDynamicClient(os.Getenv)
+	kube := source.NewKubeClient(os.Getenv)
 	httpClient := &http.Client{}
 	githubToken, err := source.GitHubTokenSource(os.Getenv, source.ExecRunner, httpClient, time.Now)
 	if err != nil {

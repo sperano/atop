@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
@@ -308,9 +306,10 @@ func TestTaskOriginUsesExplicitMetadata(t *testing.T) {
 	}
 }
 
-func blockedPodObj(t *testing.T, labels obj) *unstructured.Unstructured {
-	return kubeObj(t, coreVersion, "Pod", testNS, obj{"metadata": obj{"name": testPodName, "labels": labels},
-		"status": obj{"initContainerStatuses": []obj{{"name": waitForBlockers, "state": obj{"running": obj{}}}}}})
+func blockedPodObj(labels obj) kubeObject {
+	return kubeObj(podsResource, testNS, obj{"metadata": obj{"name": testPodName, "labels": labels},
+		"status": obj{"phase": phasePending,
+			"initContainerStatuses": []obj{{"name": waitForBlockers, "state": obj{"running": obj{}}}}}})
 }
 
 func TestKelosTasksFetch(t *testing.T) {
@@ -331,12 +330,12 @@ func TestKelosTasksFetch(t *testing.T) {
 				"completionTime": iso(testNow.Add(-2 * time.Hour))}}
 			elsewhere := obj{"metadata": obj{"name": "elsewhere"}, "status": obj{"phase": "Running"}}
 			k := testKelos()
-			k.Client = clientOf(fakeKube(
-				blockedPodObj(t, tt.pod),
-				kubeObj(t, kelosAPIVersion, "Task", testNS, taskObj("Running", nil, nil)),
-				kubeObj(t, kelosAPIVersion, "Task", testNS, old),
-				kubeObj(t, kelosAPIVersion, "Task", "other-ns", elsewhere),
-			))
+			k.Client = fakeKube(t,
+				blockedPodObj(tt.pod),
+				kubeObj(tasksResource, testNS, taskObj("Running", nil, nil)),
+				kubeObj(tasksResource, testNS, old),
+				kubeObj(tasksResource, "other-ns", elsewhere),
+			).client(t)
 			rows, err := k.Tasks(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -348,17 +347,61 @@ func TestKelosTasksFetch(t *testing.T) {
 	}
 }
 
+func TestKelosTasksFetchSkipsSucceededPods(t *testing.T) {
+	t.Parallel()
+	kube := fakeKube(t, kubeObj(tasksResource, testNS, taskObj("Running", nil, nil)))
+	k := testKelos()
+	k.Client = kube.client(t)
+	if _, err := k.Tasks(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reqs := kube.requested("/api/v1/namespaces/" + testNS + "/pods")
+	if len(reqs) != 1 {
+		t.Fatalf("%d pod list requests, want 1", len(reqs))
+	}
+	q := reqs[0].URL.Query()
+	if q.Get(labelSelectorParam) != "kelos.dev/component=task" || q.Get(fieldSelectorParam) != "status.phase!=Succeeded" {
+		t.Errorf("pod list query = %v", q)
+	}
+}
+
+func TestKelosTasksFetchReadsFailedPods(t *testing.T) {
+	t.Parallel()
+	capped := ContainerExit{Container: "review-round-cap", Code: 4}
+	failedPod := obj{"metadata": obj{"name": testPodName, "labels": obj{"kelos.dev/component": "task"}},
+		"status": obj{"phase": phaseFailed, "containerStatuses": []obj{
+			{"name": capped.Container, "state": obj{"terminated": obj{"exitCode": capped.Code}}}}}}
+	k := testKelos()
+	k.CappedExits = []ContainerExit{capped}
+	k.Client = fakeKube(t,
+		kubeObj(podsResource, testNS, failedPod),
+		kubeObj(tasksResource, testNS, taskObj(phaseFailed, obj{"completionTime": iso(testNow)}, nil)),
+	).client(t)
+	rows, err := k.Tasks(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].State != stateCapped {
+		t.Fatalf("rows = %+v, want one capped Task", rows)
+	}
+}
+
 func TestKelosTasksFetchErrors(t *testing.T) {
 	t.Parallel()
-	for _, resource := range []string{"pods", "tasks"} {
+	tests := []struct{ resource, want string }{
+		{"pods", "listing pods: boom"},
+		{"tasks", "listing tasks.kelos.dev: boom"},
+	}
+	for _, tt := range tests {
+		resource := tt.resource
 		t.Run(resource, func(t *testing.T) {
 			t.Parallel()
-			kube := fakeKube()
-			failList(kube, resource, errBoom)
+			kube := fakeKube(t)
+			kube.failList(resource)
 			k := testKelos()
-			k.Client = clientOf(kube)
+			k.Client = kube.client(t)
 			_, err := k.Tasks(context.Background())
-			if !errors.Is(err, errBoom) || !strings.HasPrefix(err.Error(), "listing "+resource) {
+			if !apierrors.IsInternalError(err) || err.Error() != tt.want {
 				t.Errorf("err = %v", err)
 			}
 		})
@@ -367,12 +410,12 @@ func TestKelosTasksFetchErrors(t *testing.T) {
 
 func TestKelosListFailureIsOneErrorRow(t *testing.T) {
 	t.Parallel()
-	kube := fakeKube()
-	failList(kube, "tasks", errBoom)
+	kube := fakeKube(t)
+	kube.failList("tasks")
 	k := testKelos()
-	k.Client = clientOf(kube)
+	k.Client = kube.client(t)
 	rows := FetchAll(context.Background(), []Named{{Name: SourceKelosTask, Fetch: k.Tasks}})
-	want := ErrorRow(SourceKelosTask, fmt.Errorf("listing tasks.kelos.dev: %w", errBoom))
+	want := ErrorRow(SourceKelosTask, errors.New("listing tasks.kelos.dev: boom"))
 	if len(rows) != 1 || rows[0].Source != want.Source || rows[0].State != StateError ||
 		rows[0].Detail != want.Detail || !rows[0].NeedsYou {
 		t.Fatalf("rows = %+v, want one %+v", rows, want)
