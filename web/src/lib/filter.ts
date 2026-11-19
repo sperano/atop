@@ -17,6 +17,10 @@ export const FILTER_LABELS: Record<FilterKind, string> = {
 const AGENT_SOURCES = new Set(['local claude', 'kelos session', 'kelos task']);
 
 export function matchesFilter(row: Row, filter: FilterKind): boolean {
+	// count() in internal/board/counts.go counts only the shown (non-hidden)
+	// rows, for every kind; a hidden row never matches, even while shown by
+	// "show hidden".
+	if (row.hidden) return false;
 	switch (filter) {
 		case 'need-you':
 			return row.needsYou;
@@ -27,7 +31,15 @@ export function matchesFilter(row: Row, filter: FilterKind): boolean {
 	}
 }
 
-/** rows matching filter, or all of them when filter is undefined. */
+/**
+ * rows matching filter, or all of them when filter is undefined. A filter
+ * can keep a child while dropping its parent, so matching rows are
+ * flattened to the top level: a stale depth or guide would otherwise point
+ * at a parent no longer shown.
+ */
 export function filterRows(rows: readonly Row[], filter: FilterKind | undefined): readonly Row[] {
-	return filter === undefined ? rows : rows.filter((row) => matchesFilter(row, filter));
+	if (filter === undefined) return rows;
+	return rows
+		.filter((row) => matchesFilter(row, filter))
+		.map((row) => ({ ...row, depth: 0, guides: '' }));
 }
