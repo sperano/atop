@@ -59,7 +59,7 @@ describe('the app bar', () => {
 		await mountWith();
 		api.refreshAnswer = () => Promise.resolve({ ...BOARD, refreshing: true });
 		await click(button('Refresh'));
-		expect(api.calls.at(-1)).toBe('refresh false');
+		expect(api.calls.at(-1)).toBe('refresh false false');
 		expect(button('Refreshing…')?.disabled).toBe(true);
 		streams.last.send(BOARD);
 		flushSync();
@@ -71,11 +71,39 @@ describe('the app bar', () => {
 		const toggle = button('Show hidden')!;
 		expect(toggle.getAttribute('aria-pressed')).toBe('false');
 		await click(toggle);
-		expect(api.calls.at(-1)).toBe('snapshot true');
+		expect(api.calls.at(-1)).toBe('snapshot true false');
 		expect(toggle.getAttribute('aria-pressed')).toBe('true');
 		await click(toggle);
-		expect(api.calls.at(-1)).toBe('snapshot false');
+		expect(api.calls.at(-1)).toBe('snapshot false false');
 		expect(toggle.getAttribute('aria-pressed')).toBe('false');
+	});
+
+	test('Hide done is pressed while done rows are dropped', async () => {
+		await mountWith();
+		const toggle = button('Hide done')!;
+		expect(toggle.getAttribute('aria-pressed')).toBe('false');
+		await click(toggle);
+		expect(api.calls.at(-1)).toBe('snapshot false true');
+		expect(toggle.getAttribute('aria-pressed')).toBe('true');
+		expect(status().textContent?.trim()).toBe('connecting… · hiding done tasks');
+		api.answer(BOARD);
+		await settle();
+		streams.last.open();
+		flushSync();
+		await click(toggle);
+		expect(api.calls.at(-1)).toBe('snapshot false false');
+		expect(toggle.getAttribute('aria-pressed')).toBe('false');
+		expect(status().textContent?.trim()).toBe('connecting… · showing done tasks again');
+	});
+
+	test('d toggles hide done the same way the button does', async () => {
+		await mountWith();
+		await userEvent.keyboard('d');
+		await settle();
+		flushSync();
+		expect(api.calls.at(-1)).toBe('snapshot false true');
+		expect(button('Hide done')?.getAttribute('aria-pressed')).toBe('true');
+		expect(status().textContent?.trim()).toBe('connecting… · hiding done tasks');
 	});
 
 	test('Enter on a focused button presses it rather than opening the selected row', async () => {
@@ -83,7 +111,7 @@ describe('the app bar', () => {
 		button('Refresh')?.focus();
 		await userEvent.keyboard('{Enter}');
 		await settle();
-		expect(api.calls.at(-1)).toBe('refresh false');
+		expect(api.calls.at(-1)).toBe('refresh false false');
 		expect(opened).toEqual([]);
 	});
 });

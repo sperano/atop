@@ -26,7 +26,6 @@ const (
 	phaseReady          = "Ready"
 	phaseSucceeded      = "Succeeded"
 	phaseFailed         = "Failed"
-	stateDone           = "done"
 	stateRunning        = "running"
 	resultPR            = "pr"
 	resultBranch        = "branch"
@@ -205,7 +204,7 @@ func (k Kelos) taskRow(t kelosTask, pods map[string]pod, now time.Time) (Row, bo
 	}
 	switch st.Phase {
 	case phaseSucceeded:
-		row.State, row.Since = stateDone, parseTime(st.CompletionTime)
+		row.State, row.Since = StateDone, parseTime(st.CompletionTime)
 		row.Detail = taskDetail(t, pr, activity)
 		return row, !row.Since.IsZero() && now.Sub(row.Since) <= RecentDone
 	case phaseFailed:

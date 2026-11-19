@@ -106,12 +106,23 @@ describe('the board', () => {
 	});
 
 	test('counts the hidden rows only when there are some', async () => {
-		await mountWith(snapshot([TASK], { counts: { needYou: 0, busy: 0, idle: 1, hidden: 3 } }));
+		await mountWith(
+			snapshot([TASK], { counts: { needYou: 0, busy: 0, idle: 1, hidden: 3, done: 0 } })
+		);
 		expect(badges()).toEqual(['0 need you', '0 busy', '1 idle', '3 hidden']);
 	});
 
+	test('counts the done rows only when there are some', async () => {
+		await mountWith(
+			snapshot([TASK], { counts: { needYou: 0, busy: 0, idle: 1, hidden: 0, done: 2 } })
+		);
+		expect(badges()).toEqual(['0 need you', '0 busy', '1 idle', '2 done']);
+	});
+
 	test('marks the badges whose count is not zero', async () => {
-		await mountWith(snapshot([TASK], { counts: { needYou: 0, busy: 2, idle: 1, hidden: 0 } }));
+		await mountWith(
+			snapshot([TASK], { counts: { needYou: 0, busy: 2, idle: 1, hidden: 0, done: 0 } })
+		);
 		const active = [...page.querySelectorAll('header .badge')].map((b) =>
 			b.classList.contains('active')
 		);
@@ -216,6 +227,7 @@ describe('the board', () => {
 			[['Enter'], 'open'],
 			[['h'], 'hide'],
 			[['H'], 'show hidden'],
+			[['d'], 'hide done'],
 			[['r'], 'refresh']
 		]);
 	});
@@ -281,7 +293,9 @@ describe('filtering', () => {
 		await mountWith();
 		badgeButton('idle').click();
 		flushSync();
-		send(snapshot([TASK, PR, AGENT], { counts: { needYou: 1, busy: 1, idle: 1, hidden: 0 } }));
+		send(
+			snapshot([TASK, PR, AGENT], { counts: { needYou: 1, busy: 1, idle: 1, hidden: 0, done: 0 } })
+		);
 		expect(
 			bodyRows()
 				.map(cells)
@@ -425,7 +439,7 @@ describe('r', () => {
 		await mountWith();
 		api.refreshAnswer = () => Promise.resolve({ ...BOARD, refreshing: true });
 		await press('r');
-		expect(api.calls.at(-1)).toBe('refresh false');
+		expect(api.calls.at(-1)).toBe('refresh false false');
 		expect(statusText()).toBe('refreshing…');
 		expect(bodyRows()).toHaveLength(4);
 		send(BOARD);
@@ -441,9 +455,22 @@ describe('r', () => {
 		flushSync();
 		api.refreshAnswer = () => Promise.resolve(snapshot([TASK, PR], { refreshing: true }));
 		await press('r');
-		expect(api.calls.at(-1)).toBe('refresh true');
+		expect(api.calls.at(-1)).toBe('refresh true false');
 		expect(statusText()).toBe('refreshing… · showing hidden rows');
 		expect(bodyRows()).toHaveLength(2);
+	});
+
+	test('refreshes the layout with done rows hidden', async () => {
+		await mountWith();
+		await press('d');
+		api.answer(snapshot([TASK]));
+		await settle();
+		streams.last.open();
+		flushSync();
+		api.refreshAnswer = () => Promise.resolve(snapshot([TASK], { refreshing: true }));
+		await press('r');
+		expect(api.calls.at(-1)).toBe('refresh false true');
+		expect(statusText()).toBe('refreshing… · hiding done tasks');
 	});
 
 	test('says when the server refreshed too recently', async () => {
@@ -486,10 +513,10 @@ describe('hiding', () => {
 	test('H lists the hidden rows, where h unhides, and H again hides them', async () => {
 		await mountWith();
 		await press('H');
-		expect(api.calls.at(-1)).toBe('snapshot true');
+		expect(api.calls.at(-1)).toBe('snapshot true false');
 		const hiddenRow: Row = { ...PR, mark: '-', severity: 'quiet', hidden: true };
 		api.answer(
-			snapshot([TASK, hiddenRow], { counts: { needYou: 0, busy: 0, idle: 1, hidden: 1 } })
+			snapshot([TASK, hiddenRow], { counts: { needYou: 0, busy: 0, idle: 1, hidden: 1, done: 0 } })
 		);
 		await settle();
 		flushSync();
@@ -506,7 +533,7 @@ describe('hiding', () => {
 		expect(api.calls.at(-1)).toBe('unhide pr vigie#3');
 		expect(statusText()).toBe('showing hidden rows · unhid pr vigie#3');
 		await press('H');
-		expect(api.calls.at(-1)).toBe('snapshot false');
+		expect(api.calls.at(-1)).toBe('snapshot false false');
 		api.answer(BOARD);
 		await settle();
 		streams.last.open();
@@ -518,6 +545,43 @@ describe('hiding', () => {
 		await mountWith();
 		send({ ...BOARD, error: 'hidden rows: read-only' });
 		expect(statusText()).toBe('error: hidden rows: read-only');
+	});
+});
+
+describe('hiding done', () => {
+	test('d drops the done rows, and d again shows them', async () => {
+		await mountWith();
+		await press('d');
+		expect(api.calls.at(-1)).toBe('snapshot false true');
+		expect(statusText()).toBe('connecting… · hiding done tasks');
+		api.answer(snapshot([TASK]));
+		await settle();
+		streams.last.open();
+		flushSync();
+		expect(streams.last.url).toBe('/api/v1/events?hide_done=true');
+		await press('d');
+		expect(api.calls.at(-1)).toBe('snapshot false false');
+		api.answer(BOARD);
+		await settle();
+		streams.last.open();
+		flushSync();
+		expect(statusText()).toBe('showing done tasks again');
+	});
+
+	test('combines with showing hidden rows in the query', async () => {
+		await mountWith();
+		await press('H');
+		api.answer(snapshot([TASK]));
+		await settle();
+		streams.last.open();
+		flushSync();
+		await press('d');
+		expect(api.calls.at(-1)).toBe('snapshot true true');
+		api.answer(snapshot([TASK]));
+		await settle();
+		streams.last.open();
+		flushSync();
+		expect(streams.last.url).toBe('/api/v1/events?show_hidden=true&hide_done=true');
 	});
 });
 
@@ -554,7 +618,7 @@ describe('the connection', () => {
 			window.dispatchEvent(event);
 			await settle();
 			expect(event.defaultPrevented).toBe(false);
-			expect(api.calls).toEqual(['snapshot false']);
+			expect(api.calls).toEqual(['snapshot false false']);
 		}
 	);
 
@@ -564,6 +628,6 @@ describe('the connection', () => {
 		window.dispatchEvent(event);
 		await settle();
 		expect(event.defaultPrevented).toBe(true);
-		expect(api.calls).toEqual(['snapshot false', 'refresh false']);
+		expect(api.calls).toEqual(['snapshot false false', 'refresh false false']);
 	});
 });

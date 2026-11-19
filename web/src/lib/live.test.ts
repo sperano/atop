@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import { row, snapshot } from '../testing/builders';
 import { FakeApi, FakeStreams, FakeTimers, settle } from '../testing/fakes';
+import type { Layout } from './api';
 import { ApiError } from './api';
 import { LiveBoard, RETRY_BASE_MS, RETRY_MAX_MS, type Connection } from './live';
 import type { Snapshot } from './model';
@@ -9,10 +10,14 @@ const FIRST = snapshot([row({ source: 'pr', name: 'a' })]);
 const SECOND = snapshot([row({ source: 'pr', name: 'b' })]);
 const HIDDEN = snapshot([row({ source: 'pr', name: 'h', hidden: true })]);
 
+const NEITHER: Layout = { showHidden: false, hideDone: false };
+const SHOWS_HIDDEN: Layout = { showHidden: true, hideDone: false };
+const HIDES_DONE: Layout = { showHidden: false, hideDone: true };
+
 let api: FakeApi;
 let streams: FakeStreams;
 let timers: FakeTimers;
-let got: { snapshot: Snapshot; showHidden: boolean }[];
+let got: { snapshot: Snapshot; layout: Layout }[];
 let connections: Connection[];
 let live: LiveBoard;
 
@@ -26,7 +31,7 @@ beforeEach(() => {
 		api,
 		openStream: streams.open,
 		timer: timers.timer,
-		onsnapshot: (s, showHidden) => got.push({ snapshot: s, showHidden }),
+		onsnapshot: (s, layout) => got.push({ snapshot: s, layout }),
 		onconnection: (c) => connections.push(c)
 	});
 });
@@ -34,20 +39,20 @@ beforeEach(() => {
 const lastConnection = () => connections.at(-1);
 
 /** Starts and lets the first snapshot arrive. */
-async function started(showHidden = false): Promise<void> {
-	live.start(showHidden);
+async function started(layout: Layout = NEITHER): Promise<void> {
+	live.start(layout);
 	api.answer(FIRST);
 	await settle();
 }
 
 describe('LiveBoard', () => {
 	test('loads the snapshot, then opens the stream', async () => {
-		live.start(false);
+		live.start(NEITHER);
 		expect(lastConnection()).toEqual({ state: 'connecting' });
 		expect(streams.opened).toHaveLength(0);
 		api.answer(FIRST);
 		await settle();
-		expect(got).toEqual([{ snapshot: FIRST, showHidden: false }]);
+		expect(got).toEqual([{ snapshot: FIRST, layout: NEITHER }]);
 		expect(streams.last.url).toBe('/api/v1/events');
 		streams.last.open();
 		expect(lastConnection()).toEqual({ state: 'live' });
@@ -83,7 +88,7 @@ describe('LiveBoard', () => {
 		});
 		expect(streams.last.closed).toBe(true);
 		timers.fire();
-		expect(api.calls).toEqual(['snapshot false', 'snapshot false']);
+		expect(api.calls).toEqual(['snapshot false false', 'snapshot false false']);
 		api.answer(SECOND);
 		await settle();
 		expect(streams.opened).toHaveLength(2);
@@ -91,7 +96,7 @@ describe('LiveBoard', () => {
 	});
 
 	test('waits twice as long after each failure, up to the maximum', async () => {
-		live.start(false);
+		live.start(NEITHER);
 		const waits: number[] = [];
 		for (let i = 0; i < 7; i++) {
 			api.fail(new ApiError(503, 'too many event streams'));
@@ -106,7 +111,7 @@ describe('LiveBoard', () => {
 	});
 
 	test('a snapshot event resets the wait', async () => {
-		live.start(false);
+		live.start(NEITHER);
 		api.fail(new Error('offline'));
 		await settle();
 		timers.fire();
@@ -132,61 +137,73 @@ describe('LiveBoard', () => {
 	test('showing hidden rows reconnects to their layout', async () => {
 		await started();
 		const first = streams.last;
-		live.setShowHidden(true);
+		live.setLayout(SHOWS_HIDDEN);
 		expect(first.closed).toBe(true);
-		expect(api.calls.at(-1)).toBe('snapshot true');
+		expect(api.calls.at(-1)).toBe('snapshot true false');
 		api.answer(HIDDEN);
 		await settle();
-		expect(got.at(-1)).toEqual({ snapshot: HIDDEN, showHidden: true });
+		expect(got.at(-1)).toEqual({ snapshot: HIDDEN, layout: SHOWS_HIDDEN });
 		expect(streams.last.url).toBe('/api/v1/events?show_hidden=true');
+	});
+
+	test('hiding done rows alone also reconnects to their layout', async () => {
+		await started();
+		const first = streams.last;
+		live.setLayout(HIDES_DONE);
+		expect(first.closed).toBe(true);
+		expect(api.calls.at(-1)).toBe('snapshot false true');
+		api.answer(HIDDEN);
+		await settle();
+		expect(got.at(-1)).toEqual({ snapshot: HIDDEN, layout: HIDES_DONE });
+		expect(streams.last.url).toBe('/api/v1/events?hide_done=true');
 	});
 
 	test('setting the same layout changes nothing', async () => {
 		await started();
-		live.setShowHidden(false);
-		expect(api.calls).toEqual(['snapshot false']);
+		live.setLayout(NEITHER);
+		expect(api.calls).toEqual(['snapshot false false']);
 		expect(streams.last.closed).toBe(false);
 	});
 
 	test("drops the former layout's late snapshot and events", async () => {
-		live.start(false);
-		live.setShowHidden(true);
+		live.start(NEITHER);
+		live.setLayout(SHOWS_HIDDEN);
 		api.answer(FIRST); // the answer to the first, show_hidden=false call
 		await settle();
 		expect(got).toEqual([]);
 		expect(streams.opened).toHaveLength(0);
 		api.answer(HIDDEN);
 		await settle();
-		expect(got).toEqual([{ snapshot: HIDDEN, showHidden: true }]);
+		expect(got).toEqual([{ snapshot: HIDDEN, layout: SHOWS_HIDDEN }]);
 	});
 
 	test("drops the former layout's failed snapshot", async () => {
-		live.start(false);
-		live.setShowHidden(true);
+		live.start(NEITHER);
+		live.setLayout(SHOWS_HIDDEN);
 		api.fail(new Error('aborted')); // the aborted show_hidden=false call
 		await settle();
 		expect(lastConnection()).toEqual({ state: 'connecting' });
 		expect(timers.pending).toHaveLength(0);
 		api.answer(HIDDEN);
 		await settle();
-		expect(got).toEqual([{ snapshot: HIDDEN, showHidden: true }]);
+		expect(got).toEqual([{ snapshot: HIDDEN, layout: SHOWS_HIDDEN }]);
 	});
 
 	test("switching the layout aborts the former layout's snapshot", () => {
-		live.start(false);
-		live.setShowHidden(true);
+		live.start(NEITHER);
+		live.setLayout(SHOWS_HIDDEN);
 		expect(api.signals.map((s) => s?.aborted)).toEqual([true, false]);
 	});
 
 	test('switching the layout starts the wait over', async () => {
-		live.start(false);
+		live.start(NEITHER);
 		for (let i = 0; i < 2; i++) {
 			api.fail(new Error('offline'));
 			await settle();
 			timers.fire();
 		}
 		expect(lastConnection()).toEqual({ state: 'connecting' });
-		live.setShowHidden(true);
+		live.setLayout(SHOWS_HIDDEN);
 		api.fail(new Error('offline')); // the abandoned third show_hidden=false call
 		api.fail(new Error('offline'));
 		await settle();
@@ -198,19 +215,27 @@ describe('LiveBoard', () => {
 	});
 
 	test('a retry pending for the former layout does not fire', async () => {
-		live.start(false);
+		live.start(NEITHER);
 		api.fail(new Error('offline'));
 		await settle();
-		live.setShowHidden(true);
+		live.setLayout(SHOWS_HIDDEN);
 		timers.fire();
-		expect(api.calls).toEqual(['snapshot false', 'snapshot true']);
+		expect(api.calls).toEqual(['snapshot false false', 'snapshot true false']);
 	});
 
 	test('offer shows a snapshot of the current layout only', async () => {
 		await started();
-		live.offer(HIDDEN, true);
+		live.offer(HIDDEN, SHOWS_HIDDEN);
 		expect(got).toHaveLength(1);
-		live.offer(SECOND, false);
+		live.offer(SECOND, NEITHER);
+		expect(got.at(-1)?.snapshot).toEqual(SECOND);
+	});
+
+	test('offer drops a snapshot whose layout differs only in hideDone', async () => {
+		await started();
+		live.offer(HIDDEN, HIDES_DONE);
+		expect(got).toHaveLength(1);
+		live.offer(SECOND, NEITHER);
 		expect(got.at(-1)?.snapshot).toEqual(SECOND);
 	});
 
@@ -220,14 +245,14 @@ describe('LiveBoard', () => {
 		live.stop();
 		expect(stream.closed).toBe(true);
 		stream.send(SECOND);
-		live.offer(SECOND, false);
-		live.setShowHidden(true);
+		live.offer(SECOND, NEITHER);
+		live.setLayout(SHOWS_HIDDEN);
 		expect(got).toHaveLength(1);
-		expect(api.calls).toEqual(['snapshot false']);
+		expect(api.calls).toEqual(['snapshot false false']);
 	});
 
 	test('stop cancels a pending retry', async () => {
-		live.start(false);
+		live.start(NEITHER);
 		api.fail(new Error('offline'));
 		await settle();
 		expect(lastConnection()).toMatchObject({ state: 'retrying' });
@@ -237,7 +262,7 @@ describe('LiveBoard', () => {
 	});
 
 	test('stop aborts a snapshot in flight', () => {
-		live.start(false);
+		live.start(NEITHER);
 		live.stop();
 		expect(api.signals.map((s) => s?.aborted)).toEqual([true]);
 	});

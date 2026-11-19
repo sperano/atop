@@ -50,9 +50,9 @@ describe('updatedText', () => {
 
 describe('documentTitle', () => {
 	test.each([
-		['nobody needs you', { needYou: 0, busy: 3, idle: 2, hidden: 1 }, 'vigie'],
-		['one row needs you', { needYou: 1, busy: 0, idle: 0, hidden: 0 }, '(1) vigie'],
-		['two rows need you', { needYou: 2, busy: 0, idle: 0, hidden: 0 }, '(2) vigie']
+		['nobody needs you', { needYou: 0, busy: 3, idle: 2, hidden: 1, done: 0 }, 'vigie'],
+		['one row needs you', { needYou: 1, busy: 0, idle: 0, hidden: 0, done: 0 }, '(1) vigie'],
+		['two rows need you', { needYou: 2, busy: 0, idle: 0, hidden: 0, done: 0 }, '(2) vigie']
 	])('%s', (_name, counts, want) => {
 		expect(documentTitle(counts)).toBe(want);
 	});

@@ -114,7 +114,8 @@ function decodeCounts(value: unknown, path: string): Counts {
 		needYou: count(o, 'need_you', path),
 		busy: count(o, 'busy', path),
 		idle: count(o, 'idle', path),
-		hidden: count(o, 'hidden', path)
+		hidden: count(o, 'hidden', path),
+		done: count(o, 'done', path)
 	};
 }
 

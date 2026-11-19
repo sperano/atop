@@ -23,6 +23,8 @@ const (
 	readyzPath    = "/readyz"
 	// showHiddenParam lists the hidden rows too, as H does in the TUI.
 	showHiddenParam = "show_hidden"
+	// hideDoneParam leaves done Kelos Task rows out, as d does in the TUI.
+	hideDoneParam = "hide_done"
 )
 
 const (
@@ -53,9 +55,15 @@ func (s *Server) apiHandler() http.Handler {
 }
 
 func (s *Server) handleSnapshot(w http.ResponseWriter, r *http.Request) {
-	if showHidden, ok := parseShowHidden(w, r); ok {
-		writeJSON(w, http.StatusOK, s.snapshot(showHidden))
+	showHidden, ok := parseShowHidden(w, r)
+	if !ok {
+		return
 	}
+	hideDone, ok := parseHideDone(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, s.snapshot(showHidden, hideDone))
 }
 
 // handleRefresh starts a refresh or joins the running one, and answers at
@@ -66,12 +74,16 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	hideDone, ok := parseHideDone(w, r)
+	if !ok {
+		return
+	}
 	if _, wait := s.refreshAfter(s.opts.RefreshCooldown); wait > 0 {
 		w.Header().Set("Retry-After", strconv.Itoa(int((wait+time.Second-1)/time.Second)))
 		writeError(w, http.StatusTooManyRequests, errTooSoon)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, s.snapshot(showHidden))
+	writeJSON(w, http.StatusAccepted, s.snapshot(showHidden, hideDone))
 }
 
 // handleHide hides a row of the last refresh; a source's error row cannot be.
@@ -118,13 +130,25 @@ func (s *Server) handleReadyz(w http.ResponseWriter, _ *http.Request) {
 // parseShowHidden reads the show_hidden query parameter, answering 400
 // when it is not a boolean.
 func parseShowHidden(w http.ResponseWriter, r *http.Request) (bool, bool) {
-	v := r.URL.Query().Get(showHiddenParam)
+	return parseBoolParam(w, r, showHiddenParam)
+}
+
+// parseHideDone reads the hide_done query parameter, answering 400 when it
+// is not a boolean.
+func parseHideDone(w http.ResponseWriter, r *http.Request) (bool, bool) {
+	return parseBoolParam(w, r, hideDoneParam)
+}
+
+// parseBoolParam reads an optional boolean query parameter, false when
+// absent, answering 400 when it is set but not a boolean.
+func parseBoolParam(w http.ResponseWriter, r *http.Request, name string) (bool, bool) {
+	v := r.URL.Query().Get(name)
 	if v == "" {
 		return false, true
 	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, showHiddenParam+" must be true or false")
+		writeError(w, http.StatusBadRequest, name+" must be true or false")
 		return false, false
 	}
 	return b, true

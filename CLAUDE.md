@@ -80,7 +80,11 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
 
 - Keys: ↑/↓ and k/j move, pgup/pgdn/home/end, enter opens the row's target,
   `r` refreshes now, `q`/ctrl+c quits, `h` hides the selected row (or
-  unhides it while hidden rows are shown), `H` toggles showing hidden rows. Auto-refresh every `--interval`
+  unhides it while hidden rows are shown), `H` toggles showing hidden rows,
+  `d` toggles hiding done Kelos Task rows (a Task shows `done` for
+  `RecentDone` as confirmation it finished, before its PR row alone carries
+  on; `d` drops that grace window from the listing, resets to off every
+  run). Auto-refresh every `--interval`
   (default 2m). While a refresh runs, show it in the status line and keep the
   previous rows. Keep the selection across refreshes by row identity
   (source+name), not by index. Handle window resize.
@@ -103,7 +107,8 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
   row; busy counts agents (see Layout).
 - Hidden rows: kept by identity (source+name) in `--hidden-file`
   (`internal/hidden`), left out of the table, the header counts (which add
-  `N hidden`) and `--once`; `H` lists them dim with mark `-`. Only the row is
+  `N hidden`, and `N done` whenever any done Kelos Task rows are counted) and
+  `--once`; `H` lists them dim with mark `-`. Only the row is
   hidden: its children move to the top level. A source's error row cannot be
   hidden. The file is re-read and updated (load, change, save if changed) on
   every refresh and every `h`, so several processes share it; an unparsable file

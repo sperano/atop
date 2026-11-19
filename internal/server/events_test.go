@@ -152,6 +152,30 @@ func TestEventsShowHidden(t *testing.T) {
 	}
 }
 
+func TestEventsHideDone(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	h.refreshWith(append(testRows(), doneTaskRow()))
+	for _, tt := range []struct {
+		query      string
+		wantListed bool
+	}{{"", true}, {"?hide_done=true", false}} {
+		ctx, cancel := context.WithCancel(context.Background())
+		w := newStreamWriter()
+		done := h.stream(ctx, w, tt.query)
+		snap := frameSnapshot(t, <-w.frames)
+		i := slices.IndexFunc(snap.Rows, func(r Row) bool { return r.Name == "done-1" })
+		if listed := i >= 0; listed != tt.wantListed {
+			t.Errorf("%q: done row listed = %v, want %v", tt.query, listed, tt.wantListed)
+		}
+		if snap.Counts.Done != 1 {
+			t.Errorf("%q: Counts.Done = %d, want 1", tt.query, snap.Counts.Done)
+		}
+		cancel()
+		<-done
+	}
+}
+
 // assertPRRow checks whether the PR row is listed and, when it is, whether
 // it is marked hidden.
 func assertPRRow(t *testing.T, what string, snap Snapshot, wantListed, wantHidden bool) {

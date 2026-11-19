@@ -14,6 +14,10 @@ const (
 	// statusShowsHidden stays in the status line while hidden rows are listed.
 	statusShowsHidden = "showing hidden rows (marked " + board.MarkHidden + ")"
 	statusHidesHidden = "hidden rows are hidden again"
+	// statusHidesDone stays in the status line while done Kelos Task rows
+	// are left out of the listing.
+	statusHidesDone      = "hiding done tasks"
+	statusShowsDoneAgain = "showing done tasks again"
 )
 
 // toggleHidden hides the selected row, or unhides it when hidden rows are
@@ -44,6 +48,18 @@ func (m Model) toggleShowHidden() (tea.Model, tea.Cmd) {
 	m.status = statusHidesHidden
 	if m.showHidden {
 		m.status = "" // the status line says so while they are shown
+	}
+	m.arrange()
+	return m, nil
+}
+
+// toggleHideDone leaves done Kelos Task rows out of the listing, or lists
+// them again.
+func (m Model) toggleHideDone() (tea.Model, tea.Cmd) {
+	m.hideDone = !m.hideDone
+	m.status = statusShowsDoneAgain
+	if m.hideDone {
+		m.status = "" // the status line says so while they are hidden
 	}
 	m.arrange()
 	return m, nil

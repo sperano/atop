@@ -30,7 +30,7 @@ export function snapshot(rows: readonly Row[], fields: Partial<Snapshot> = {}): 
 		fetchedAt: TEST_NOW,
 		refreshing: false,
 		error: '',
-		counts: { needYou: 0, busy: 0, idle: 0, hidden: 0 },
+		counts: { needYou: 0, busy: 0, idle: 0, hidden: 0, done: 0 },
 		rows,
 		...fields
 	};
@@ -68,7 +68,8 @@ export function snapshotJSON(s: Snapshot): Record<string, unknown> {
 			need_you: s.counts.needYou,
 			busy: s.counts.busy,
 			idle: s.counts.idle,
-			hidden: s.counts.hidden
+			hidden: s.counts.hidden,
+			done: s.counts.done
 		},
 		rows: s.rows.map(rowJSON)
 	};

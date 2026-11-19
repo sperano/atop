@@ -16,6 +16,7 @@ import (
 var (
 	keyHide       = keyRune('h')
 	keyShowHidden = keyRune('H')
+	keyHideDone   = keyRune('d')
 )
 
 // fakeStore is a hidden-rows file: it holds a set, counts the writes that
@@ -152,6 +153,41 @@ func TestShowHiddenAndUnhide(t *testing.T) {
 	}
 }
 
+func TestHideDoneKey(t *testing.T) {
+	t.Parallel()
+	rows := []source.Row{
+		{Source: source.SourceKelosTask, Name: "done-1", State: source.StateDone},
+		{Source: "pr", Name: "a", State: "review"},
+	}
+	m := newHidingModel(nil, rows...)
+	if got := entryNames(m); !slices.Equal(got, []string{"done-1", "a"}) {
+		t.Fatalf("entries = %v, want [done-1 a]", got)
+	}
+	m = send(m, keyHideDone)
+	if !m.hideDone {
+		t.Error("hideDone not set after d")
+	}
+	if got := entryNames(m); !slices.Equal(got, []string{"a"}) {
+		t.Errorf("entries = %v, want [a]", got)
+	}
+	if row, _ := m.selectedRow(); row.Name != "a" {
+		t.Errorf("selected %q, want the next row a after done-1 disappeared", row.Name)
+	}
+	if !strings.Contains(m.statusLine(), statusHidesDone) {
+		t.Errorf("status line %q does not say done tasks are hidden", m.statusLine())
+	}
+	m = send(m, keyHideDone)
+	if m.hideDone {
+		t.Error("hideDone still set after second d")
+	}
+	if got := entryNames(m); !slices.Equal(got, []string{"done-1", "a"}) {
+		t.Errorf("entries = %v, want [done-1 a]", got)
+	}
+	if m.status != statusShowsDoneAgain || strings.Contains(m.statusLine(), statusHidesDone) {
+		t.Errorf("after second d: status line %q", m.statusLine())
+	}
+}
+
 func TestRefreshSyncsHidden(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{set: hidden.New(prEntry("b"), prEntry("gone"))}
@@ -195,7 +231,7 @@ func TestTitleCountsHidden(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := titleLine(board.Build(rows, tt.set, false, testNow).Counts, testNow); !strings.HasSuffix(got, tt.want) {
+			if got := titleLine(board.Build(rows, tt.set, false, false, testNow).Counts, testNow); !strings.HasSuffix(got, tt.want) {
 				t.Errorf("title = %q, want suffix %q", got, tt.want)
 			}
 		})
@@ -228,7 +264,7 @@ func TestHiddenRowMarkedInView(t *testing.T) {
 			if tt.hidden {
 				set = set.Hide(row)
 			}
-			entry := board.Build([]source.Row{row}, set, true, testNow).Entries[0]
+			entry := board.Build([]source.Row{row}, set, true, false, testNow).Entries[0]
 			if got := rowLine(entry, testWidth); !strings.HasPrefix(got, tt.want) {
 				t.Errorf("row line %q, want prefix %q", got, tt.want)
 			}

@@ -5,7 +5,8 @@ export type Action =
 	| { readonly kind: 'open' }
 	| { readonly kind: 'refresh' }
 	| { readonly kind: 'hide' }
-	| { readonly kind: 'showHidden' };
+	| { readonly kind: 'showHidden' }
+	| { readonly kind: 'hideDone' };
 
 export type Move = 'up' | 'down' | 'pageUp' | 'pageDown' | 'home' | 'end';
 
@@ -21,6 +22,7 @@ export const KEY_HELP: readonly KeyHint[] = [
 	{ keys: ['Enter'], does: 'open' },
 	{ keys: ['h'], does: 'hide' },
 	{ keys: ['H'], does: 'show hidden' },
+	{ keys: ['d'], does: 'hide done' },
 	{ keys: ['r'], does: 'refresh' }
 ];
 
@@ -39,7 +41,8 @@ const COMMANDS: Readonly<Record<string, Action>> = {
 	Enter: { kind: 'open' },
 	r: { kind: 'refresh' },
 	h: { kind: 'hide' },
-	H: { kind: 'showHidden' }
+	H: { kind: 'showHidden' },
+	d: { kind: 'hideDone' }
 };
 
 export type KeyInput = Pick<

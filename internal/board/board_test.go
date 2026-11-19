@@ -14,13 +14,28 @@ func TestHiddenParentLeavesChildAtTop(t *testing.T) {
 	parent := source.Row{Source: "vikunja", Name: "#7", State: "idle", Ref: "vikunja:7"}
 	child := source.Row{Source: "pr", Name: "vigie#3", State: "review", ParentRefs: []string{"vikunja:7"}}
 	set := hidden.New(hidden.Entry{Source: "vikunja", Name: "#7"})
-	entries := Build([]source.Row{parent, child}, set, false, testNow).Entries
+	entries := Build([]source.Row{parent, child}, set, false, false, testNow).Entries
 	if len(entries) != 1 || entries[0].Row.Name != "vigie#3" || entries[0].Prefix != "" || entries[0].Depth != 0 {
 		t.Errorf("entries = %+v, want the PR alone at the top level", entries)
 	}
-	entries = Build([]source.Row{parent, child}, set, true, testNow).Entries
+	entries = Build([]source.Row{parent, child}, set, true, false, testNow).Entries
 	if len(entries) != 2 || entries[1].Prefix != branchLast || entries[1].Depth != 1 || !entries[0].Hidden {
 		t.Errorf("with hidden shown, entries = %+v, want the PR nested under the hidden task", entries)
+	}
+}
+
+func TestHideDoneLeavesChildAtTop(t *testing.T) {
+	t.Parallel()
+	parent := source.Row{Source: source.SourceKelosTask, Name: "t", State: source.StateDone, Ref: "vikunja:7"}
+	child := source.Row{Source: "pr", Name: "vigie#3", State: "review", ParentRefs: []string{"vikunja:7"}}
+	rows := []source.Row{parent, child}
+	entries := Build(rows, hidden.Set{}, false, false, testNow).Entries
+	if len(entries) != 2 || entries[1].Row.Name != "vigie#3" || entries[1].Prefix != branchLast || entries[1].Depth != 1 {
+		t.Errorf("with hideDone off, entries = %+v, want the PR nested under the done task", entries)
+	}
+	entries = Build(rows, hidden.Set{}, false, true, testNow).Entries
+	if len(entries) != 1 || entries[0].Row.Name != "vigie#3" || entries[0].Prefix != "" || entries[0].Depth != 0 {
+		t.Errorf("with hideDone on, entries = %+v, want the PR alone at the top level", entries)
 	}
 }
 
@@ -40,7 +55,7 @@ func TestBuildDecoratesEntries(t *testing.T) {
 		{Row: rows[1], Depth: 1, Prefix: branchLast, Origin: source.OriginUnknown, Age: unknownAge, Severity: SeverityBusy},
 		{Row: rows[2], Hidden: true, Mark: MarkHidden, Origin: source.OriginGitHub, Age: "2h", Severity: SeverityQuiet},
 	}
-	got := Build(rows, set, true, testNow).Entries
+	got := Build(rows, set, true, false, testNow).Entries
 	if len(got) != len(want) {
 		t.Fatalf("got %d entries, want %d: %+v", len(got), len(want), got)
 	}
@@ -60,7 +75,7 @@ func TestBuildDepths(t *testing.T) {
 		{Source: "pr", Name: "vigie#3", State: "review", Ref: "pr:3", ParentRefs: []string{"vikunja:7"}},
 		{Source: "kelos task", Name: "fix", State: "busy", Busy: true, ParentRefs: []string{"pr:3"}},
 	}
-	got := Build(rows, hidden.Set{}, false, testNow).Entries
+	got := Build(rows, hidden.Set{}, false, false, testNow).Entries
 	want := []struct {
 		name  string
 		depth int
@@ -100,8 +115,37 @@ func TestBuildCounts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := Build(rows, tt.set, tt.showHidden, testNow).Counts; got != tt.want {
+			if got := Build(rows, tt.set, tt.showHidden, false, testNow).Counts; got != tt.want {
 				t.Errorf("counts = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildCountsDone(t *testing.T) {
+	t.Parallel()
+	rows := []source.Row{
+		{Source: source.SourceKelosTask, Name: "a", State: source.StateDone},
+		{Source: source.SourceKelosTask, Name: "b", State: source.StateDone},
+		{Source: source.SourceKelosTask, Name: "c", State: "busy", Busy: true},
+		{Source: "pr", Name: "d", State: "review"},
+	}
+	tests := []struct {
+		name     string
+		rows     []source.Row
+		hideDone bool
+		want     int
+	}{
+		{"no done rows", rows[2:], false, 0},
+		{"two done rows, hideDone off", rows, false, 2},
+		{"two done rows, hideDone on: count is ambient", rows, true, 2},
+		{"a non-Task row in state done is not counted", []source.Row{{Source: "pr", Name: "x", State: source.StateDone}}, false, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := Build(tt.rows, hidden.Set{}, false, tt.hideDone, testNow).Counts.Done; got != tt.want {
+				t.Errorf("Counts.Done = %d, want %d", got, tt.want)
 			}
 		})
 	}

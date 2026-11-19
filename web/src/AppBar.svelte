@@ -13,8 +13,10 @@
 		now: number;
 		refreshing: boolean;
 		showHidden: boolean;
+		hideDone: boolean;
 		onrefresh: () => void;
 		ontogglehidden: () => void;
+		ontoggledone: () => void;
 		/** Clicking a badge filters by it; clicking it again clears the filter. */
 		onfilter: (kind: FilterKind) => void;
 	}
@@ -26,8 +28,10 @@
 		now,
 		refreshing,
 		showHidden,
+		hideDone,
 		onrefresh,
 		ontogglehidden,
+		ontoggledone,
 		onfilter
 	}: Props = $props();
 
@@ -59,6 +63,12 @@
 				hidden
 			</li>
 		{/if}
+		{#if counts.done > 0}
+			<li class="badge done active">
+				<strong>{counts.done}</strong>
+				done
+			</li>
+		{/if}
 	</ul>
 	<div class="actions">
 		<time
@@ -68,6 +78,7 @@
 			>{updatedText(fetchedAt, now)}</time
 		>
 		<button type="button" aria-pressed={showHidden} onclick={ontogglehidden}>Show hidden</button>
+		<button type="button" aria-pressed={hideDone} onclick={ontoggledone}>Hide done</button>
 		<button type="button" class="refresh" disabled={refreshing} onclick={onrefresh}>
 			{refreshing ? 'Refreshing…' : 'Refresh'}
 		</button>

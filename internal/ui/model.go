@@ -38,6 +38,7 @@ type Model struct {
 	entries    []board.Entry // shown rows in display order, for the keys
 	hidden     hidden.Set
 	showHidden bool // hidden rows are listed, marked, so they can be unhidden
+	hideDone   bool // done Kelos Task rows are left out of the listing
 	selected   int
 	offset     int // index of the first visible row
 	width      int
@@ -148,7 +149,7 @@ func (m *Model) arrange() {
 
 // build lays the rows out as they stand at now.
 func (m Model) build(now time.Time) board.Board {
-	return board.Build(m.rows, m.hidden, m.showHidden, now)
+	return board.Build(m.rows, m.hidden, m.showHidden, m.hideDone, now)
 }
 
 func (m Model) selectedEntry() (board.Entry, bool) {

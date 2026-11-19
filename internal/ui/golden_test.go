@@ -40,7 +40,7 @@ func goldenRows() []source.Row {
 			Target: source.Target{URL: "https://github.com/o/vigie/pull/3"}},
 		{Source: source.SourceKelosTask, Origin: source.OriginKelos, Name: "vikunja-vigie-12-fix", State: "cubic fix", Since: at(5 * time.Minute),
 			Detail: "running\nsecond line", Busy: true, ParentRefs: []string{goldenPRRef, goldenTaskRef}},
-		{Source: source.SourceKelosTask, Origin: source.OriginKelos, Name: "vikunja-vigie-12", State: "done", Since: at(40 * time.Minute),
+		{Source: source.SourceKelosTask, Origin: source.OriginKelos, Name: "vikunja-vigie-12", State: source.StateDone, Since: at(40 * time.Minute),
 			ParentRefs: []string{goldenTaskRef}},
 		{Source: source.SourceVikunja, Origin: source.OriginVikunja, Name: "#13", State: source.StateIdle, Since: at(4 * source.Day),
 			Detail: "[eric] hidden parent", Ref: goldenOtherRef},

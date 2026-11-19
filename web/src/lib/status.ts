@@ -11,6 +11,8 @@ export const ERROR_PREFIX = 'error: ';
 export const STATUS_REFRESHING = 'refreshing…';
 export const STATUS_SHOWS_HIDDEN = 'showing hidden rows';
 export const STATUS_HIDES_HIDDEN = 'hidden rows are hidden again';
+export const STATUS_HIDES_DONE = 'hiding done tasks';
+export const STATUS_SHOWS_DONE_AGAIN = 'showing done tasks again';
 export const STATUS_NOTHING = 'nothing to open';
 export const STATUS_CONNECTING = 'connecting…';
 export const STATUS_RECONNECTING = 'connection lost, reconnecting…';
@@ -19,6 +21,7 @@ export interface StatusInput {
 	readonly connection: Connection;
 	readonly refreshing: boolean;
 	readonly showHidden: boolean;
+	readonly hideDone: boolean;
 	/** The badge filtering the rows shown, undefined when none does. */
 	readonly filter: FilterKind | undefined;
 	/** The server's last hidden-row error, empty when none. */
@@ -50,6 +53,7 @@ export function statusLine(s: StatusInput): string {
 		connectionText(s.connection),
 		s.refreshing ? STATUS_REFRESHING : '',
 		s.showHidden ? STATUS_SHOWS_HIDDEN : '',
+		s.hideDone ? STATUS_HIDES_DONE : '',
 		filterText(s.filter),
 		s.serverError ? `${ERROR_PREFIX}${s.serverError}` : '',
 		s.message

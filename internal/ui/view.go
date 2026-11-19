@@ -15,7 +15,7 @@ const (
 	appName    = "vigie"
 	timeLayout = "2006-01-02 15:04:05"
 	titleSep   = " · "
-	keyHelp    = "↑/↓ j/k move · pgup/pgdn home/end · enter open · h hide · H show hidden · r refresh · q quit"
+	keyHelp    = "↑/↓ j/k move · pgup/pgdn home/end · enter open · h hide · H show hidden · d hide done · r refresh · q quit"
 )
 
 // styles colours the table; the zero value renders plain text.
@@ -61,7 +61,7 @@ func titleLine(counts board.Counts, now time.Time) string {
 // rows may be in any order.
 func Snapshot(rows []source.Row, set hidden.Set, now time.Time, width int, color bool) string {
 	st := newStyles(color)
-	b := board.Build(rows, set, false, now)
+	b := board.Build(rows, set, false, false, now)
 	lines := []string{
 		st.bold.Render(titleLine(b.Counts, now)),
 		"",
@@ -129,6 +129,9 @@ func (m Model) statusLine() string {
 	}
 	if m.showHidden {
 		parts = append(parts, statusShowsHidden)
+	}
+	if m.hideDone {
+		parts = append(parts, statusHidesDone)
 	}
 	if m.status != "" {
 		parts = append(parts, m.status)

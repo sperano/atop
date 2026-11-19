@@ -37,13 +37,18 @@ type Board struct {
 
 // Build arranges the rows that are not hidden or, with showHidden, every
 // row, the hidden ones marked. A hidden row's children stay shown, at the
-// top level when it is not. The counts leave the hidden rows out either
-// way. rows may be in any order.
-func Build(rows []source.Row, set hidden.Set, showHidden bool, now time.Time) Board {
+// top level when it is not. With hideDone, a done Kelos Task row is dropped
+// the same way, its children reparented to the top level. The counts leave
+// the hidden rows out either way, and count done rows regardless of
+// hideDone. rows may be in any order.
+func Build(rows []source.Row, set hidden.Set, showHidden bool, hideDone bool, now time.Time) Board {
 	shown, hiddenCount := set.Split(rows)
 	listed := shown
 	if showHidden {
 		listed = rows
+	}
+	if hideDone {
+		listed = dropDone(listed)
 	}
 	entries := arrange(listed)
 	for i := range entries {
@@ -51,7 +56,39 @@ func Build(rows []source.Row, set hidden.Set, showHidden bool, now time.Time) Bo
 	}
 	counts := count(shown)
 	counts.Hidden = hiddenCount
+	counts.Done = countDone(shown)
 	return Board{Entries: entries, Counts: counts}
+}
+
+// isDoneTask reports whether r is a Kelos Task row shown as done. A Task
+// shows done for a grace window so the operator sees that it actually
+// finished, rather than its row just vanishing; past that window (or now,
+// with the hide-done toggle) its PR row carries the rest of the story.
+func isDoneTask(r source.Row) bool {
+	return r.Source == source.SourceKelosTask && r.State == source.StateDone
+}
+
+// dropDone leaves out the done Kelos Task rows; arrange reparents their
+// children to the top level, as it already does for a hidden row.
+func dropDone(rows []source.Row) []source.Row {
+	listed := make([]source.Row, 0, len(rows))
+	for _, r := range rows {
+		if !isDoneTask(r) {
+			listed = append(listed, r)
+		}
+	}
+	return listed
+}
+
+// countDone counts the done Kelos Task rows among rows.
+func countDone(rows []source.Row) int {
+	var n int
+	for _, r := range rows {
+		if isDoneTask(r) {
+			n++
+		}
+	}
+	return n
 }
 
 // decorate fills in what is drawn for e's row.

@@ -64,6 +64,7 @@ go install github.com/sperano/vigie@latest
 | enter | open the row's target (see below) |
 | h | hide the selected row; with hidden rows shown, unhide it |
 | H | show or stop showing hidden rows |
+| d | hide or stop hiding done Kelos Task rows |
 | r | refresh now |
 | q, ctrl+c | quit |
 
@@ -79,8 +80,8 @@ terminal.
 look at today. It stays hidden across refreshes and restarts until you
 unhide it, whatever its state, so a hidden row that starts needing you
 stays hidden. Hidden rows are left out of the header counts, which end with
-`N hidden`. `H` lists them again, dim and marked `-`, and `h` on one unhides
-it.
+`N hidden`, then `N done` when any done rows are counted (see Done tasks
+below). `H` lists them again, dim and marked `-`, and `h` on one unhides it.
 
 Only the row itself is hidden. Rows nested under it (its PR, the Kelos Task
 working on it) move to the top level. A source's `error` row cannot be
@@ -102,6 +103,16 @@ The default file is `<user config dir>/vigie/hidden.json`. If it does not yet
 exist, `vigie` reads the former `atop/hidden.json` and writes the migrated set
 to the new path on the first change.
 
+## Done tasks
+
+A Kelos Task shows `done` for an hour after it succeeds (see Sources below):
+long enough that you see the confirmation it finished, rather than its row
+vanishing the moment it does; after that hour, or for as long as `d` is on,
+only the PR it produced carries on being shown. `d` leaves done rows out of
+the listing right away, for a run where that grace window is just noise. It
+resets to off on every run, and the header counts them (`N done`) whether or
+not it is on.
+
 ## Server
 
 `vigie serve` runs an HTTP server instead of the TUI. It refreshes every
@@ -119,7 +130,8 @@ JSON, already nested, sorted and counted as the TUI draws it:
 | `GET /readyz` | `200` once the first refresh is done, else `503` |
 
 `show_hidden=true` on the snapshot, events and refresh lists the hidden rows
-too, marked `-` with `hidden` set, as `H` does. Path segments are
+too, marked `-` with `hidden` set, as `H` does; `hide_done=true` leaves done
+Kelos Task rows out, as `d` does. The two combine freely. Path segments are
 URL-encoded (`/api/v1/hidden/pr/vigie%233`). Each refresh is cut off after a
 minute. SIGTERM or an interrupt ends the event streams and shuts down
 gracefully.
@@ -133,17 +145,18 @@ it at a writable volume.
 ### Web UI
 
 The server also serves a web UI at `/`, live from the event stream: an app
-bar with the counts, when the server last refreshed, and **Show hidden** and
-**Refresh** buttons; the rows on a card, each with a red dot when it needs
-you, its name over its detail (nested rows indented under their parent), its
-type and origin, its state as a coloured pill, its age and, except on a
-source's error row, a **Hide** (or **Unhide**) button; a status line and the
-key help at the bottom. Clicking the need you, busy or idle badge filters the
-rows to only those it counts (the counts themselves stay the totals);
-clicking the same badge again, or a different one, changes or clears the
-filter. Light or dark, as the system says. The tab's title counts the rows that need you, as
+bar with the counts, when the server last refreshed, and **Show hidden**,
+**Hide done** and **Refresh** buttons; the rows on a card, each with a red
+dot when it needs you, its name over its detail (nested rows indented under
+their parent), its type and origin, its state as a coloured pill, its age
+and, except on a source's error row, a **Hide** (or **Unhide**) button; a
+status line and the key help at the bottom. Clicking the need you, busy or
+idle badge filters the rows to only those it counts (the counts themselves
+stay the totals); clicking the same badge again, or a different one, changes
+or clears the filter. Light or dark, as the system says. The tab's title
+counts the rows that need you, as
 `(2) vigie`. The TUI's keys work too (`↑/↓`, `k/j`, `pgup/pgdn`,
-`home/end`, `enter`, `r`, `h`, `H`; no `q`). Every name with a target is a
+`home/end`, `enter`, `r`, `h`, `H`, `d`; no `q`). Every name with a target is a
 link, so a middle-click opens it in a new tab; enter opens the selected
 row's target in a new tab too. A lost stream is said in the status line and
 reconnected, with the previous rows kept. Any path that is not an API path

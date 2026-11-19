@@ -17,7 +17,7 @@
 	import { onMount } from 'svelte';
 	import AppBar from './AppBar.svelte';
 	import BoardTable from './BoardTable.svelte';
-	import { isRefusal, TooSoonError, type Api } from './lib/api';
+	import { isRefusal, TooSoonError, type Api, type Layout } from './lib/api';
 	import { filterRows, type FilterKind } from './lib/filter';
 	import { documentTitle } from './lib/format';
 	import { actionOf, KEY_HELP, type Action } from './lib/keys';
@@ -26,7 +26,7 @@
 	import { moveTo, reselect } from './lib/selection';
 	import * as status from './lib/status';
 
-	const NO_COUNTS = { needYou: 0, busy: 0, idle: 0, hidden: 0 };
+	const NO_COUNTS = { needYou: 0, busy: 0, idle: 0, hidden: 0, done: 0 };
 
 	interface Props {
 		api: Api;
@@ -41,6 +41,7 @@
 
 	let snapshot = $state<Snapshot>();
 	let showHidden = $state(false);
+	let hideDone = $state(false);
 	let filter = $state<FilterKind>();
 	let selected = $state(0);
 	let connection = $state<Connection>({ state: 'connecting' });
@@ -55,6 +56,7 @@
 			connection,
 			refreshing: snapshot?.refreshing ?? false,
 			showHidden,
+			hideDone,
 			filter,
 			serverError: snapshot?.error ?? '',
 			message
@@ -77,7 +79,7 @@
 			onsnapshot: adopt,
 			onconnection: (c) => (connection = c)
 		});
-		live.start(showHidden);
+		live.start({ showHidden, hideDone });
 		time = now();
 		const ticker = setInterval(() => (time = now()), TICK_MS);
 		return () => {
@@ -99,7 +101,7 @@
 	}
 
 	async function refresh(): Promise<void> {
-		const layout = showHidden;
+		const layout: Layout = { showHidden, hideDone };
 		try {
 			const next = await api.refresh(layout);
 			live?.offer(next, layout);
@@ -127,7 +129,13 @@
 	function toggleShowHidden(): void {
 		showHidden = !showHidden;
 		message = showHidden ? '' : status.STATUS_HIDES_HIDDEN;
-		live?.setShowHidden(showHidden);
+		live?.setLayout({ showHidden, hideDone });
+	}
+
+	function toggleHideDone(): void {
+		hideDone = !hideDone;
+		message = hideDone ? '' : status.STATUS_SHOWS_DONE_AGAIN;
+		live?.setLayout({ showHidden, hideDone });
 	}
 
 	/** Filters the rows by kind, or clears the filter when it is already active. */
@@ -153,6 +161,8 @@
 				return;
 			case 'showHidden':
 				return toggleShowHidden();
+			case 'hideDone':
+				return toggleHideDone();
 		}
 	}
 
@@ -185,8 +195,10 @@
 		now={time}
 		refreshing={snapshot?.refreshing ?? false}
 		{showHidden}
+		{hideDone}
 		onrefresh={() => run({ kind: 'refresh' })}
 		ontogglehidden={() => run({ kind: 'showHidden' })}
+		ontoggledone={() => run({ kind: 'hideDone' })}
 		onfilter={toggleFilter}
 	/>
 	<main>

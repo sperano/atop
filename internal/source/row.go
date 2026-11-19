@@ -40,6 +40,8 @@ const (
 	StateChecksFailing = "checks failing"
 	StateBlocked       = "blocked"
 	StateConflicts     = "conflicts"
+	// StateDone is a Kelos Task that succeeded, shown for RecentDone.
+	StateDone = "done"
 )
 
 // Day is a calendar day, for staleness and ages.

@@ -46,7 +46,7 @@ func TestSnapshotBeforeTheFirstRefresh(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "application/json" {
 		t.Errorf("status, type = %d, %q", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
-	const want = `{"fetched_at":null,"refreshing":false,"error":"","counts":{"need_you":0,"busy":0,"idle":0,"hidden":0},"rows":[]}` + "\n"
+	const want = `{"fetched_at":null,"refreshing":false,"error":"","counts":{"need_you":0,"busy":0,"idle":0,"hidden":0,"done":0},"rows":[]}` + "\n"
 	if got := body(t, resp); got != want {
 		t.Errorf("body = %s\nwant   %s", got, want)
 	}
@@ -57,7 +57,7 @@ func TestSnapshotRowJSON(t *testing.T) {
 	h := newHarness(t, nil)
 	h.refreshWith(testRows()[1:2])
 	const want = `{"fetched_at":"2026-11-15T12:00:00Z","refreshing":false,"error":"",` +
-		`"counts":{"need_you":1,"busy":0,"idle":0,"hidden":0},"rows":[{"source":"pr","name":"vigie#3","origin":"github",` +
+		`"counts":{"need_you":1,"busy":0,"idle":0,"hidden":0,"done":0},"rows":[{"source":"pr","name":"vigie#3","origin":"github",` +
 		`"depth":0,"guides":"","mark":"●","state":"review","since":"2026-11-15T11:00:00Z","age":"1h","detail":"Serve the board",` +
 		`"target":"` + prURL + `","severity":"attention","needs_you":true,"busy":false,"hidden":false,"hideable":true}]}` + "\n"
 	if got := body(t, do(t, h.srv, http.MethodGet, snapshotURL)); got != want {
@@ -135,6 +135,55 @@ func TestBadShowHidden(t *testing.T) {
 		}
 		resp := do(t, h.srv, method, target+"?show_hidden=maybe")
 		const want = `{"error":"show_hidden must be true or false"}` + "\n"
+		if got := body(t, resp); resp.StatusCode != http.StatusBadRequest || got != want {
+			t.Errorf("%s %s = %d %s, want 400 %s", method, target, resp.StatusCode, got, want)
+		}
+	}
+	if got := h.fetch.calls.Load(); got != 0 {
+		t.Errorf("a bad refresh request fetched %d times", got)
+	}
+}
+
+// doneTaskRow is an extra Kelos Task row shown as done, to add to testRows
+// when a test needs one to hide or count.
+func doneTaskRow() source.Row {
+	return source.Row{Source: source.SourceKelosTask, Name: "done-1", State: source.StateDone, Since: testNow.Add(-5 * time.Minute)}
+}
+
+func TestHideDone(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	h.refreshWith(append(testRows(), doneTaskRow()))
+	tests := []struct {
+		query      string
+		wantListed bool
+	}{
+		{"", true},
+		{"?hide_done=false", true},
+		{"?hide_done=true", false},
+	}
+	for _, tt := range tests {
+		snap := decodeSnapshot(t, do(t, h.srv, http.MethodGet, snapshotURL+tt.query))
+		i := slices.IndexFunc(snap.Rows, func(r Row) bool { return r.Name == "done-1" })
+		if listed := i >= 0; listed != tt.wantListed {
+			t.Errorf("%q: done row listed = %v, want %v", tt.query, listed, tt.wantListed)
+		}
+		if snap.Counts.Done != 1 {
+			t.Errorf("%q: Counts.Done = %d, want 1 regardless of hide_done", tt.query, snap.Counts.Done)
+		}
+	}
+}
+
+func TestBadHideDone(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	for _, target := range []string{snapshotURL, "/api/v1/events", "/api/v1/refresh"} {
+		method := http.MethodGet
+		if target == "/api/v1/refresh" {
+			method = http.MethodPost
+		}
+		resp := do(t, h.srv, method, target+"?hide_done=maybe")
+		const want = `{"error":"hide_done must be true or false"}` + "\n"
 		if got := body(t, resp); resp.StatusCode != http.StatusBadRequest || got != want {
 			t.Errorf("%s %s = %d %s, want 400 %s", method, target, resp.StatusCode, got, want)
 		}
@@ -291,6 +340,29 @@ func TestPostRefreshShowHidden(t *testing.T) {
 	}
 }
 
+func TestPostRefreshHideDone(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, nil)
+	h.refreshWith(append(testRows(), doneTaskRow()))
+	for _, tt := range []struct {
+		query      string
+		wantListed bool
+	}{{"", true}, {"?hide_done=true", false}} {
+		h.clock.advance(DefaultRefreshCooldown)
+		resp := do(t, h.srv, http.MethodPost, refreshURL+tt.query)
+		snap := decodeSnapshot(t, resp)
+		i := slices.IndexFunc(snap.Rows, func(r Row) bool { return r.Name == "done-1" })
+		if resp.StatusCode != http.StatusAccepted || (i >= 0) != tt.wantListed || snap.Counts.Done != 1 {
+			t.Errorf("POST %q = %d, rows %q, Counts.Done %d; want 202, done row listed = %v, Counts.Done 1",
+				tt.query, resp.StatusCode, rowNames(snap), snap.Counts.Done, tt.wantListed)
+		}
+		done := h.srv.Refresh()
+		<-h.fetch.started
+		h.fetch.rows <- append(testRows(), doneTaskRow())
+		<-done
+	}
+}
+
 func TestHideAndUnhidePersist(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t, nil)
@@ -301,7 +373,7 @@ func TestHideAndUnhidePersist(t *testing.T) {
 	if got := storedEntries(t, h.file); !slices.Equal(got, []hidden.Entry{{Source: source.SourcePR, Name: "vigie#3"}}) {
 		t.Errorf("stored after PUT = %v", got)
 	}
-	snap := h.srv.snapshot(false)
+	snap := h.srv.snapshot(false, false)
 	if snap.Counts.Hidden != 1 || slices.Contains(rowNames(snap), "pr vigie#3") {
 		t.Errorf("after PUT: rows %q, counts %+v; want the PR hidden", rowNames(snap), snap.Counts)
 	}
@@ -378,7 +450,7 @@ func TestHideWithAnUnparsableFile(t *testing.T) {
 	if data, err := os.ReadFile(h.file.Path); err != nil || string(data) != garbage {
 		t.Errorf("file = %q (%v), want it left as %q", data, err, garbage)
 	}
-	snap := h.srv.snapshot(false)
+	snap := h.srv.snapshot(false, false)
 	if !strings.HasPrefix(snap.Error, "hidden rows: ") || snap.Counts.Hidden != 0 {
 		t.Errorf("snapshot error %q, %d hidden; want the store error and nothing hidden", snap.Error, snap.Counts.Hidden)
 	}
@@ -388,7 +460,7 @@ func TestHideWithAnUnparsableFile(t *testing.T) {
 	if resp := do(t, h.srv, http.MethodPut, prPath); resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("PUT once the file is gone = %d %s, want 204", resp.StatusCode, body(t, resp))
 	}
-	if snap := h.srv.snapshot(false); snap.Error != "" || snap.Counts.Hidden != 1 {
+	if snap := h.srv.snapshot(false, false); snap.Error != "" || snap.Counts.Hidden != 1 {
 		t.Errorf("after a working PUT: error %q, %d hidden; want no error and 1 hidden", snap.Error, snap.Counts.Hidden)
 	}
 }
