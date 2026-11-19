@@ -112,6 +112,13 @@ describe('the board', () => {
 		expect(badges()).toEqual(['0 need you', '0 busy', '1 idle', '3 hidden']);
 	});
 
+	test('counts the done rows only when there are some', async () => {
+		await mountWith(
+			snapshot([TASK], { counts: { needYou: 0, busy: 0, idle: 1, hidden: 0, done: 2 } })
+		);
+		expect(badges()).toEqual(['0 need you', '0 busy', '1 idle', '2 done']);
+	});
+
 	test('marks the badges whose count is not zero', async () => {
 		await mountWith(
 			snapshot([TASK], { counts: { needYou: 0, busy: 2, idle: 1, hidden: 0, done: 0 } })
@@ -451,6 +458,19 @@ describe('r', () => {
 		expect(api.calls.at(-1)).toBe('refresh true false');
 		expect(statusText()).toBe('refreshing… · showing hidden rows');
 		expect(bodyRows()).toHaveLength(2);
+	});
+
+	test('refreshes the layout with done rows hidden', async () => {
+		await mountWith();
+		await press('d');
+		api.answer(snapshot([TASK]));
+		await settle();
+		streams.last.open();
+		flushSync();
+		api.refreshAnswer = () => Promise.resolve(snapshot([TASK], { refreshing: true }));
+		await press('r');
+		expect(api.calls.at(-1)).toBe('refresh false true');
+		expect(statusText()).toBe('refreshing… · hiding done tasks');
 	});
 
 	test('says when the server refreshed too recently', async () => {

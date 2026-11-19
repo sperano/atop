@@ -107,7 +107,8 @@ Bubble Tea v2 stack: `charm.land/bubbletea/v2`, `charm.land/bubbles/v2`,
   row; busy counts agents (see Layout).
 - Hidden rows: kept by identity (source+name) in `--hidden-file`
   (`internal/hidden`), left out of the table, the header counts (which add
-  `N hidden`) and `--once`; `H` lists them dim with mark `-`. Only the row is
+  `N hidden`, and `N done` whenever any done Kelos Task rows are counted) and
+  `--once`; `H` lists them dim with mark `-`. Only the row is
   hidden: its children move to the top level. A source's error row cannot be
   hidden. The file is re-read and updated (load, change, save if changed) on
   every refresh and every `h`, so several processes share it; an unparsable file

@@ -80,8 +80,8 @@ terminal.
 look at today. It stays hidden across refreshes and restarts until you
 unhide it, whatever its state, so a hidden row that starts needing you
 stays hidden. Hidden rows are left out of the header counts, which end with
-`N hidden`. `H` lists them again, dim and marked `-`, and `h` on one unhides
-it.
+`N hidden`, then `N done` when any done rows are counted (see Done tasks
+below). `H` lists them again, dim and marked `-`, and `h` on one unhides it.
 
 Only the row itself is hidden. Rows nested under it (its PR, the Kelos Task
 working on it) move to the top level. A source's `error` row cannot be

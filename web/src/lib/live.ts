@@ -6,9 +6,9 @@
 // - A stream the server refused or ended for good (an error status, a
 //   shutdown) is retried from the snapshot, waiting longer after each
 //   failure, as is a snapshot that cannot be loaded or read.
-// - Toggling the hidden rows reconnects: the tree differs, so the page
-//   cannot derive one layout from the other. Late answers of the former
-//   layout are dropped.
+// - Toggling the hidden rows or the done rows reconnects: either changes
+//   the tree, so the page cannot derive one layout from the other. Late
+//   answers of the former layout are dropped.
 import { eventsPath, type Api, type Layout } from './api';
 import { decodeSnapshot } from './decode';
 import type { Snapshot } from './model';
