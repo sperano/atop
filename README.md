@@ -150,8 +150,11 @@ bar with the counts, when the server last refreshed, and **Show hidden**,
 dot when it needs you, its name over its detail (nested rows indented under
 their parent), its type and origin, its state as a coloured pill, its age
 and, except on a source's error row, a **Hide** (or **Unhide**) button; a
-status line and the key help at the bottom. Light or dark, as the system
-says. The tab's title counts the rows that need you, as
+status line and the key help at the bottom. Clicking the need you, busy or
+idle badge filters the rows to only those it counts (the counts themselves
+stay the totals); clicking the same badge again, or a different one, changes
+or clears the filter. Light or dark, as the system says. The tab's title
+counts the rows that need you, as
 `(2) vigie`. The TUI's keys work too (`↑/↓`, `k/j`, `pgup/pgdn`,
 `home/end`, `enter`, `r`, `h`, `H`, `d`; no `q`). Every name with a target is a
 link, so a middle-click opens it in a new tab; enter opens the selected

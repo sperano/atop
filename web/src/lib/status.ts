@@ -1,5 +1,6 @@
 // The status line under the table: what is going on, then the last action
 // or error, as the TUI's (internal/ui/view.go and hide.go).
+import { FILTER_LABELS, type FilterKind } from './filter';
 import { TITLE_SEP } from './format';
 import type { Connection } from './live';
 
@@ -21,10 +22,17 @@ export interface StatusInput {
 	readonly refreshing: boolean;
 	readonly showHidden: boolean;
 	readonly hideDone: boolean;
+	/** The badge filtering the rows shown, undefined when none does. */
+	readonly filter: FilterKind | undefined;
 	/** The server's last hidden-row error, empty when none. */
 	readonly serverError: string;
 	/** The last action's outcome, empty when none. */
 	readonly message: string;
+}
+
+/** "showing only need you" while filter is active, else empty. */
+export function filterText(filter: FilterKind | undefined): string {
+	return filter === undefined ? '' : `showing only ${FILTER_LABELS[filter]}`;
 }
 
 function connectionText(c: Connection): string {
@@ -46,6 +54,7 @@ export function statusLine(s: StatusInput): string {
 		s.refreshing ? STATUS_REFRESHING : '',
 		s.showHidden ? STATUS_SHOWS_HIDDEN : '',
 		s.hideDone ? STATUS_HIDES_DONE : '',
+		filterText(s.filter),
 		s.serverError ? `${ERROR_PREFIX}${s.serverError}` : '',
 		s.message
 	];

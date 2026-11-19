@@ -15,6 +15,7 @@ const quiet: StatusInput = {
 	refreshing: false,
 	showHidden: false,
 	hideDone: false,
+	filter: undefined,
 	serverError: '',
 	message: ''
 };
@@ -37,6 +38,9 @@ describe('statusLine', () => {
 			{ showHidden: true, hideDone: true },
 			'showing hidden rows · hiding done tasks'
 		],
+		['filtered to need you', { filter: 'need-you' }, 'showing only need you'],
+		['filtered to busy', { filter: 'busy' }, 'showing only busy'],
+		['filtered to idle', { filter: 'idle' }, 'showing only idle'],
 		['server error', { serverError: 'hidden rows: denied' }, 'error: hidden rows: denied'],
 		['message', { message: 'opened https://x' }, 'opened https://x'],
 		[
@@ -46,10 +50,11 @@ describe('statusLine', () => {
 				refreshing: true,
 				showHidden: true,
 				hideDone: true,
+				filter: 'busy',
 				serverError: 'hidden rows: denied',
 				message: 'hid pr a'
 			},
-			'connection lost, reconnecting… · refreshing… · showing hidden rows · hiding done tasks · error: hidden rows: denied · hid pr a'
+			'connection lost, reconnecting… · refreshing… · showing hidden rows · hiding done tasks · showing only busy · error: hidden rows: denied · hid pr a'
 		]
 	])('%s', (_name, fields, want) => {
 		expect(statusLine({ ...quiet, ...fields })).toBe(want);

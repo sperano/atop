@@ -18,6 +18,7 @@
 	import AppBar from './AppBar.svelte';
 	import BoardTable from './BoardTable.svelte';
 	import { isRefusal, TooSoonError, type Api, type Layout } from './lib/api';
+	import { filterRows, type FilterKind } from './lib/filter';
 	import { documentTitle } from './lib/format';
 	import { actionOf, KEY_HELP, type Action } from './lib/keys';
 	import { LiveBoard, type Connection, type OpenStream, type Timer } from './lib/live';
@@ -41,13 +42,14 @@
 	let snapshot = $state<Snapshot>();
 	let showHidden = $state(false);
 	let hideDone = $state(false);
+	let filter = $state<FilterKind>();
 	let selected = $state(0);
 	let connection = $state<Connection>({ state: 'connecting' });
 	let message = $state('');
 	let time = $state(0);
 	let table = $state<ReturnType<typeof BoardTable>>();
 
-	const rows = $derived(snapshot?.rows ?? []);
+	const rows = $derived(filterRows(snapshot?.rows ?? [], filter));
 	const counts = $derived(snapshot?.counts ?? NO_COUNTS);
 	const statusText = $derived(
 		status.statusLine({
@@ -55,13 +57,14 @@
 			refreshing: snapshot?.refreshing ?? false,
 			showHidden,
 			hideDone,
+			filter,
 			serverError: snapshot?.error ?? '',
 			message
 		})
 	);
 
 	function adopt(next: Snapshot): void {
-		selected = reselect(rows[selected], selected, next.rows);
+		selected = reselect(rows[selected], selected, filterRows(next.rows, filter));
 		snapshot = next;
 	}
 
@@ -135,6 +138,14 @@
 		live?.setLayout({ showHidden, hideDone });
 	}
 
+	/** Filters the rows by kind, or clears the filter when it is already active. */
+	function toggleFilter(kind: FilterKind): void {
+		const previous = rows[selected];
+		const next = filter === kind ? undefined : kind;
+		selected = reselect(previous, selected, filterRows(snapshot?.rows ?? [], next));
+		filter = next;
+	}
+
 	function run(action: Action): void {
 		switch (action.kind) {
 			case 'move':
@@ -179,6 +190,7 @@
 <div class="app">
 	<AppBar
 		{counts}
+		{filter}
 		fetchedAt={snapshot?.fetchedAt}
 		now={time}
 		refreshing={snapshot?.refreshing ?? false}
@@ -187,6 +199,7 @@
 		onrefresh={() => run({ kind: 'refresh' })}
 		ontogglehidden={() => run({ kind: 'showHidden' })}
 		ontoggledone={() => run({ kind: 'hideDone' })}
+		onfilter={toggleFilter}
 	/>
 	<main>
 		<BoardTable
