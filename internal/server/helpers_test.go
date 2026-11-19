@@ -149,7 +149,7 @@ func (h *harness) refreshWith(rows []source.Row) {
 // waitRefreshEnd waits on a broker subscription until no refresh runs.
 func (h *harness) waitRefreshEnd(changed chan struct{}) {
 	for range changed {
-		if !h.srv.snapshot(false).Refreshing {
+		if !h.srv.snapshot(false, false).Refreshing {
 			return
 		}
 	}

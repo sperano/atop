@@ -5,6 +5,14 @@ import type { Row, Snapshot } from './model';
 export const API_BASE = '/api/v1';
 /** Lists the hidden rows too, as H does. */
 const SHOW_HIDDEN_PARAM = 'show_hidden';
+/** Drops the done rows, as d does. */
+const HIDE_DONE_PARAM = 'hide_done';
+
+/** The two independent display filters a request may ask for. */
+export interface Layout {
+	readonly showHidden: boolean;
+	readonly hideDone: boolean;
+}
 
 const ACCEPTED = 202;
 const NO_CONTENT = 204;
@@ -39,20 +47,24 @@ export function isRefusal(err: unknown): boolean {
 	return err instanceof ApiError && err.status === CONFLICT;
 }
 
-function withShowHidden(path: string, showHidden: boolean): string {
-	return showHidden ? `${path}?${SHOW_HIDDEN_PARAM}=true` : path;
+function withLayout(path: string, layout: Layout): string {
+	const params = new URLSearchParams();
+	if (layout.showHidden) params.set(SHOW_HIDDEN_PARAM, 'true');
+	if (layout.hideDone) params.set(HIDE_DONE_PARAM, 'true');
+	const query = params.toString();
+	return query === '' ? path : `${path}?${query}`;
 }
 
-export function snapshotPath(showHidden: boolean): string {
-	return withShowHidden(`${API_BASE}/snapshot`, showHidden);
+export function snapshotPath(layout: Layout): string {
+	return withLayout(`${API_BASE}/snapshot`, layout);
 }
 
-export function eventsPath(showHidden: boolean): string {
-	return withShowHidden(`${API_BASE}/events`, showHidden);
+export function eventsPath(layout: Layout): string {
+	return withLayout(`${API_BASE}/events`, layout);
 }
 
-export function refreshPath(showHidden: boolean): string {
-	return withShowHidden(`${API_BASE}/refresh`, showHidden);
+export function refreshPath(layout: Layout): string {
+	return withLayout(`${API_BASE}/refresh`, layout);
 }
 
 export function hiddenPath(row: Pick<Row, 'source' | 'name'>): string {
@@ -79,21 +91,21 @@ function retryAfter(resp: Response): number | undefined {
 }
 
 export interface Api {
-	snapshot(showHidden: boolean, signal?: AbortSignal): Promise<Snapshot>;
+	snapshot(layout: Layout, signal?: AbortSignal): Promise<Snapshot>;
 	/** Starts a refresh or joins the running one; throws TooSoonError in the cooldown. */
-	refresh(showHidden: boolean): Promise<Snapshot>;
+	refresh(layout: Layout): Promise<Snapshot>;
 	setHidden(row: Pick<Row, 'source' | 'name'>, hide: boolean): Promise<void>;
 }
 
 export function createApi(fetcher: typeof fetch = (...args) => fetch(...args)): Api {
 	return {
-		async snapshot(showHidden, signal) {
-			const resp = await fetcher(snapshotPath(showHidden), { signal });
+		async snapshot(layout, signal) {
+			const resp = await fetcher(snapshotPath(layout), { signal });
 			if (!resp.ok) throw new ApiError(resp.status, await failure(resp));
 			return decodeSnapshot(await resp.json());
 		},
-		async refresh(showHidden) {
-			const resp = await fetcher(refreshPath(showHidden), { method: 'POST' });
+		async refresh(layout) {
+			const resp = await fetcher(refreshPath(layout), { method: 'POST' });
 			if (resp.status === TOO_MANY_REQUESTS) {
 				throw new TooSoonError(await failure(resp), retryAfter(resp));
 			}

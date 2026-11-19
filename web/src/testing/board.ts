@@ -49,5 +49,5 @@ export const ERROR = row({
 	hideable: false
 });
 export const BOARD = snapshot([TASK, PR, AGENT, ERROR], {
-	counts: { needYou: 2, busy: 1, idle: 1, hidden: 0 }
+	counts: { needYou: 2, busy: 1, idle: 1, hidden: 0, done: 0 }
 });

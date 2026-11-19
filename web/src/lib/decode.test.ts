@@ -26,14 +26,14 @@ describe('decodeSnapshot', () => {
 		const want = snapshot([PR, BUSY, HIDDEN, SOURCE_ERROR], {
 			refreshing: true,
 			error: 'hidden rows: denied',
-			counts: { needYou: 1, busy: 2, idle: 3, hidden: 4 }
+			counts: { needYou: 1, busy: 2, idle: 3, hidden: 4, done: 5 }
 		});
 		expect(decodeSnapshot(snapshotJSON(want))).toEqual(want);
 	});
 
 	test('decodes the server test fixture byte for byte', () => {
 		// internal/server/handlers_test.go, TestSnapshotRowJSON.
-		const json = `{"fetched_at":"2026-11-15T12:00:00Z","refreshing":false,"error":"","counts":{"need_you":1,"busy":0,"idle":0,"hidden":0},"rows":[{"source":"pr","name":"vigie#3","origin":"github","depth":0,"guides":"","mark":"●","state":"review","since":"2026-11-15T11:00:00Z","age":"1h","detail":"Serve the board","target":"https://github.com/o/vigie/pull/3","severity":"attention","needs_you":true,"busy":false,"hidden":false,"hideable":true}]}`;
+		const json = `{"fetched_at":"2026-11-15T12:00:00Z","refreshing":false,"error":"","counts":{"need_you":1,"busy":0,"idle":0,"hidden":0,"done":0},"rows":[{"source":"pr","name":"vigie#3","origin":"github","depth":0,"guides":"","mark":"●","state":"review","since":"2026-11-15T11:00:00Z","age":"1h","detail":"Serve the board","target":"https://github.com/o/vigie/pull/3","severity":"attention","needs_you":true,"busy":false,"hidden":false,"hideable":true}]}`;
 		expect(decodeSnapshot(JSON.parse(json))).toEqual(
 			snapshot(
 				[
@@ -51,7 +51,7 @@ describe('decodeSnapshot', () => {
 						needsYou: true
 					})
 				],
-				{ counts: { needYou: 1, busy: 0, idle: 0, hidden: 0 } }
+				{ counts: { needYou: 1, busy: 0, idle: 0, hidden: 0, done: 0 } }
 			)
 		);
 	});
@@ -144,13 +144,26 @@ describe('decodeSnapshot', () => {
 		],
 		[
 			'negative count',
-			() => ({ ...valid(), counts: { need_you: -1, busy: 0, idle: 0, hidden: 0 } }),
+			() => ({ ...valid(), counts: { need_you: -1, busy: 0, idle: 0, hidden: 0, done: 0 } }),
 			'snapshot.counts.need_you is not a count'
 		],
 		[
 			'fractional count',
-			() => ({ ...valid(), counts: { need_you: 0, busy: 1.5, idle: 0, hidden: 0 } }),
+			() => ({ ...valid(), counts: { need_you: 0, busy: 1.5, idle: 0, hidden: 0, done: 0 } }),
 			'snapshot.counts.busy is not a count'
+		],
+		[
+			'done missing',
+			() => ({
+				...valid(),
+				counts: { need_you: 0, busy: 0, idle: 0, hidden: 0 }
+			}),
+			'snapshot.counts.done is not a count'
+		],
+		[
+			'done not a number',
+			() => ({ ...valid(), counts: { need_you: 0, busy: 0, idle: 0, hidden: 0, done: '1' } }),
+			'snapshot.counts.done is not a count'
 		],
 		[
 			'row not an object',

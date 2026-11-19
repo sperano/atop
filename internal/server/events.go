@@ -96,6 +96,10 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	hideDone, ok := parseHideDone(w, r)
+	if !ok {
+		return
+	}
 	changed, err := s.events.subscribe()
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
@@ -111,7 +115,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	stream := frameWriter{w: w, rc: http.NewResponseController(w)}
-	err = stream.snapshot(s.snapshot(showHidden))
+	err = stream.snapshot(s.snapshot(showHidden, hideDone))
 	for err == nil {
 		select {
 		case <-r.Context().Done():
@@ -120,7 +124,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			if !open {
 				return
 			}
-			err = stream.snapshot(s.snapshot(showHidden))
+			err = stream.snapshot(s.snapshot(showHidden, hideDone))
 		case <-keepalive:
 			err = stream.write([]byte(keepaliveFrame))
 		}

@@ -10,18 +10,30 @@
 		now: number;
 		refreshing: boolean;
 		showHidden: boolean;
+		hideDone: boolean;
 		onrefresh: () => void;
 		ontogglehidden: () => void;
+		ontoggledone: () => void;
 	}
 
-	let { counts, fetchedAt, now, refreshing, showHidden, onrefresh, ontogglehidden }: Props =
-		$props();
+	let {
+		counts,
+		fetchedAt,
+		now,
+		refreshing,
+		showHidden,
+		hideDone,
+		onrefresh,
+		ontogglehidden,
+		ontoggledone
+	}: Props = $props();
 
 	const badges = $derived([
 		{ kind: 'need-you', count: counts.needYou, label: 'need you' },
 		{ kind: 'busy', count: counts.busy, label: 'busy' },
 		{ kind: 'idle', count: counts.idle, label: 'idle' },
-		...(counts.hidden > 0 ? [{ kind: 'hidden', count: counts.hidden, label: 'hidden' }] : [])
+		...(counts.hidden > 0 ? [{ kind: 'hidden', count: counts.hidden, label: 'hidden' }] : []),
+		...(counts.done > 0 ? [{ kind: 'done', count: counts.done, label: 'done' }] : [])
 	]);
 </script>
 
@@ -43,6 +55,7 @@
 			>{updatedText(fetchedAt, now)}</time
 		>
 		<button type="button" aria-pressed={showHidden} onclick={ontogglehidden}>Show hidden</button>
+		<button type="button" aria-pressed={hideDone} onclick={ontoggledone}>Hide done</button>
 		<button type="button" class="refresh" disabled={refreshing} onclick={onrefresh}>
 			{refreshing ? 'Refreshing…' : 'Refresh'}
 		</button>

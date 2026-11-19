@@ -30,6 +30,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.toggleHidden()
 	case "H":
 		return m.toggleShowHidden()
+	case "d":
+		return m.toggleHideDone()
 	case "r":
 		return m.refresh()
 	case "enter":

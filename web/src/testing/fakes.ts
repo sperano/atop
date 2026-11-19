@@ -1,9 +1,14 @@
 // Fakes of the browser's EventSource, of timers and of the server's API,
 // driven by the tests.
-import type { Api } from '../lib/api';
+import type { Api, Layout } from '../lib/api';
 import type { StreamSource, Timer } from '../lib/live';
 import type { Row, Snapshot } from '../lib/model';
 import { snapshotJSON } from './builders';
+
+/** A layout as a call record's trailing words: showHidden, then hideDone. */
+function layoutText(layout: Layout): string {
+	return `${layout.showHidden} ${layout.hideDone}`;
+}
 
 const CONNECTING = 0;
 const OPEN = 1;
@@ -115,16 +120,16 @@ export class FakeApi implements Api {
 	refreshAnswer: () => Promise<Snapshot> = () => Promise.reject(new Error('no refresh answer'));
 	hiddenAnswer: () => Promise<void> = () => Promise.resolve();
 
-	snapshot(showHidden: boolean, signal?: AbortSignal): Promise<Snapshot> {
-		this.calls.push(`snapshot ${showHidden}`);
+	snapshot(layout: Layout, signal?: AbortSignal): Promise<Snapshot> {
+		this.calls.push(`snapshot ${layoutText(layout)}`);
 		this.signals.push(signal);
 		const d = deferred<Snapshot>();
 		this.snapshots.push(d);
 		return d.promise;
 	}
 
-	refresh(showHidden: boolean): Promise<Snapshot> {
-		this.calls.push(`refresh ${showHidden}`);
+	refresh(layout: Layout): Promise<Snapshot> {
+		this.calls.push(`refresh ${layoutText(layout)}`);
 		return this.refreshAnswer();
 	}
 

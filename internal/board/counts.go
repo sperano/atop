@@ -15,13 +15,18 @@ type Counts struct {
 	Busy    int // agents, see IsAgent
 	Idle    int
 	Hidden  int
+	Done    int // done Kelos Task rows, present whether or not hideDone is on
 }
 
-// String renders the counts, the hidden ones only when there are some.
+// String renders the counts, the hidden and done ones only when there are
+// some.
 func (c Counts) String() string {
 	s := fmt.Sprintf("%d need you%s%d busy%s%d idle", c.NeedYou, countSep, c.Busy, countSep, c.Idle)
 	if c.Hidden > 0 {
 		s += fmt.Sprintf("%s%d hidden", countSep, c.Hidden)
+	}
+	if c.Done > 0 {
+		s += fmt.Sprintf("%s%d done", countSep, c.Done)
 	}
 	return s
 }

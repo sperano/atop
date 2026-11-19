@@ -20,7 +20,7 @@ func TestRefreshJoinsTheRunningOne(t *testing.T) {
 	if second := h.srv.Refresh(); second != first {
 		t.Error("a second Refresh while one runs started another")
 	}
-	if !h.srv.snapshot(false).Refreshing {
+	if !h.srv.snapshot(false, false).Refreshing {
 		t.Error("snapshot does not say a refresh runs")
 	}
 	h.fetch.rows <- testRows()
@@ -28,7 +28,7 @@ func TestRefreshJoinsTheRunningOne(t *testing.T) {
 	if got := h.fetch.calls.Load(); got != 1 {
 		t.Errorf("fetches = %d, want 1", got)
 	}
-	if h.srv.snapshot(false).Refreshing {
+	if h.srv.snapshot(false, false).Refreshing {
 		t.Error("snapshot still says a refresh runs")
 	}
 	next := h.srv.Refresh()
@@ -69,7 +69,7 @@ func TestRefreshAdoptsRowsAndTime(t *testing.T) {
 		t.Error("ready before the first refresh")
 	}
 	h.refreshWith(testRows())
-	snap := h.srv.snapshot(false)
+	snap := h.srv.snapshot(false, false)
 	if snap.FetchedAt == nil || !snap.FetchedAt.Equal(testNow) {
 		t.Errorf("FetchedAt = %v, want %v", snap.FetchedAt, testNow)
 	}
@@ -90,7 +90,7 @@ func TestCloseCancelsTheRefreshAndKeepsTheRows(t *testing.T) {
 	h.srv.Close()
 	<-ctx.Done()
 	<-done
-	snap := h.srv.snapshot(false)
+	snap := h.srv.snapshot(false, false)
 	if snap.Refreshing {
 		t.Error("still refreshing after the cancelled refresh ended")
 	}
@@ -154,7 +154,7 @@ func TestRefreshPrunesTheHiddenFile(t *testing.T) {
 	if got := stored.Entries(); !slices.Equal(got, []hidden.Entry{kept}) {
 		t.Errorf("stored = %v, want only %v", got, kept)
 	}
-	if snap := h.srv.snapshot(false); snap.Counts.Hidden != 1 || snap.Error != "" {
+	if snap := h.srv.snapshot(false, false); snap.Counts.Hidden != 1 || snap.Error != "" {
 		t.Errorf("hidden count, error = %d, %q; want 1, empty", snap.Counts.Hidden, snap.Error)
 	}
 }
@@ -174,7 +174,7 @@ func TestRefreshKeepsAnUnparsableHiddenFile(t *testing.T) {
 	if string(data) != garbage {
 		t.Errorf("file = %q, want it left as %q", data, garbage)
 	}
-	snap := h.srv.snapshot(false)
+	snap := h.srv.snapshot(false, false)
 	if want := "hidden rows: " + h.file.Path + ": invalid character"; len(snap.Error) < len(want) || snap.Error[:len(want)] != want {
 		t.Errorf("Error = %q, want it to start with %q", snap.Error, want)
 	}
@@ -191,7 +191,7 @@ func TestMemoryHiddenRowsWithoutAStore(t *testing.T) {
 	if err := h.srv.applyHidden(func(s hidden.Set) hidden.Set { return s.Hide(pr) }, false); err != nil {
 		t.Fatal(err)
 	}
-	if snap := h.srv.snapshot(false); snap.Counts.Hidden != 1 {
+	if snap := h.srv.snapshot(false, false); snap.Counts.Hidden != 1 {
 		t.Errorf("hidden count = %d, want 1", snap.Counts.Hidden)
 	}
 	if _, err := os.Stat(h.file.Path); !os.IsNotExist(err) {
@@ -228,7 +228,7 @@ func TestRefreshPrunesInMemoryWhenTheStoreFails(t *testing.T) {
 	}
 	h.clock.advance(testInterval)
 	h.refreshWith(testRows())
-	snap := h.srv.snapshot(false)
+	snap := h.srv.snapshot(false, false)
 	if snap.Counts.Hidden != 1 || slices.Contains(rowNames(snap), "pr vigie#3") {
 		t.Errorf("rows %q, counts %+v; want the PR still hidden", rowNames(snap), snap.Counts)
 	}

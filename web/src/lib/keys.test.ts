@@ -23,7 +23,8 @@ describe('actionOf', () => {
 		['Enter', { kind: 'open' }],
 		['r', { kind: 'refresh' }],
 		['h', { kind: 'hide' }],
-		['H', { kind: 'showHidden' }]
+		['H', { kind: 'showHidden' }],
+		['d', { kind: 'hideDone' }]
 	])('%s', (k, want) => {
 		expect(actionOf(key(k))).toEqual(want);
 	});

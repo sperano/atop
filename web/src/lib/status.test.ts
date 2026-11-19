@@ -14,6 +14,7 @@ const quiet: StatusInput = {
 	connection: LIVE,
 	refreshing: false,
 	showHidden: false,
+	hideDone: false,
 	serverError: '',
 	message: ''
 };
@@ -30,6 +31,12 @@ describe('statusLine', () => {
 		],
 		['refreshing', { refreshing: true }, 'refreshing…'],
 		['showing hidden rows', { showHidden: true }, 'showing hidden rows'],
+		['hiding done tasks', { hideDone: true }, 'hiding done tasks'],
+		[
+			'showing hidden rows and hiding done tasks, in order',
+			{ showHidden: true, hideDone: true },
+			'showing hidden rows · hiding done tasks'
+		],
 		['server error', { serverError: 'hidden rows: denied' }, 'error: hidden rows: denied'],
 		['message', { message: 'opened https://x' }, 'opened https://x'],
 		[
@@ -38,10 +45,11 @@ describe('statusLine', () => {
 				connection: { state: 'reconnecting' },
 				refreshing: true,
 				showHidden: true,
+				hideDone: true,
 				serverError: 'hidden rows: denied',
 				message: 'hid pr a'
 			},
-			'connection lost, reconnecting… · refreshing… · showing hidden rows · error: hidden rows: denied · hid pr a'
+			'connection lost, reconnecting… · refreshing… · showing hidden rows · hiding done tasks · error: hidden rows: denied · hid pr a'
 		]
 	])('%s', (_name, fields, want) => {
 		expect(statusLine({ ...quiet, ...fields })).toBe(want);

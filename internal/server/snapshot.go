@@ -22,6 +22,7 @@ type Counts struct {
 	Busy    int `json:"busy"`
 	Idle    int `json:"idle"`
 	Hidden  int `json:"hidden"`
+	Done    int `json:"done"`
 }
 
 // Row is a row placed in the tree, with what is drawn for it.
@@ -45,15 +46,15 @@ type Row struct {
 }
 
 // snapshot builds the current snapshot, its ages as of now. showHidden lists
-// the hidden rows too, marked.
-func (s *Server) snapshot(showHidden bool) Snapshot {
+// the hidden rows too, marked; hideDone leaves done Kelos Task rows out.
+func (s *Server) snapshot(showHidden, hideDone bool) Snapshot {
 	s.mu.Lock()
 	rows, set, fetchedAt := s.rows, s.hidden, s.fetchedAt
 	snap := Snapshot{Refreshing: s.running != nil, Error: s.lastErr}
 	s.mu.Unlock()
-	b := board.Build(rows, set, showHidden, s.opts.Now())
+	b := board.Build(rows, set, showHidden, hideDone, s.opts.Now())
 	snap.FetchedAt = optionalTime(fetchedAt)
-	snap.Counts = Counts{NeedYou: b.Counts.NeedYou, Busy: b.Counts.Busy, Idle: b.Counts.Idle, Hidden: b.Counts.Hidden}
+	snap.Counts = Counts{NeedYou: b.Counts.NeedYou, Busy: b.Counts.Busy, Idle: b.Counts.Idle, Hidden: b.Counts.Hidden, Done: b.Counts.Done}
 	snap.Rows = make([]Row, 0, len(b.Entries))
 	for _, e := range b.Entries {
 		snap.Rows = append(snap.Rows, newRow(e))

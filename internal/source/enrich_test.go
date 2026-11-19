@@ -66,7 +66,7 @@ func TestEnrich(t *testing.T) {
 			name: "finished tasks change nothing",
 			rows: []Row{
 				vikunjaRow("reply from claude", true),
-				taskRowFor("done", stateDone, false, fresh, enrichTaskRef),
+				taskRowFor("done", StateDone, false, fresh, enrichTaskRef),
 				taskRowFor("failed", StateFailed, false, fresh, enrichTaskRef),
 			},
 			wantState: map[string]string{"#840": "reply from claude"},
@@ -132,7 +132,7 @@ func TestEnrich(t *testing.T) {
 			name: "a finished named task changes nothing",
 			rows: []Row{
 				startedRow("fu-1"),
-				taskRowFor("fu-1", stateDone, false, fresh),
+				taskRowFor("fu-1", StateDone, false, fresh),
 			},
 			wantState: map[string]string{"#840": StateAgentStarted},
 			wantBusy:  map[string]bool{"#840": true},

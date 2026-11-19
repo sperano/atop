@@ -47,6 +47,9 @@ func TestCountsString(t *testing.T) {
 	}{
 		{"no hidden rows leaves them out", Counts{NeedYou: 1, Busy: 2, Idle: 3}, "1 need you · 2 busy · 3 idle"},
 		{"hidden rows are counted last", Counts{NeedYou: 1, Busy: 2, Idle: 3, Hidden: 4}, "1 need you · 2 busy · 3 idle · 4 hidden"},
+		{"done rows are counted after hidden", Counts{NeedYou: 1, Busy: 2, Idle: 3, Hidden: 4, Done: 5},
+			"1 need you · 2 busy · 3 idle · 4 hidden · 5 done"},
+		{"done rows alone, with none hidden", Counts{NeedYou: 1, Busy: 2, Idle: 3, Done: 5}, "1 need you · 2 busy · 3 idle · 5 done"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

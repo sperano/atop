@@ -36,6 +36,7 @@ export interface Counts {
 	readonly busy: number;
 	readonly idle: number;
 	readonly hidden: number;
+	readonly done: number;
 }
 
 export interface Snapshot {

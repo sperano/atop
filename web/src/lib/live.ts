@@ -9,7 +9,7 @@
 // - Toggling the hidden rows reconnects: the tree differs, so the page
 //   cannot derive one layout from the other. Late answers of the former
 //   layout are dropped.
-import { eventsPath, type Api } from './api';
+import { eventsPath, type Api, type Layout } from './api';
 import { decodeSnapshot } from './decode';
 import type { Snapshot } from './model';
 
@@ -43,7 +43,7 @@ export type Connection =
 
 export interface LiveOptions {
 	readonly api: Api;
-	readonly onsnapshot: (snapshot: Snapshot, showHidden: boolean) => void;
+	readonly onsnapshot: (snapshot: Snapshot, layout: Layout) => void;
 	readonly onconnection: (connection: Connection) => void;
 	readonly openStream?: OpenStream;
 	readonly timer?: Timer;
@@ -59,10 +59,14 @@ function messageOf(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }
 
+function sameLayout(a: Layout, b: Layout): boolean {
+	return a.showHidden === b.showHidden && a.hideDone === b.hideDone;
+}
+
 /** Keeps the page's board current until stopped. */
 export class LiveBoard {
 	private readonly options: LiveOptions;
-	private showHidden = false;
+	private layout: Layout = { showHidden: false, hideDone: false };
 	/** Bumped by every connect, so that a former one's callbacks do nothing. */
 	private generation = 0;
 	private failures = 0;
@@ -75,23 +79,23 @@ export class LiveBoard {
 		this.options = options;
 	}
 
-	start(showHidden: boolean): void {
-		this.showHidden = showHidden;
+	start(layout: Layout): void {
+		this.layout = layout;
 		void this.connect();
 	}
 
-	/** Switches the layout with or without the hidden rows, reconnecting. */
-	setShowHidden(showHidden: boolean): void {
-		if (showHidden === this.showHidden || this.stopped) return;
-		this.showHidden = showHidden;
+	/** Switches the layout, reconnecting when either field differs from the stored one. */
+	setLayout(layout: Layout): void {
+		if (sameLayout(layout, this.layout) || this.stopped) return;
+		this.layout = layout;
 		this.failures = 0;
 		void this.connect();
 	}
 
-	/** Shows a snapshot another call returned, unless it is of the other layout. */
-	offer(snapshot: Snapshot, showHidden: boolean): void {
-		if (!this.stopped && showHidden === this.showHidden) {
-			this.options.onsnapshot(snapshot, showHidden);
+	/** Shows a snapshot another call returned, unless it is of another layout. */
+	offer(snapshot: Snapshot, layout: Layout): void {
+		if (!this.stopped && sameLayout(layout, this.layout)) {
+			this.options.onsnapshot(snapshot, layout);
 		}
 	}
 
@@ -112,26 +116,26 @@ export class LiveBoard {
 
 	private async connect(): Promise<void> {
 		const generation = ++this.generation;
-		const showHidden = this.showHidden;
+		const layout = this.layout;
 		this.disconnect();
 		this.options.onconnection({ state: 'connecting' });
 		const loading = new AbortController();
 		this.loading = loading;
 		let snapshot: Snapshot;
 		try {
-			snapshot = await this.options.api.snapshot(showHidden, loading.signal);
+			snapshot = await this.options.api.snapshot(layout, loading.signal);
 		} catch (err) {
 			if (generation === this.generation) this.retry(generation, messageOf(err));
 			return;
 		}
 		if (generation !== this.generation) return;
 		this.loading = undefined;
-		this.options.onsnapshot(snapshot, showHidden);
-		this.open(generation, showHidden);
+		this.options.onsnapshot(snapshot, layout);
+		this.open(generation, layout);
 	}
 
-	private open(generation: number, showHidden: boolean): void {
-		const source = (this.options.openStream ?? defaultOpenStream)(eventsPath(showHidden));
+	private open(generation: number, layout: Layout): void {
+		const source = (this.options.openStream ?? defaultOpenStream)(eventsPath(layout));
 		this.source = source;
 		const current = () => generation === this.generation;
 		source.addEventListener('open', () => {
@@ -147,7 +151,7 @@ export class LiveBoard {
 				return;
 			}
 			this.failures = 0;
-			this.options.onsnapshot(snapshot, showHidden);
+			this.options.onsnapshot(snapshot, layout);
 		});
 		source.addEventListener('error', () => {
 			if (!current()) return;
