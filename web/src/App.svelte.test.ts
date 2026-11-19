@@ -57,6 +57,8 @@ const selectedName = () =>
 	page.querySelector('tbody tr[aria-current="true"] .name')?.textContent?.trim();
 const statusText = () => page.querySelector('[role="status"]')?.textContent?.trim() ?? '';
 const badges = () => [...page.querySelectorAll('header .badge')].map((b) => b.textContent?.trim());
+const badgeButton = (kind: 'need-you' | 'busy' | 'idle') =>
+	page.querySelector<HTMLButtonElement>(`.badge.${kind} button`)!;
 const updated = () => page.querySelector('header .updated')?.textContent ?? '';
 /** One CSS pixel, the rounding allowed on measured positions. */
 const PIXEL = 1;
@@ -216,6 +218,75 @@ describe('the board', () => {
 			[['H'], 'show hidden'],
 			[['r'], 'refresh']
 		]);
+	});
+});
+
+describe('filtering', () => {
+	test('clicking a badge shows only the rows it counts, the counts unchanged', async () => {
+		await mountWith();
+		badgeButton('busy').click();
+		flushSync();
+		expect(
+			bodyRows()
+				.map(cells)
+				.map((c) => c[1])
+		).toEqual(['fix']);
+		expect(badges()).toEqual(['2 need you', '1 busy', '1 idle']);
+		expect(badgeButton('busy').getAttribute('aria-pressed')).toBe('true');
+		expect(badgeButton('need-you').getAttribute('aria-pressed')).toBe('false');
+		expect(statusText()).toBe('showing only busy');
+	});
+
+	test('clicking the active badge again clears the filter', async () => {
+		await mountWith();
+		badgeButton('idle').click();
+		flushSync();
+		expect(bodyRows()).toHaveLength(1);
+		badgeButton('idle').click();
+		flushSync();
+		expect(bodyRows()).toHaveLength(4);
+		expect(badgeButton('idle').getAttribute('aria-pressed')).toBe('false');
+		expect(statusText()).toBe('');
+	});
+
+	test('clicking a different badge switches the filter', async () => {
+		await mountWith();
+		badgeButton('need-you').click();
+		flushSync();
+		expect(
+			bodyRows()
+				.map(cells)
+				.map((c) => c[1])
+		).toEqual(['vigie#3 | Serve the board', '- | down']);
+		badgeButton('idle').click();
+		flushSync();
+		expect(
+			bodyRows()
+				.map(cells)
+				.map((c) => c[1])
+		).toEqual(['#7 | [claude] serve']);
+		expect(badgeButton('need-you').getAttribute('aria-pressed')).toBe('false');
+		expect(badgeButton('idle').getAttribute('aria-pressed')).toBe('true');
+	});
+
+	test('selects the first matching row when the selected one is filtered out', async () => {
+		await mountWith();
+		expect(selectedName()).toBe('#7');
+		badgeButton('busy').click();
+		flushSync();
+		expect(selectedName()).toBe('fix');
+	});
+
+	test('a new snapshot keeps applying the active filter', async () => {
+		await mountWith();
+		badgeButton('idle').click();
+		flushSync();
+		send(snapshot([TASK, PR, AGENT], { counts: { needYou: 1, busy: 1, idle: 1, hidden: 0 } }));
+		expect(
+			bodyRows()
+				.map(cells)
+				.map((c) => c[1])
+		).toEqual(['#7 | [claude] serve']);
 	});
 });
 

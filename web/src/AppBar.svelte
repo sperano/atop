@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { APP_NAME, formatTime, updatedText } from './lib/format';
+	import { FILTER_LABELS, type FilterKind } from './lib/filter';
 	import type { Counts } from './lib/model';
 
 	interface Props {
 		counts: Counts;
+		/** The badge filtering the rows shown, undefined when none does. */
+		filter: FilterKind | undefined;
 		/** When the server last finished a refresh, undefined before. */
 		fetchedAt: number | undefined;
 		/** Milliseconds since the epoch, which "updated … ago" is computed against. */
@@ -12,16 +15,26 @@
 		showHidden: boolean;
 		onrefresh: () => void;
 		ontogglehidden: () => void;
+		/** Clicking a badge filters by it; clicking it again clears the filter. */
+		onfilter: (kind: FilterKind) => void;
 	}
 
-	let { counts, fetchedAt, now, refreshing, showHidden, onrefresh, ontogglehidden }: Props =
-		$props();
+	let {
+		counts,
+		filter,
+		fetchedAt,
+		now,
+		refreshing,
+		showHidden,
+		onrefresh,
+		ontogglehidden,
+		onfilter
+	}: Props = $props();
 
 	const badges = $derived([
-		{ kind: 'need-you', count: counts.needYou, label: 'need you' },
-		{ kind: 'busy', count: counts.busy, label: 'busy' },
-		{ kind: 'idle', count: counts.idle, label: 'idle' },
-		...(counts.hidden > 0 ? [{ kind: 'hidden', count: counts.hidden, label: 'hidden' }] : [])
+		{ kind: 'need-you' as const, count: counts.needYou, label: FILTER_LABELS['need-you'] },
+		{ kind: 'busy' as const, count: counts.busy, label: FILTER_LABELS.busy },
+		{ kind: 'idle' as const, count: counts.idle, label: FILTER_LABELS.idle }
 	]);
 </script>
 
@@ -30,10 +43,22 @@
 	<ul class="badges" aria-label="counts">
 		{#each badges as badge (badge.kind)}
 			<li class="badge {badge.kind}" class:active={badge.count > 0}>
-				<strong>{badge.count}</strong>
-				{badge.label}
+				<button
+					type="button"
+					aria-pressed={filter === badge.kind}
+					onclick={() => onfilter(badge.kind)}
+				>
+					<strong>{badge.count}</strong>
+					{badge.label}
+				</button>
 			</li>
 		{/each}
+		{#if counts.hidden > 0}
+			<li class="badge hidden active">
+				<strong>{counts.hidden}</strong>
+				hidden
+			</li>
+		{/if}
 	</ul>
 	<div class="actions">
 		<time
@@ -89,6 +114,21 @@
 
 	.badge.busy.active {
 		background: var(--color-badge-busy);
+	}
+
+	.badge button {
+		padding: 0;
+		border: none;
+		border-radius: inherit;
+		background: none;
+		color: inherit;
+		font: inherit;
+		cursor: pointer;
+	}
+
+	.badge button[aria-pressed='true'] {
+		outline: 1px solid var(--color-on-header);
+		outline-offset: -1px;
 	}
 
 	.actions {
