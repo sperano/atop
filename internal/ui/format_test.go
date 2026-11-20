@@ -1,6 +1,13 @@
 package ui
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/x/ansi"
+	"github.com/sperano/vigie/internal/board"
+	"github.com/sperano/vigie/internal/source"
+)
 
 func TestFitAndPad(t *testing.T) {
 	t.Parallel()
@@ -24,6 +31,29 @@ func TestFitAndPad(t *testing.T) {
 			t.Parallel()
 			if got := tt.fn(tt.in, tt.w); got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRowLineShowsTheLabel(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		row  source.Row
+		want string
+	}{
+		{"label", source.Row{Source: source.SourceVikunja, Name: "#1647", Label: "#1647 - Hollingsworth #577"}, "└─ #1647 - Hollingsworth #577"},
+		{"no label", source.Row{Source: source.SourcePR, Name: "vigie#3"}, "└─ vigie#3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			line := rowLine(board.Entry{Row: tt.row, Prefix: "└─ "}, fixedWidth+minDetailWidth)
+			const nameStart = markWidth + typeWidth + originWidth + 3*len(columnGap)
+			got := strings.TrimSpace(ansi.Cut(line, nameStart, nameStart+nameWidth))
+			if got != tt.want {
+				t.Errorf("NAME = %q, want %q", got, tt.want)
 			}
 		})
 	}

@@ -33,13 +33,14 @@ describe('decodeSnapshot', () => {
 
 	test('decodes the server test fixture byte for byte', () => {
 		// internal/server/handlers_test.go, TestSnapshotRowJSON.
-		const json = `{"fetched_at":"2026-11-15T12:00:00Z","refreshing":false,"error":"","counts":{"need_you":1,"busy":0,"idle":0,"hidden":0,"done":0},"rows":[{"source":"pr","name":"vigie#3","origin":"github","depth":0,"guides":"","mark":"●","state":"review","since":"2026-11-15T11:00:00Z","age":"1h","detail":"Serve the board","target":"https://github.com/o/vigie/pull/3","severity":"attention","needs_you":true,"busy":false,"hidden":false,"hideable":true}]}`;
+		const json = `{"fetched_at":"2026-11-15T12:00:00Z","refreshing":false,"error":"","counts":{"need_you":1,"busy":0,"idle":0,"hidden":0,"done":0},"rows":[{"source":"pr","name":"vigie#3","label":"vigie#3 - Vigie","origin":"github","depth":0,"guides":"","mark":"●","state":"review","since":"2026-11-15T11:00:00Z","age":"1h","detail":"Serve the board","target":"https://github.com/o/vigie/pull/3","severity":"attention","needs_you":true,"busy":false,"hidden":false,"hideable":true}]}`;
 		expect(decodeSnapshot(JSON.parse(json))).toEqual(
 			snapshot(
 				[
 					row({
 						source: 'pr',
 						name: 'vigie#3',
+						label: 'vigie#3 - Vigie',
 						origin: 'github',
 						mark: '●',
 						state: 'review',
@@ -178,6 +179,15 @@ describe('decodeSnapshot', () => {
 				return s;
 			},
 			'snapshot.rows[0].severity is not a severity: scary'
+		],
+		[
+			'label missing',
+			() => {
+				const s = valid();
+				delete firstRow(s)['label'];
+				return s;
+			},
+			'snapshot.rows[0].label is not a string'
 		],
 		[
 			'needs_you missing',

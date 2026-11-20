@@ -98,7 +98,7 @@ describe('the board', () => {
 			'actions'
 		]);
 		expect(bodyRows().map(cells)).toEqual([
-			['', '#7 | [claude] serve', 'vikunja | vikunja', 'idle', '2h', 'Hide'],
+			['', '#7 - Vigie #2 | [claude] serve', 'vikunja | vikunja', 'idle', '2h', 'Hide'],
 			['needs you', 'vigie#3 | Serve the board', 'pr | github', 'review', '1h', 'Hide'],
 			['', 'fix', 'kelos task | unknown', 'busy', '-', 'Hide'],
 			['needs you', '- | down', 'mirror | github', 'error', '-', '']
@@ -196,7 +196,7 @@ describe('the board', () => {
 		await mountWith();
 		const links = [...page.querySelectorAll<HTMLAnchorElement>('tbody a')];
 		expect(links.map((a) => [a.textContent, a.getAttribute('href'), a.target, a.rel])).toEqual([
-			['#7', TASK.target, '_blank', 'noopener noreferrer'],
+			['#7 - Vigie #2', TASK.target, '_blank', 'noopener noreferrer'],
 			['vigie#3', PR.target, '_blank', 'noopener noreferrer']
 		]);
 		expect(bodyRows()[2]?.querySelector('a')).toBeNull();
@@ -276,14 +276,14 @@ describe('filtering', () => {
 			bodyRows()
 				.map(cells)
 				.map((c) => c[1])
-		).toEqual(['#7 | [claude] serve']);
+		).toEqual(['#7 - Vigie #2 | [claude] serve']);
 		expect(badgeButton('need-you').getAttribute('aria-pressed')).toBe('false');
 		expect(badgeButton('idle').getAttribute('aria-pressed')).toBe('true');
 	});
 
 	test('selects the first matching row when the selected one is filtered out', async () => {
 		await mountWith();
-		expect(selectedName()).toBe('#7');
+		expect(selectedName()).toBe('#7 - Vigie #2');
 		badgeButton('busy').click();
 		flushSync();
 		expect(selectedName()).toBe('fix');
@@ -300,14 +300,14 @@ describe('filtering', () => {
 			bodyRows()
 				.map(cells)
 				.map((c) => c[1])
-		).toEqual(['#7 | [claude] serve']);
+		).toEqual(['#7 - Vigie #2 | [claude] serve']);
 	});
 });
 
 describe('moving', () => {
 	test('arrows and j/k move and stop at the ends', async () => {
 		await mountWith();
-		expect(selectedName()).toBe('#7');
+		expect(selectedName()).toBe('#7 - Vigie #2');
 		await press('{ArrowDown}');
 		expect(selectedName()).toBe('vigie#3');
 		await press('j');
@@ -317,7 +317,7 @@ describe('moving', () => {
 		await press('k');
 		expect(selectedName()).toBe('fix');
 		await press('{ArrowUp}{ArrowUp}{ArrowUp}{ArrowUp}');
-		expect(selectedName()).toBe('#7');
+		expect(selectedName()).toBe('#7 - Vigie #2');
 	});
 
 	test('home and end go to the first and last rows', async () => {
@@ -325,7 +325,7 @@ describe('moving', () => {
 		await press('{End}');
 		expect(selectedName()).toBe('-');
 		await press('{Home}');
-		expect(selectedName()).toBe('#7');
+		expect(selectedName()).toBe('#7 - Vigie #2');
 	});
 
 	test('pgdn and pgup move by the rows the table shows', async () => {

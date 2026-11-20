@@ -115,12 +115,35 @@ func TestRowKeyAndErrorRow(t *testing.T) {
 	if a.Key() == b.Key() {
 		t.Error("distinct names must give distinct keys")
 	}
+	if labelled := (Row{Source: "pr", Name: "x", Label: "x - more"}); labelled.Key() != a.Key() {
+		t.Error("a label must not change the key")
+	}
 	row := ErrorRow(SourcePR, errors.New("gh logged out"))
 	if row.Source != SourcePR || row.Origin != OriginGitHub || row.State != StateError || !row.NeedsYou || row.Detail != "gh logged out" {
 		t.Errorf("unexpected error row %+v", row)
 	}
 	if got := ErrorRow(SourceKelosTask, errors.New("kubectl unavailable")).Origin; got != OriginUnknown {
 		t.Errorf("Kelos Task collector error origin = %q, want unknown", got)
+	}
+}
+
+func TestDisplayName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		row  Row
+		want string
+	}{
+		{"label wins", Row{Name: "#1647", Label: "#1647 - Hollingsworth #577"}, "#1647 - Hollingsworth #577"},
+		{"no label shows the name", Row{Name: "#1647"}, "#1647"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.row.DisplayName(); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

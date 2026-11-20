@@ -9,17 +9,17 @@ Kelos Sessions and Tasks, open GitHub PRs, and in-progress Vikunja tasks.
 vigie · 2026-10-14 21:55:04 · 2 need you · 3 busy · 2 idle
 
   TYPE          ORIGIN   NAME                               STATE                  AGE DETAIL
-● vikunja       vikunja  #182                               reply from claude      48m [claude-opus] CLI: launch specific VMs …
+● vikunja       vikunja  #182 - cocovm #41                  reply from claude      48m [claude-opus] CLI: launch specific VMs …
   local claude  local    vigie-da                           busy                    3m ~/code/vigie tmux main:@5.%6
-  vikunja       vikunja  #840                               conflict fix            5m [claude-fable] we need a refresh
+  vikunja       vikunja  #840 - vigie #12                   conflict fix            5m [claude-fable] we need a refresh
   pr            github   └─ vigie#3                         conflict fix            5m [claude-fable] Show what each agent is doing
   kelos task    github      └─ pr-conflict-9f3              conflict fix            5m https://github.com/sperano/vigie/pull/3
-  vikunja       vikunja  #612                               implementing           12m [gpt-sol] CLI: list VMs
+  vikunja       vikunja  #612 - cocovm #57                  implementing           12m [gpt-sol] CLI: list VMs
   kelos task    vikunja  └─ vikunja-cocovm-612              implementing           12m vikunja #612
-  vikunja       vikunja  #589                               PR open                 2h [claude-fable] improve mcp server, let's …
+  vikunja       vikunja  #589 - puckdb #9                   PR open                 2h [claude-fable] improve mcp server, let's …
 ● pr            github   └─ puckdb#14                       awaiting your review    2h [claude-fable] Propose new MCP server tools
   kelos session kelos    eric-hollingsworth                 idle                    3h hollingsworth
-  vikunja       vikunja  #701                               idle                    1d [claude-opus] write the docs
+  vikunja       vikunja  #701 - vigie #8                    idle                    1d [claude-opus] write the docs
 ```
 
 Rows that need you come first and are marked `●`; failures and errors are
@@ -121,7 +121,7 @@ JSON, already nested, sorted and counted as the TUI draws it:
 
 | Endpoint | Does |
 | --- | --- |
-| `GET /api/v1/snapshot` | the snapshot: `rows` (source, name, origin, depth, guides, mark, state, since, age, detail, target URL, severity, needs you, busy, hidden, hideable: false for a source's error row), `counts`, `fetched_at` (null before the first refresh), `refreshing`, and `error`, the last hidden-row update's error |
+| `GET /api/v1/snapshot` | the snapshot: `rows` (source, name (with source, the row's identity), label (the name as shown), origin, depth, guides, mark, state, since, age, detail, target URL, severity, needs you, busy, hidden, hideable: false for a source's error row), `counts`, `fetched_at` (null before the first refresh), `refreshing`, and `error`, the last hidden-row update's error |
 | `GET /api/v1/events` | Server-Sent Events: a `snapshot` event with the whole snapshot on connection, when a refresh starts or ends, and when a row is hidden or unhidden; a `: keepalive` comment every 15 s. A client that falls behind gets the latest snapshot, not every one |
 | `POST /api/v1/refresh` | starts a refresh, or joins the running one (never two at once); answers `202` with the snapshot at once, and the new one arrives on the event stream. Within 10 s of the last refresh's end it starts none and answers `429` with `Retry-After` |
 | `PUT /api/v1/hidden/{source}/{name}` | hides a row of the last refresh: `204`; `404` for an unknown row, `409` for a source's error row, `500` when the hidden file cannot be read or written |
@@ -222,7 +222,7 @@ than inferred from a Task name or prompt.
 | `kelos session` | Kelos Sessions: `busy`/`idle` from the `Active` condition, else the lowercased phase | the phase is `Failed` | the Kelos console |
 | `kelos task` | Kelos Tasks. While one runs, its state is what it does: `implementing`, `discussing`, `conflict fix`, `cubic fix` (a review bot's findings; the bot's name comes from the Task), `pr follow-up`, `task follow-up`; a plumbing Task shows its Kelos role (`merge-close`, `pr-open`, `conflict-reconcile`). Otherwise `blocked` (waiting on its blockers), `waiting` (queued behind the branch lock), `pending`, `done` for an hour after completion, then hidden; `capped` (stopped on purpose by one of `--capped-exits`, such as the review round limit) while its pod still exists; else `failed`, DETAIL naming the container that failed and its exit code (`kelos-agent exit 1`), or Kelos's message when no container exited non-zero (the pod gone, or none failed), or its Vikunja task and PR when that message is empty too; the activity then starts DETAIL | the Task failed, unless capped | its run in Lucarne; with `--lucarne-url` empty or no Task UID, its PR, else its Vikunja task, else its logs in the console |
 | `pr` | open PRs of the owner's non-archived repos (first 50): `draft`, `conflicts`, `checks failing`, `checks running`, `changes requested`, `awaiting your review`; a `kelos:<variant>` label prefixes the title with `[variant]` | conflicts, failing checks, or awaiting review | the PR |
-| `vikunja` | tasks labelled in progress and not done, the title prefixed with the agent user they are assigned to: `PR open` (the task carries the `pr open` label Kelos adds while its PR is open), `agent started` (Kelos's newest notice says an agent was started or queued for it; DETAIL ends with the Kelos Task it names), `agent stopped`, `merged`, `ready`, `discuss` (Kelos's newest notice reports one of these), `reply from <user>` (someone else spoke last, Kelos included for any other notice), `idle` (you spoke last, or nobody did, and no agent is running) | the newest comment is neither yours nor a Kelos notice that needs nothing of you, and the PR is not open | the task |
+| `vikunja` | tasks labelled in progress and not done, NAME the task id then its project and number in that project (`#1647 - Hollingsworth #577`), the title prefixed with the agent user they are assigned to: `PR open` (the task carries the `pr open` label Kelos adds while its PR is open), `agent started` (Kelos's newest notice says an agent was started or queued for it; DETAIL ends with the Kelos Task it names), `agent stopped`, `merged`, `ready`, `discuss` (Kelos's newest notice reports one of these), `reply from <user>` (someone else spoke last, Kelos included for any other notice), `idle` (you spoke last, or nobody did, and no agent is running) | the newest comment is neither yours nor a Kelos notice that needs nothing of you, and the PR is not open | the task |
 
 An agent working on a row speaks for it: while a Kelos Task runs on a Vikunja
 task or on a PR, that row takes the Task's state (`conflict fix`, `cubic fix`,

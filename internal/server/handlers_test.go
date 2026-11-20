@@ -57,7 +57,7 @@ func TestSnapshotRowJSON(t *testing.T) {
 	h := newHarness(t, nil)
 	h.refreshWith(testRows()[1:2])
 	const want = `{"fetched_at":"2026-11-15T12:00:00Z","refreshing":false,"error":"",` +
-		`"counts":{"need_you":1,"busy":0,"idle":0,"hidden":0,"done":0},"rows":[{"source":"pr","name":"vigie#3","origin":"github",` +
+		`"counts":{"need_you":1,"busy":0,"idle":0,"hidden":0,"done":0},"rows":[{"source":"pr","name":"vigie#3","label":"vigie#3","origin":"github",` +
 		`"depth":0,"guides":"","mark":"●","state":"review","since":"2026-11-15T11:00:00Z","age":"1h","detail":"Serve the board",` +
 		`"target":"` + prURL + `","severity":"attention","needs_you":true,"busy":false,"hidden":false,"hideable":true}]}` + "\n"
 	if got := body(t, do(t, h.srv, http.MethodGet, snapshotURL)); got != want {

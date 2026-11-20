@@ -64,7 +64,7 @@ func headerLine(width int) string {
 
 func rowLine(e board.Entry, width int) string {
 	r := e.Row
-	return formatColumns(e.Mark, r.Source, e.Origin, e.Prefix+r.Name, r.State, e.Age, oneLine(r.Detail), width)
+	return formatColumns(e.Mark, r.Source, e.Origin, e.Prefix+r.DisplayName(), r.State, e.Age, oneLine(r.Detail), width)
 }
 
 // oneLine flattens newlines so that a detail cannot break the table.

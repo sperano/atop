@@ -7,6 +7,7 @@ export const HOUR_MS = 60 * 60 * 1000;
 
 export function row(fields: Partial<Row> & Pick<Row, 'source' | 'name'>): Row {
 	return {
+		label: fields.name,
 		origin: 'github',
 		depth: 0,
 		guides: '',
@@ -41,6 +42,7 @@ export function rowJSON(r: Row): Record<string, unknown> {
 	return {
 		source: r.source,
 		name: r.name,
+		label: r.label,
 		origin: r.origin,
 		depth: r.depth,
 		guides: r.guides,

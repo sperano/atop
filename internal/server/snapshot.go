@@ -28,7 +28,8 @@ type Counts struct {
 // Row is a row placed in the tree, with what is drawn for it.
 type Row struct {
 	Source   string         `json:"source"`
-	Name     string         `json:"name"`
+	Name     string         `json:"name"`  // identity, with source, for the hidden-rows API
+	Label    string         `json:"label"` // the name as shown
 	Origin   string         `json:"origin"`
 	Depth    int            `json:"depth"`
 	Guides   string         `json:"guides"` // tree guides drawn before the name
@@ -65,7 +66,7 @@ func (s *Server) snapshot(showHidden, hideDone bool) Snapshot {
 func newRow(e board.Entry) Row {
 	r := e.Row
 	row := Row{
-		Source: r.Source, Name: r.Name, Origin: e.Origin,
+		Source: r.Source, Name: r.Name, Label: r.DisplayName(), Origin: e.Origin,
 		Depth: e.Depth, Guides: e.Prefix, Mark: e.Mark,
 		State: r.State, Since: optionalTime(r.Since), Age: e.Age, Detail: r.Detail,
 		Severity: e.Severity, NeedsYou: r.NeedsYou, Busy: r.Busy, Hidden: e.Hidden,

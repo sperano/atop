@@ -52,6 +52,8 @@ func VikunjaTaskURL(webBase, id string) string {
 type vikunjaTask struct {
 	ID           int              `json:"id"`
 	Title        string           `json:"title"`
+	ProjectID    int              `json:"project_id"`
+	Index        int              `json:"index"` // the task's number in its project
 	Updated      string           `json:"updated"`
 	Comments     []vikunjaComment `json:"comments,omitempty"`
 	CommentCount *int             `json:"comment_count,omitempty"`
@@ -122,11 +124,17 @@ func (v *Vikunja) Fetch(ctx context.Context) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
+	projects, err := v.projects(ctx, token, tasks)
+	if err != nil {
+		return nil, err
+	}
 	stale := Staleness{Days: v.StaleDays, Now: v.Now()}
 	web := VikunjaWebBase(v.APIURL)
 	rows := make([]Row, 0, len(tasks))
 	for i, t := range tasks {
-		rows = append(rows, v.row(t, comments[i], stale, web))
+		row := v.row(t, comments[i], stale, web)
+		row.Label = taskLabel(t, projects)
+		rows = append(rows, row)
 	}
 	return rows, nil
 }
@@ -332,7 +340,7 @@ func (v *Vikunja) row(t vikunjaTask, last *vikunjaComment, stale Staleness, web 
 	row := Row{
 		Source: SourceVikunja,
 		Origin: OriginVikunja,
-		Name:   "#" + strconv.Itoa(t.ID),
+		Name:   vikunjaName(t),
 		Since:  parseTime(t.Updated),
 		Detail: taskTitle(t),
 		Target: Target{URL: VikunjaTaskURL(web, strconv.Itoa(t.ID))},

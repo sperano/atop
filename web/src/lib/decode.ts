@@ -91,6 +91,7 @@ function decodeRow(value: unknown, path: string): Row {
 	return {
 		source: string(o, 'source', path),
 		name: string(o, 'name', path),
+		label: string(o, 'label', path),
 		origin: string(o, 'origin', path),
 		depth: count(o, 'depth', path),
 		guides: string(o, 'guides', path),
