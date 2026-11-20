@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // vikunjaProject is the part of a Vikunja project vigie reads.
@@ -45,11 +46,24 @@ func (v *Vikunja) projectTitles(ctx context.Context, token string) (map[int]stri
 // alone when either is unknown.
 func taskLabel(t vikunjaTask, projects map[int]string) string {
 	name := vikunjaName(t)
-	title := strings.TrimSpace(projects[t.ProjectID])
+	title := printable(projects[t.ProjectID])
 	if title == "" || t.Index <= 0 {
 		return name
 	}
 	return name + labelSeparator + title + " #" + strconv.Itoa(t.Index)
+}
+
+// printable flattens a title to one line of printable text: control
+// characters (ESC, newlines) become spaces, then runs of spaces collapse,
+// so that a project title cannot drive the terminal or break the table.
+func printable(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, s)
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // vikunjaName is a task row's NAME, its identity: the global id.

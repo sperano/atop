@@ -3,7 +3,9 @@ package source
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -11,7 +13,10 @@ import (
 
 func TestTaskLabel(t *testing.T) {
 	t.Parallel()
-	projects := map[int]string{3: "Hollingsworth", 4: "  ", 5: " vigie "}
+	projects := map[int]string{
+		3: "Hollingsworth", 4: "  ", 5: " vigie ",
+		6: "red\x1b[31m\nteam\tA", 8: "\x1b\x07\r\n",
+	}
 	tests := []struct {
 		name     string
 		task     vikunjaTask
@@ -20,6 +25,8 @@ func TestTaskLabel(t *testing.T) {
 	}{
 		{"project and number", vikunjaTask{ID: 1647, ProjectID: 3, Index: 577}, projects, "#1647 - Hollingsworth #577"},
 		{"title trimmed", vikunjaTask{ID: 9, ProjectID: 5, Index: 2}, projects, "#9 - vigie #2"},
+		{"control characters flattened", vikunjaTask{ID: 9, ProjectID: 6, Index: 2}, projects, "#9 - red [31m team A #2"},
+		{"only control characters", vikunjaTask{ID: 9, ProjectID: 8, Index: 2}, projects, "#9"},
 		{"unknown project", vikunjaTask{ID: 1647, ProjectID: 99, Index: 577}, projects, "#1647"},
 		{"blank project title", vikunjaTask{ID: 1647, ProjectID: 4, Index: 577}, projects, "#1647"},
 		{"no number", vikunjaTask{ID: 1647, ProjectID: 3}, projects, "#1647"},
@@ -61,6 +68,39 @@ func TestVikunjaFetchLabelsRowsWithTheirProject(t *testing.T) {
 	}
 	if want := []string{"1 true", "2 true"}; !slices.Equal(s.projectPages, want) {
 		t.Errorf("project requests = %q, want %q", s.projectPages, want)
+	}
+}
+
+// TestVikunjaFetchReadsWireNames serves literal Vikunja JSON, so that the
+// struct tags are checked against the API's keys, not against themselves.
+func TestVikunjaFetchReadsWireNames(t *testing.T) {
+	t.Parallel()
+	const (
+		tasksJSON    = `[{"id":1647,"title":"t","project_id":3,"index":577,"updated":"2026-11-15T12:00:00Z","comment_count":0}]`
+		projectsJSON = `[{"id":3,"title":"Hollingsworth"}]`
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch strings.TrimPrefix(r.URL.Path, apiPrefix) {
+		case "/tasks":
+			_, _ = io.WriteString(w, tasksJSON)
+		case "/projects":
+			_, _ = io.WriteString(w, projectsJSON)
+		default:
+			_, _ = io.WriteString(w, "[]")
+		}
+	}))
+	t.Cleanup(srv.Close)
+	v := testVikunjaSource()
+	v.APIURL = srv.URL + apiPrefix
+	v.Token = testToken
+	v.InProgressLabel = 1
+	v.Client = srv.Client()
+	rows, err := v.Fetch(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Name != "#1647" || rows[0].Label != "#1647 - Hollingsworth #577" {
+		t.Errorf("rows = %+v, want #1647 labelled \"#1647 - Hollingsworth #577\"", rows)
 	}
 }
 
