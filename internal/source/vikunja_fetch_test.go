@@ -25,14 +25,17 @@ const (
 type vikunjaServer struct {
 	mu       sync.Mutex
 	tasks    []vikunjaTask
-	comments map[int][]vikunjaComment // oldest first
-	auths    []string
-	pages    []string // "<taskID>:<page>" for each comment request
-	orders   []string
-	perPages []string
-	filters  []string
-	expands  []string
-	status   int
+	projects []vikunjaProject
+	// projectPages are the page and is_archived of each project request.
+	projectPages []string
+	comments     map[int][]vikunjaComment // oldest first
+	auths        []string
+	pages        []string // "<taskID>:<page>" for each comment request
+	orders       []string
+	perPages     []string
+	filters      []string
+	expands      []string
+	status       int
 	// pageCap, when set, caps per_page like service.maxitemsperpage and
 	// sends the total-pages header on task lists.
 	pageCap int
@@ -48,6 +51,11 @@ func (s *vikunjaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	path := strings.TrimPrefix(r.URL.Path, apiPrefix)
+	if path == "/projects" {
+		s.projectPages = append(s.projectPages, q.Get("page")+" "+q.Get("is_archived"))
+		serveSlice(w, s.projects, s.pageCap, q.Get("page"), q.Get("per_page"))
+		return
+	}
 	if path == "/tasks" {
 		s.filters = append(s.filters, q.Get("filter"))
 		s.expands = append(s.expands, strings.Join(q["expand"], ","))
@@ -66,15 +74,21 @@ func (s *vikunjaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *vikunjaServer) serveTasks(w http.ResponseWriter, page, perPage string) {
+	serveSlice(w, s.tasks, s.pageCap, page, perPage)
+}
+
+// serveSlice serves one page of items, capping per_page at pageCap and
+// sending the total-pages header when pageCap is set.
+func serveSlice[T any](w http.ResponseWriter, items []T, pageCap int, page, perPage string) {
 	p, _ := strconv.Atoi(page)
 	n, _ := strconv.Atoi(perPage)
-	if s.pageCap > 0 {
-		n = min(n, s.pageCap)
-		w.Header()[pagesHeader] = []string{strconv.Itoa((len(s.tasks) + n - 1) / n)}
+	if pageCap > 0 {
+		n = min(n, pageCap)
+		w.Header()[pagesHeader] = []string{strconv.Itoa((len(items) + n - 1) / n)}
 	}
-	lo := min((p-1)*n, len(s.tasks))
-	hi := min(p*n, len(s.tasks))
-	_ = json.NewEncoder(w).Encode(s.tasks[lo:hi])
+	lo := min((p-1)*n, len(items))
+	hi := min(p*n, len(items))
+	_ = json.NewEncoder(w).Encode(items[lo:hi])
 }
 
 // serveComment orders newest first like Vikunja: by created, to the

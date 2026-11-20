@@ -5,6 +5,7 @@ import { HOUR_MS, row, snapshot, TEST_NOW } from './builders';
 export const TASK = row({
 	source: 'vikunja',
 	name: '#7',
+	label: '#7 - Vigie #2',
 	origin: 'vikunja',
 	state: 'idle',
 	since: TEST_NOW - 2 * HOUR_MS,

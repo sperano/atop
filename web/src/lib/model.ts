@@ -9,6 +9,8 @@ export type Severity = (typeof SEVERITIES)[number];
 export interface Row {
 	readonly source: string;
 	readonly name: string;
+	/** The name as shown; `name` stays the row's identity. */
+	readonly label: string;
 	readonly origin: string;
 	/** Depth in the tree, 0 at the top level. */
 	readonly depth: number;

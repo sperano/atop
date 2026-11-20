@@ -62,9 +62,12 @@ type Target struct {
 
 // Row is one line of the table.
 type Row struct {
-	Source   string
-	Origin   string
-	Name     string
+	Source string
+	Origin string
+	Name   string
+	// Label is how NAME is shown when it says more than Name, which stays
+	// the row's identity; empty shows Name.
+	Label    string
 	State    string
 	Since    time.Time // zero when unknown
 	Detail   string
@@ -84,6 +87,14 @@ type Row struct {
 // Key identifies a row across refreshes.
 func (r Row) Key() string {
 	return r.Source + "\x00" + r.Name
+}
+
+// DisplayName is the NAME shown for the row.
+func (r Row) DisplayName() string {
+	if r.Label != "" {
+		return r.Label
+	}
+	return r.Name
 }
 
 // errorRowName is the NAME of a source's error row.

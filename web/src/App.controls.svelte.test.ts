@@ -119,11 +119,17 @@ describe('the app bar', () => {
 describe('the row buttons', () => {
 	test('Hide hides its own row and selects it', async () => {
 		await mountWith();
-		expect(selectedName()).toBe(TASK.name);
+		expect(selectedName()).toBe(TASK.label);
 		await click(rowButton(1));
 		expect(api.calls.at(-1)).toBe('hide pr vigie#3');
 		expect(selectedName()).toBe(PR.name);
 		expect(status().textContent?.trim()).toBe('hid pr vigie#3 · H shows hidden rows');
+	});
+
+	test('Hide names a labelled row by its name, not its label', async () => {
+		await mountWith();
+		await click(rowButton(0));
+		expect(api.calls.at(-1)).toBe('hide vikunja #7');
 	});
 
 	test('Unhide unhides a hidden row', async () => {

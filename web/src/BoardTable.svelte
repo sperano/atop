@@ -69,10 +69,10 @@
 							>{/if}
 					</td>
 					<td class="item" class:nested={row.depth > 0} style:--depth={row.depth}>
-						<div class="name" title={row.name}>
+						<div class="name" title={row.label}>
 							{#if row.target}<a href={row.target} target="_blank" rel="noopener noreferrer"
-									>{row.name}</a
-								>{:else}{row.name}{/if}{#if row.hidden}<span class="tag">hidden</span>{/if}
+									>{row.label}</a
+								>{:else}{row.label}{/if}{#if row.hidden}<span class="tag">hidden</span>{/if}
 						</div>
 						{#if row.detail}<div class="detail" title={row.detail}>{row.detail}</div>{/if}
 					</td>
